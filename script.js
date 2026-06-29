@@ -662,35 +662,39 @@ function openLogForm(type, existing) {
   let formHtml = '';
 
   if (type === 'war') {
+    const orgSel = (id, val) => `<select id="${id}" class="admin-select">${orgsData.map(o=>`<option value="${o.tag}" ${val===o.tag?'selected':''}>${o.tag} — ${o.name}</option>`).join('')}</select>`;
+    const winSel = (val) => `<select id="lf_winner" class="admin-select"><option value="">— NENHUM —</option>${orgsData.map(o=>`<option value="${o.tag}" ${val===o.tag?'selected':''}>${o.tag} — ${o.name}</option>`).join('')}</select>`;
     formHtml = `
       <div class="admin-form-grid-3">
-        <div class="admin-field"><label class="admin-label">ORG 1</label><input id="lf_org1" class="admin-input" value="${e.org1||''}"></div>
+        <div class="admin-field"><label class="admin-label">ORG 1</label>${orgSel('lf_org1', e.org1||'')}</div>
         <div class="admin-field"><label class="admin-label">S1</label><input id="lf_s1" type="number" min="0" class="admin-input" value="${e.score1??''}"></div>
         <div class="admin-field"><label class="admin-label">S2</label><input id="lf_s2" type="number" min="0" class="admin-input" value="${e.score2??''}"></div>
-        <div class="admin-field"><label class="admin-label">ORG 2</label><input id="lf_org2" class="admin-input" value="${e.org2||''}"></div>
+        <div class="admin-field"><label class="admin-label">ORG 2</label>${orgSel('lf_org2', e.org2||'')}</div>
       </div>
       <div class="admin-form-grid-2">
         <div class="admin-field"><label class="admin-label">DATE</label><input id="lf_date" type="date" class="admin-input" value="${e.date||''}"></div>
-        <div class="admin-field"><label class="admin-label">WINNER</label><input id="lf_winner" class="admin-input" value="${e.winner||''}" placeholder="Org tag or name"></div>
+        <div class="admin-field"><label class="admin-label">WINNER</label>${winSel(e.winner||'')}</div>
         <div class="admin-field"><label class="admin-label">WAGER</label><input id="lf_wager" class="admin-input" value="${e.wager||''}" placeholder="ex: $500, itens, custom..."></div>
         <div class="admin-field"><label class="admin-label">REGION</label><select id="lf_region" class="admin-select"><option ${e.region==='NA'?'selected':''}>NA</option><option ${e.region==='EU'?'selected':''}>EU</option><option ${e.region==='ASIA'?'selected':''}>ASIA</option><option ${e.region==='OCE'?'selected':''}>OCE</option><option ${e.region==='SA'?'selected':''}>SA</option></select></div>
-        <div class="admin-field"><label class="admin-label">ELO ${e.org1||'ORG 1'} (ex: +25 ou -20)</label><input id="lf_elo1" type="number" class="admin-input" value="${e.elo_org1??''}" placeholder="opcional"></div>
-        <div class="admin-field"><label class="admin-label">ELO ${e.org2||'ORG 2'} (ex: +25 ou -20)</label><input id="lf_elo2" type="number" class="admin-input" value="${e.elo_org2??''}" placeholder="opcional"></div>
+        <div class="admin-field"><label class="admin-label">ELO ORG 1 (ex: +25 ou -20)</label><input id="lf_elo1" type="number" class="admin-input" value="${e.elo_org1??''}" placeholder="opcional"></div>
+        <div class="admin-field"><label class="admin-label">ELO ORG 2 (ex: +25 ou -20)</label><input id="lf_elo2" type="number" class="admin-input" value="${e.elo_org2??''}" placeholder="opcional"></div>
         <div class="admin-field"><label class="admin-label">SEASON</label><input id="lf_season" class="admin-input" value="${e.season||'S3'}" placeholder="S1, S2, S3..."></div>
         <div class="admin-field"><label class="admin-label">NOTES</label><input id="lf_notes" class="admin-input" value="${e.notes||''}"></div>
       </div>`;
   } else if (type === 'season') {
+    const orgSel = (id, val) => `<select id="${id}" class="admin-select">${orgsData.map(o=>`<option value="${o.tag}" ${val===o.tag?'selected':''}>${o.tag} — ${o.name}</option>`).join('')}</select>`;
+    const winSel = (val) => `<select id="lf_winner" class="admin-select"><option value="">— NENHUM —</option>${orgsData.map(o=>`<option value="${o.tag}" ${val===o.tag?'selected':''}>${o.tag} — ${o.name}</option>`).join('')}</select>`;
     formHtml = `
       <div class="admin-form-grid-3">
-        <div class="admin-field"><label class="admin-label">ORG 1</label><input id="lf_org1" class="admin-input" value="${e.org1||''}"></div>
+        <div class="admin-field"><label class="admin-label">ORG 1</label>${orgSel('lf_org1', e.org1||'')}</div>
         <div class="admin-field"><label class="admin-label">S1</label><input id="lf_s1" type="number" min="0" class="admin-input" value="${e.score1??''}"></div>
         <div class="admin-field"><label class="admin-label">S2</label><input id="lf_s2" type="number" min="0" class="admin-input" value="${e.score2??''}"></div>
-        <div class="admin-field"><label class="admin-label">ORG 2</label><input id="lf_org2" class="admin-input" value="${e.org2||''}"></div>
+        <div class="admin-field"><label class="admin-label">ORG 2</label>${orgSel('lf_org2', e.org2||'')}</div>
       </div>
       <div class="admin-form-grid-2">
         <div class="admin-field"><label class="admin-label">DATE</label><input id="lf_date" type="date" class="admin-input" value="${e.date||''}"></div>
         <div class="admin-field"><label class="admin-label">EVENT NAME</label><input id="lf_event" class="admin-input" value="${e.event_name||''}"></div>
-        <div class="admin-field"><label class="admin-label">WINNER</label><input id="lf_winner" class="admin-input" value="${e.winner||''}"></div>
+        <div class="admin-field"><label class="admin-label">WINNER</label>${winSel(e.winner||'')}</div>
         <div class="admin-field"><label class="admin-label">REGION</label><select id="lf_region" class="admin-select"><option ${e.region==='NA'?'selected':''}>NA</option><option ${e.region==='EU'?'selected':''}>EU</option><option ${e.region==='ASIA'?'selected':''}>ASIA</option><option ${e.region==='OCE'?'selected':''}>OCE</option><option ${e.region==='SA'?'selected':''}>SA</option></select></div>
         <div class="admin-field"><label class="admin-label">SEASON</label><input id="lf_season" class="admin-input" value="${e.season||'S3'}"></div>
         <div class="admin-field"><label class="admin-label">NOTES</label><input id="lf_notes" class="admin-input" value="${e.notes||''}"></div>
