@@ -1,0 +1,517 @@
+require('dotenv').config();
+const express              = require('express');
+const { DatabaseSync }     = require('node:sqlite');
+const jwt                  = require('jsonwebtoken');
+const crypto               = require('crypto');
+const path                 = require('path');
+
+const app  = express();
+const PORT = process.env.PORT || 3000;
+const JWT_SECRET      = process.env.JWT_SECRET      || 'vvl-change-me';
+const ADMIN_USER_HASH = process.env.ADMIN_USER_HASH || '';
+const ADMIN_PASS_HASH = process.env.ADMIN_PASS_HASH || '';
+
+app.use(express.json());
+app.use(express.static(path.join(__dirname)));
+
+// ============================================================
+// DATABASE
+// ============================================================
+const db = new DatabaseSync(path.join(__dirname, 'vvleague.db'));
+db.exec("PRAGMA journal_mode = WAL");
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS war_logs (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    date      TEXT NOT NULL,
+    org1      TEXT NOT NULL,
+    org2      TEXT NOT NULL,
+    score1    INTEGER DEFAULT 0,
+    score2    INTEGER DEFAULT 0,
+    winner    TEXT DEFAULT '',
+    wager     INTEGER DEFAULT 0,
+    region    TEXT DEFAULT 'NA',
+    season    TEXT DEFAULT 'S3',
+    notes     TEXT DEFAULT '',
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS season_logs (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    season      TEXT NOT NULL,
+    date        TEXT NOT NULL,
+    event_name  TEXT DEFAULT '',
+    org1        TEXT NOT NULL,
+    org2        TEXT NOT NULL,
+    score1      INTEGER DEFAULT 0,
+    score2      INTEGER DEFAULT 0,
+    winner      TEXT DEFAULT '',
+    region      TEXT DEFAULT 'NA',
+    notes       TEXT DEFAULT '',
+    created_at  TEXT DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS wager_records (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    date       TEXT NOT NULL,
+    challenger TEXT NOT NULL,
+    challenged TEXT NOT NULL,
+    amount     INTEGER NOT NULL DEFAULT 0,
+    winner     TEXT DEFAULT '',
+    status     TEXT DEFAULT 'pending',
+    paid       INTEGER DEFAULT 0,
+    season     TEXT DEFAULT 'S3',
+    notes      TEXT DEFAULT '',
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS awards (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    season            TEXT NOT NULL,
+    recipient_name    TEXT NOT NULL,
+    recipient_org     TEXT DEFAULT '',
+    award_title       TEXT NOT NULL,
+    award_description TEXT DEFAULT '',
+    photo_url         TEXT DEFAULT '',
+    sort_order        INTEGER DEFAULT 0,
+    created_at        TEXT DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS brackets (
+    region     TEXT PRIMARY KEY,
+    data       TEXT NOT NULL,
+    updated_at TEXT DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS rules (
+    page       TEXT PRIMARY KEY,
+    content    TEXT NOT NULL DEFAULT '',
+    updated_at TEXT DEFAULT (datetime('now'))
+  );
+`);
+
+// Migrate: add elo columns to war_logs if not present
+try { db.exec('ALTER TABLE war_logs ADD COLUMN elo_org1 INTEGER DEFAULT NULL'); } catch(e) {}
+try { db.exec('ALTER TABLE war_logs ADD COLUMN elo_org2 INTEGER DEFAULT NULL'); } catch(e) {}
+
+// ============================================================
+// ORGS / MEMBERS / PLAYERS TABLES
+// ============================================================
+db.exec(`
+  CREATE TABLE IF NOT EXISTS orgs (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    tag        TEXT NOT NULL UNIQUE,
+    name       TEXT NOT NULL,
+    status     TEXT DEFAULT 'active',
+    founded    TEXT DEFAULT 'S1',
+    region     TEXT DEFAULT 'NA',
+    icon       TEXT DEFAULT '',
+    mvp        TEXT DEFAULT '',
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS org_members (
+    id     INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id INTEGER NOT NULL,
+    name   TEXT NOT NULL,
+    role   TEXT DEFAULT 'Player'
+  );
+
+  CREATE TABLE IF NOT EXISTS players (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    name       TEXT NOT NULL,
+    org        TEXT DEFAULT '',
+    elo        INTEGER DEFAULT 1000,
+    wins       INTEGER DEFAULT 0,
+    losses     INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+`);
+
+// Seed orgs if empty
+if (!db.prepare('SELECT COUNT(*) as c FROM orgs').get().c) {
+  const insOrg = db.prepare('INSERT INTO orgs (tag,name,status,founded,region,icon,mvp) VALUES (?,?,?,?,?,?,?)');
+  const insMem = db.prepare('INSERT INTO org_members (org_id,name,role) VALUES (?,?,?)');
+  [
+    { tag:'VVS', name:'VVS Esports',  status:'active',   founded:'Season 1', region:'NA',   icon:'⚡', mvp:'ShadowX',    members:[{name:'ShadowX',role:'Leader'},{name:'NightFox',role:'Player'},{name:'BladeRush',role:'Player'},{name:'ColdWave',role:'Player'},{name:'IronGhost',role:'Sub'}] },
+    { tag:'NXS', name:'Nexus Gaming', status:'active',   founded:'Season 1', region:'NA',   icon:'🔷', mvp:'PhoenixR',   members:[{name:'PhoenixR',role:'Leader'},{name:'VoltEdge',role:'Player'},{name:'StormByte',role:'Player'},{name:'DarkPulse',role:'Player'}] },
+    { tag:'ZRO', name:'Zero Hour',    status:'active',   founded:'Season 2', region:'NA',   icon:'🌀', mvp:'GlitchKing', members:[{name:'GlitchKing',role:'Leader'},{name:'SteelViper',role:'Player'},{name:'ArcFlame',role:'Player'}] },
+    { tag:'RVN', name:'Raven Org',    status:'active',   founded:'Season 2', region:'NA',   icon:'🦅', mvp:'LunarBlade', members:[{name:'CrimsonFang',role:'Leader'},{name:'LunarBlade',role:'Player'},{name:'EchoSniper',role:'Player'},{name:'WarpField',role:'Sub'}] },
+    { tag:'TRX', name:'Torex Squad',  status:'inactive', founded:'Season 1', region:'NA',   icon:'🔩', mvp:'ThunderX',   members:[{name:'ThunderX',role:'Leader'},{name:'HazeSpark',role:'Player'}] },
+    { tag:'ABY', name:'Abyss Club',   status:'active',   founded:'Season 3', region:'NA',   icon:'🌑', mvp:'VoidSeeker', members:[{name:'VoidSeeker',role:'Leader'},{name:'NullByte',role:'Player'},{name:'ChaosBolt',role:'Player'}] },
+    { tag:'FRZ', name:'Frenzy EU',    status:'active',   founded:'Season 2', region:'EU',   icon:'🔥', mvp:'KrakenX',    members:[{name:'KrakenX',role:'Leader'},{name:'FrostEdge',role:'Player'},{name:'GaleForce',role:'Player'},{name:'TerraFirm',role:'Player'}] },
+    { tag:'SKY', name:'Skyline ASIA', status:'active',   founded:'Season 1', region:'ASIA', icon:'🐉', mvp:'DragonFist', members:[{name:'DragonFist',role:'Leader'},{name:'ThunderKoi',role:'Player'},{name:'SilkWind',role:'Player'}] },
+  ].forEach(o => {
+    const r = insOrg.run(o.tag, o.name, o.status, o.founded, o.region, o.icon, o.mvp);
+    o.members.forEach(m => insMem.run(r.lastInsertRowid, m.name, m.role));
+  });
+}
+
+// Seed players if empty
+if (!db.prepare('SELECT COUNT(*) as c FROM players').get().c) {
+  const insP = db.prepare('INSERT INTO players (name,org,elo,wins,losses) VALUES (?,?,?,?,?)');
+  [
+    {name:'ShadowX',    org:'VVS', elo:2780, wins:38, losses:12},
+    {name:'PhoenixR',   org:'NXS', elo:2610, wins:34, losses:16},
+    {name:'KrakenX',    org:'FRZ', elo:2580, wins:32, losses:14},
+    {name:'DragonFist', org:'SKY', elo:2490, wins:29, losses:18},
+    {name:'GlitchKing', org:'ZRO', elo:2440, wins:27, losses:19},
+    {name:'LunarBlade', org:'RVN', elo:2240, wins:26, losses:20},
+    {name:'NightFox',   org:'VVS', elo:2180, wins:25, losses:22},
+    {name:'VoltEdge',   org:'NXS', elo:1940, wins:21, losses:24},
+    {name:'VoidSeeker', org:'ABY', elo:1820, wins:20, losses:25},
+    {name:'ArcFlame',   org:'ZRO', elo:1750, wins:18, losses:26},
+    {name:'CrimsonFang',org:'RVN', elo:1620, wins:16, losses:28},
+    {name:'EchoSniper', org:'RVN', elo:1530, wins:15, losses:29},
+    {name:'StormByte',  org:'NXS', elo:1480, wins:14, losses:30},
+    {name:'BladeRush',  org:'VVS', elo:1390, wins:13, losses:31},
+    {name:'HazeSpark',  org:'TRX', elo:890,  wins:7,  losses:37},
+  ].forEach(p => insP.run(p.name, p.org, p.elo, p.wins, p.losses));
+}
+
+// Migrate: convert wager column to TEXT (recreate table preserving data)
+const warCols = db.prepare("PRAGMA table_info(war_logs)").all();
+if (warCols.find(c => c.name === 'wager' && c.type === 'INTEGER')) {
+  db.exec(`
+    BEGIN;
+    ALTER TABLE war_logs RENAME TO _war_logs_old;
+    CREATE TABLE war_logs (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      date       TEXT NOT NULL,
+      org1       TEXT NOT NULL,
+      org2       TEXT NOT NULL,
+      score1     INTEGER DEFAULT 0,
+      score2     INTEGER DEFAULT 0,
+      winner     TEXT DEFAULT '',
+      wager      TEXT DEFAULT '',
+      region     TEXT DEFAULT 'NA',
+      season     TEXT DEFAULT 'S3',
+      notes      TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now')),
+      elo_org1   INTEGER DEFAULT NULL,
+      elo_org2   INTEGER DEFAULT NULL
+    );
+    INSERT INTO war_logs SELECT id,date,org1,org2,score1,score2,winner,CAST(wager AS TEXT),region,season,notes,created_at,elo_org1,elo_org2 FROM _war_logs_old;
+    DROP TABLE _war_logs_old;
+    COMMIT;
+  `);
+}
+
+// ============================================================
+// HELPERS
+// ============================================================
+function sha256(str) {
+  return crypto.createHash('sha256').update(str, 'utf8').digest('hex');
+}
+
+function requireAdmin(req, res, next) {
+  const auth = req.headers.authorization;
+  if (!auth || !auth.startsWith('Bearer ')) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const payload = jwt.verify(auth.slice(7), JWT_SECRET);
+    if (payload.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+    req.admin = payload;
+    next();
+  } catch (e) {
+    return res.status(401).json({ error: 'Token invalid or expired' });
+  }
+}
+
+// ============================================================
+// AUTH
+// ============================================================
+app.post('/api/auth/login', (req, res) => {
+  const { username, password } = req.body || {};
+  if (!username || !password) return res.status(400).json({ error: 'Missing credentials' });
+
+  if (sha256(username) === ADMIN_USER_HASH && sha256(password) === ADMIN_PASS_HASH) {
+    const token = jwt.sign({ role: 'admin' }, JWT_SECRET, { expiresIn: '8h' });
+    return res.json({ token });
+  }
+  return res.status(401).json({ error: 'Invalid credentials' });
+});
+
+app.get('/api/auth/verify', requireAdmin, (_req, res) => res.json({ valid: true }));
+
+// ============================================================
+// WAR LOGS
+// ============================================================
+app.get('/api/logs/war', (req, res) => {
+  const { season, region } = req.query;
+  const conds = [], params = [];
+  if (season) { conds.push('season = ?'); params.push(season); }
+  if (region && region !== 'ALL') { conds.push('region = ?'); params.push(region); }
+  const where = conds.length ? ' WHERE ' + conds.join(' AND ') : '';
+  res.json(db.prepare(`SELECT * FROM war_logs${where} ORDER BY date DESC, id DESC`).all(...params));
+});
+
+app.post('/api/logs/war', requireAdmin, (req, res) => {
+  const { date, org1, org2, score1, score2, winner, wager, region, season, notes, elo_org1, elo_org2 } = req.body;
+  if (!date || !org1 || !org2) return res.status(400).json({ error: 'date, org1, org2 required' });
+  const r = db.prepare(
+    'INSERT INTO war_logs (date,org1,org2,score1,score2,winner,wager,region,season,notes,elo_org1,elo_org2) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)'
+  ).run(date, org1, org2, score1||0, score2||0, winner||'', wager||'', region||'NA', season||'S3', notes||'', elo_org1??null, elo_org2??null);
+  res.json({ id: r.lastInsertRowid });
+});
+
+app.put('/api/logs/war/:id', requireAdmin, (req, res) => {
+  const { date, org1, org2, score1, score2, winner, wager, region, season, notes, elo_org1, elo_org2 } = req.body;
+  db.prepare(
+    'UPDATE war_logs SET date=?,org1=?,org2=?,score1=?,score2=?,winner=?,wager=?,region=?,season=?,notes=?,elo_org1=?,elo_org2=? WHERE id=?'
+  ).run(date, org1, org2, score1||0, score2||0, winner||'', wager||'', region||'NA', season||'S3', notes||'', elo_org1??null, elo_org2??null, req.params.id);
+  res.json({ ok: true });
+});
+
+app.delete('/api/logs/war/:id', requireAdmin, (req, res) => {
+  db.prepare('DELETE FROM war_logs WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+// ============================================================
+// SEASON LOGS
+// ============================================================
+app.get('/api/logs/season', (req, res) => {
+  const { season, region } = req.query;
+  const conds = [], params = [];
+  if (season) { conds.push('season = ?'); params.push(season); }
+  if (region && region !== 'ALL') { conds.push('region = ?'); params.push(region); }
+  const where = conds.length ? ' WHERE ' + conds.join(' AND ') : '';
+  res.json(db.prepare(`SELECT * FROM season_logs${where} ORDER BY date DESC, id DESC`).all(...params));
+});
+
+app.post('/api/logs/season', requireAdmin, (req, res) => {
+  const { season, date, event_name, org1, org2, score1, score2, winner, region, notes } = req.body;
+  if (!season || !date || !org1 || !org2) return res.status(400).json({ error: 'season, date, org1, org2 required' });
+  const r = db.prepare(
+    'INSERT INTO season_logs (season,date,event_name,org1,org2,score1,score2,winner,region,notes) VALUES (?,?,?,?,?,?,?,?,?,?)'
+  ).run(season, date, event_name||'', org1, org2, score1||0, score2||0, winner||'', region||'NA', notes||'');
+  res.json({ id: r.lastInsertRowid });
+});
+
+app.put('/api/logs/season/:id', requireAdmin, (req, res) => {
+  const { season, date, event_name, org1, org2, score1, score2, winner, region, notes } = req.body;
+  db.prepare(
+    'UPDATE season_logs SET season=?,date=?,event_name=?,org1=?,org2=?,score1=?,score2=?,winner=?,region=?,notes=? WHERE id=?'
+  ).run(season, date, event_name||'', org1, org2, score1||0, score2||0, winner||'', region||'NA', notes||'', req.params.id);
+  res.json({ ok: true });
+});
+
+app.delete('/api/logs/season/:id', requireAdmin, (req, res) => {
+  db.prepare('DELETE FROM season_logs WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+// ============================================================
+// WAGER RECORDS
+// ============================================================
+app.get('/api/logs/wager', (req, res) => {
+  const { season, status } = req.query;
+  const conds = [], params = [];
+  if (season) { conds.push('season = ?'); params.push(season); }
+  if (status && status !== 'ALL') { conds.push('status = ?'); params.push(status); }
+  const where = conds.length ? ' WHERE ' + conds.join(' AND ') : '';
+  res.json(db.prepare(`SELECT * FROM wager_records${where} ORDER BY date DESC, id DESC`).all(...params));
+});
+
+app.post('/api/logs/wager', requireAdmin, (req, res) => {
+  const { date, challenger, challenged, amount, winner, status, paid, season, notes } = req.body;
+  if (!date || !challenger || !challenged || amount === undefined)
+    return res.status(400).json({ error: 'date, challenger, challenged, amount required' });
+  const r = db.prepare(
+    'INSERT INTO wager_records (date,challenger,challenged,amount,winner,status,paid,season,notes) VALUES (?,?,?,?,?,?,?,?,?)'
+  ).run(date, challenger, challenged, amount, winner||'', status||'pending', paid ? 1 : 0, season||'S3', notes||'');
+  res.json({ id: r.lastInsertRowid });
+});
+
+app.put('/api/logs/wager/:id', requireAdmin, (req, res) => {
+  const { date, challenger, challenged, amount, winner, status, paid, season, notes } = req.body;
+  db.prepare(
+    'UPDATE wager_records SET date=?,challenger=?,challenged=?,amount=?,winner=?,status=?,paid=?,season=?,notes=? WHERE id=?'
+  ).run(date, challenger, challenged, amount, winner||'', status||'pending', paid ? 1 : 0, season||'S3', notes||'', req.params.id);
+  res.json({ ok: true });
+});
+
+app.delete('/api/logs/wager/:id', requireAdmin, (req, res) => {
+  db.prepare('DELETE FROM wager_records WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+// ============================================================
+// AWARDS
+// ============================================================
+app.get('/api/awards/seasons', (_req, res) => {
+  res.json(db.prepare('SELECT DISTINCT season FROM awards ORDER BY season DESC').all().map(r => r.season));
+});
+
+app.get('/api/awards', (req, res) => {
+  const { season } = req.query;
+  const rows = season
+    ? db.prepare('SELECT * FROM awards WHERE season=? ORDER BY sort_order ASC, id ASC').all(season)
+    : db.prepare('SELECT * FROM awards ORDER BY season DESC, sort_order ASC, id ASC').all();
+  res.json(rows);
+});
+
+app.post('/api/awards', requireAdmin, (req, res) => {
+  const { season, recipient_name, recipient_org, award_title, award_description, photo_url, sort_order } = req.body;
+  if (!season || !recipient_name || !award_title)
+    return res.status(400).json({ error: 'season, recipient_name, award_title required' });
+  const r = db.prepare(
+    'INSERT INTO awards (season,recipient_name,recipient_org,award_title,award_description,photo_url,sort_order) VALUES (?,?,?,?,?,?,?)'
+  ).run(season, recipient_name, recipient_org||'', award_title, award_description||'', photo_url||'', sort_order||0);
+  res.json({ id: r.lastInsertRowid });
+});
+
+app.put('/api/awards/:id', requireAdmin, (req, res) => {
+  const { season, recipient_name, recipient_org, award_title, award_description, photo_url, sort_order } = req.body;
+  db.prepare(
+    'UPDATE awards SET season=?,recipient_name=?,recipient_org=?,award_title=?,award_description=?,photo_url=?,sort_order=? WHERE id=?'
+  ).run(season, recipient_name, recipient_org||'', award_title, award_description||'', photo_url||'', sort_order||0, req.params.id);
+  res.json({ ok: true });
+});
+
+app.delete('/api/awards/:id', requireAdmin, (req, res) => {
+  db.prepare('DELETE FROM awards WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+// ============================================================
+// BRACKETS
+// ============================================================
+app.get('/api/brackets', (_req, res) => {
+  const rows = db.prepare('SELECT region, data FROM brackets').all();
+  const out  = {};
+  rows.forEach(r => { out[r.region] = JSON.parse(r.data); });
+  res.json(out);
+});
+
+app.put('/api/brackets/:region', requireAdmin, (req, res) => {
+  const region = req.params.region.toUpperCase();
+  db.prepare(`
+    INSERT INTO brackets (region, data, updated_at) VALUES (?,?,datetime('now'))
+    ON CONFLICT(region) DO UPDATE SET data=excluded.data, updated_at=excluded.updated_at
+  `).run(region, JSON.stringify(req.body));
+  res.json({ ok: true });
+});
+
+// ============================================================
+// RULES
+// ============================================================
+app.get('/api/rules/:page', (req, res) => {
+  const row = db.prepare('SELECT content FROM rules WHERE page=?').get(req.params.page);
+  res.json({ content: row ? row.content : '' });
+});
+
+app.put('/api/rules/:page', requireAdmin, (req, res) => {
+  const { content } = req.body;
+  db.prepare(`
+    INSERT INTO rules (page, content, updated_at) VALUES (?, ?, datetime('now'))
+    ON CONFLICT(page) DO UPDATE SET content=excluded.content, updated_at=excluded.updated_at
+  `).run(req.params.page, content || '');
+  res.json({ ok: true });
+});
+
+// ============================================================
+// ORGS
+// ============================================================
+function computeOrgStats(tag) {
+  const warWins  = db.prepare("SELECT COUNT(*) as c FROM war_logs WHERE winner = ?").get(tag).c;
+  const warTotal = db.prepare("SELECT COUNT(*) as c FROM war_logs WHERE org1 = ? OR org2 = ?").get(tag, tag).c;
+  const seaWins  = db.prepare("SELECT COUNT(*) as c FROM season_logs WHERE winner = ?").get(tag).c;
+  const seaTotal = db.prepare("SELECT COUNT(*) as c FROM season_logs WHERE org1 = ? OR org2 = ?").get(tag, tag).c;
+  const wagerRows = db.prepare("SELECT wager FROM war_logs WHERE org1 = ? OR org2 = ?").all(tag, tag);
+  const wager = wagerRows.reduce((s, r) => s + (parseFloat(r.wager) || 0), 0);
+  return { wins: warWins + seaWins, losses: (warTotal - warWins) + (seaTotal - seaWins), wonEvents: seaWins, wager };
+}
+
+function orgWithStats(o) {
+  return { ...o, members: db.prepare('SELECT * FROM org_members WHERE org_id = ? ORDER BY id').all(o.id), ...computeOrgStats(o.tag) };
+}
+
+app.get('/api/orgs', (req, res) => {
+  const { status, region } = req.query;
+  const conds = [], params = [];
+  if (status && status !== 'all') { conds.push('status = ?'); params.push(status); }
+  if (region && region !== 'ALL') { conds.push('region = ?');  params.push(region); }
+  const where = conds.length ? ' WHERE ' + conds.join(' AND ') : '';
+  res.json(db.prepare(`SELECT * FROM orgs${where} ORDER BY name`).all(...params).map(orgWithStats));
+});
+
+app.get('/api/orgs/:id', (req, res) => {
+  const o = db.prepare('SELECT * FROM orgs WHERE id = ?').get(req.params.id);
+  if (!o) return res.status(404).json({ error: 'Not found' });
+  res.json(orgWithStats(o));
+});
+
+app.post('/api/orgs', requireAdmin, (req, res) => {
+  const { tag, name, status, founded, region, icon, mvp } = req.body;
+  if (!tag || !name) return res.status(400).json({ error: 'tag and name required' });
+  try {
+    const r = db.prepare('INSERT INTO orgs (tag,name,status,founded,region,icon,mvp) VALUES (?,?,?,?,?,?,?)').run(tag.toUpperCase(), name, status||'active', founded||'S1', region||'NA', icon||'', mvp||'');
+    res.json({ id: r.lastInsertRowid });
+  } catch(e) { res.status(400).json({ error: 'Tag already exists' }); }
+});
+
+app.put('/api/orgs/:id', requireAdmin, (req, res) => {
+  const { tag, name, status, founded, region, icon, mvp } = req.body;
+  db.prepare('UPDATE orgs SET tag=?,name=?,status=?,founded=?,region=?,icon=?,mvp=? WHERE id=?').run(tag.toUpperCase(), name, status||'active', founded||'S1', region||'NA', icon||'', mvp||'', req.params.id);
+  res.json({ ok: true });
+});
+
+app.delete('/api/orgs/:id', requireAdmin, (req, res) => {
+  db.prepare('DELETE FROM org_members WHERE org_id = ?').run(req.params.id);
+  db.prepare('DELETE FROM orgs WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+app.post('/api/orgs/:id/members', requireAdmin, (req, res) => {
+  const { name, role } = req.body;
+  if (!name) return res.status(400).json({ error: 'name required' });
+  const r = db.prepare('INSERT INTO org_members (org_id,name,role) VALUES (?,?,?)').run(req.params.id, name, role||'Player');
+  res.json({ id: r.lastInsertRowid });
+});
+
+app.delete('/api/org-members/:id', requireAdmin, (req, res) => {
+  db.prepare('DELETE FROM org_members WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+// ============================================================
+// PLAYERS (leaderboard)
+// ============================================================
+app.get('/api/players', (_req, res) => {
+  res.json(db.prepare('SELECT * FROM players ORDER BY elo DESC').all());
+});
+
+app.post('/api/players', requireAdmin, (req, res) => {
+  const { name, org, elo, wins, losses } = req.body;
+  if (!name) return res.status(400).json({ error: 'name required' });
+  const r = db.prepare('INSERT INTO players (name,org,elo,wins,losses) VALUES (?,?,?,?,?)').run(name, org||'', elo||1000, wins||0, losses||0);
+  res.json({ id: r.lastInsertRowid });
+});
+
+app.put('/api/players/:id', requireAdmin, (req, res) => {
+  const { name, org, elo, wins, losses } = req.body;
+  db.prepare('UPDATE players SET name=?,org=?,elo=?,wins=?,losses=? WHERE id=?').run(name, org||'', elo||1000, wins||0, losses||0, req.params.id);
+  res.json({ ok: true });
+});
+
+app.delete('/api/players/:id', requireAdmin, (req, res) => {
+  db.prepare('DELETE FROM players WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+// ============================================================
+// SERVE FRONTEND
+// ============================================================
+app.get('*', (_req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+
+app.listen(PORT, () => {
+  console.log(`\n  ██╗   ██╗██╗   ██╗██╗     ███████╗ █████╗  ██████╗ ██╗   ██╗███████╗`);
+  console.log(`  ██║   ██║██║   ██║██║     ██╔════╝██╔══██╗██╔════╝ ██║   ██║██╔════╝`);
+  console.log(`  ██║   ██║██║   ██║██║     █████╗  ███████║██║  ███╗██║   ██║█████╗  `);
+  console.log(`  ╚██╗ ██╔╝╚██╗ ██╔╝██║     ██╔══╝  ██╔══██║██║   ██║██║   ██║██╔══╝  `);
+  console.log(`   ╚████╔╝  ╚████╔╝ ███████╗███████╗██║  ██║╚██████╔╝╚██████╔╝███████╗`);
+  console.log(`    ╚═══╝    ╚═══╝  ╚══════╝╚══════╝╚═╝  ╚═╝ ╚═════╝  ╚═════╝ ╚══════╝\n`);
+  console.log(`  Server running at  →  http://localhost:${PORT}`);
+  console.log(`  Database           →  vvleague.db\n`);
+});
