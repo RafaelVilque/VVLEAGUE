@@ -640,7 +640,7 @@ async function loadWagerRecords() {
       <td>${r.date}</td>
       <td style="color:var(--blue);font-weight:600;">${r.challenger}</td>
       <td style="color:var(--blue);font-weight:600;">${r.challenged}</td>
-      <td class="wager-cell">$${Number(r.amount).toLocaleString()}</td>
+      <td class="wager-cell">${r.amount?(isNaN(r.amount)?r.amount:'$'+Number(r.amount).toLocaleString()):'—'}</td>
       <td style="color:var(--yellow);font-weight:600;">${r.winner||'—'}</td>
       <td><span class="status-pill ${stCls}">${r.status.toUpperCase()}</span></td>
       <td><span class="status-pill ${paidCls}">${r.paid?'PAID':'UNPAID'}</span></td>
@@ -706,7 +706,7 @@ function openLogForm(type, existing) {
         <div class="admin-field"><label class="admin-label">SEASON</label><input id="lf_season" class="admin-input" value="${e.season||'S3'}"></div>
         <div class="admin-field"><label class="admin-label">CHALLENGER</label><input id="lf_challenger" class="admin-input" value="${e.challenger||''}"></div>
         <div class="admin-field"><label class="admin-label">CHALLENGED</label><input id="lf_challenged" class="admin-input" value="${e.challenged||''}"></div>
-        <div class="admin-field"><label class="admin-label">AMOUNT ($)</label><input id="lf_amount" type="number" min="0" class="admin-input" value="${e.amount||0}"></div>
+        <div class="admin-field"><label class="admin-label">AMOUNT</label><input id="lf_amount" class="admin-input" value="${e.amount||''}" placeholder="ex: $500, itens, custom..."></div>
         <div class="admin-field"><label class="admin-label">WINNER</label><input id="lf_winner" class="admin-input" value="${e.winner||''}" placeholder="Challenger or Challenged"></div>
         <div class="admin-field"><label class="admin-label">STATUS</label><select id="lf_status" class="admin-select"><option value="pending" ${e.status==='pending'||!e.status?'selected':''}>PENDING</option><option value="settled" ${e.status==='settled'?'selected':''}>SETTLED</option><option value="cancelled" ${e.status==='cancelled'?'selected':''}>CANCELLED</option></select></div>
         <div class="admin-field"><label class="admin-label">NOTES</label><input id="lf_notes" class="admin-input" value="${e.notes||''}"></div>
@@ -735,7 +735,7 @@ async function saveLogForm(type, id) {
   } else if (type === 'season') {
     body = { season:g('lf_season'), date:g('lf_date'), event_name:g('lf_event')||'', org1:g('lf_org1'), org2:g('lf_org2'), score1:parseInt(g('lf_s1'))||0, score2:parseInt(g('lf_s2'))||0, winner:g('lf_winner'), region:g('lf_region'), notes:g('lf_notes') };
   } else {
-    body = { date:g('lf_date'), challenger:g('lf_challenger'), challenged:g('lf_challenged'), amount:parseInt(g('lf_amount'))||0, winner:g('lf_winner'), status:g('lf_status'), paid:document.getElementById('lf_paid').checked, season:g('lf_season'), notes:g('lf_notes') };
+    body = { date:g('lf_date'), challenger:g('lf_challenger'), challenged:g('lf_challenged'), amount:g('lf_amount'), winner:g('lf_winner'), status:g('lf_status'), paid:document.getElementById('lf_paid').checked, season:g('lf_season'), notes:g('lf_notes') };
   }
   const path = '/logs/'+type;
   id ? await apiPut(path+'/'+id, body) : await apiPost(path, body);

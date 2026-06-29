@@ -169,6 +169,31 @@ if (!db.prepare('SELECT COUNT(*) as c FROM players').get().c) {
   ].forEach(p => insP.run(p.name, p.org, p.elo, p.wins, p.losses));
 }
 
+// Migrate: convert amount column in wager_records to TEXT
+const wagerRecCols = db.prepare("PRAGMA table_info(wager_records)").all();
+if (wagerRecCols.find(c => c.name === 'amount' && c.type === 'INTEGER')) {
+  db.exec(`
+    BEGIN;
+    ALTER TABLE wager_records RENAME TO _wager_records_old;
+    CREATE TABLE wager_records (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      date       TEXT NOT NULL,
+      challenger TEXT NOT NULL,
+      challenged TEXT NOT NULL,
+      amount     TEXT DEFAULT '',
+      winner     TEXT DEFAULT '',
+      status     TEXT DEFAULT 'pending',
+      paid       INTEGER DEFAULT 0,
+      season     TEXT DEFAULT 'S3',
+      notes      TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    INSERT INTO wager_records SELECT id,date,challenger,challenged,CAST(amount AS TEXT),winner,status,paid,season,notes,created_at FROM _wager_records_old;
+    DROP TABLE _wager_records_old;
+    COMMIT;
+  `);
+}
+
 // Migrate: convert wager column to TEXT (recreate table preserving data)
 const warCols = db.prepare("PRAGMA table_info(war_logs)").all();
 if (warCols.find(c => c.name === 'wager' && c.type === 'INTEGER')) {
@@ -319,7 +344,7 @@ app.post('/api/logs/wager', requireAdmin, (req, res) => {
     return res.status(400).json({ error: 'date, challenger, challenged, amount required' });
   const r = db.prepare(
     'INSERT INTO wager_records (date,challenger,challenged,amount,winner,status,paid,season,notes) VALUES (?,?,?,?,?,?,?,?,?)'
-  ).run(date, challenger, challenged, amount, winner||'', status||'pending', paid ? 1 : 0, season||'S3', notes||'');
+  ).run(date, challenger, challenged, amount||'', winner||'', status||'pending', paid ? 1 : 0, season||'S3', notes||'');
   res.json({ id: r.lastInsertRowid });
 });
 
@@ -327,7 +352,7 @@ app.put('/api/logs/wager/:id', requireAdmin, (req, res) => {
   const { date, challenger, challenged, amount, winner, status, paid, season, notes } = req.body;
   db.prepare(
     'UPDATE wager_records SET date=?,challenger=?,challenged=?,amount=?,winner=?,status=?,paid=?,season=?,notes=? WHERE id=?'
-  ).run(date, challenger, challenged, amount, winner||'', status||'pending', paid ? 1 : 0, season||'S3', notes||'', req.params.id);
+  ).run(date, challenger, challenged, amount||'', winner||'', status||'pending', paid ? 1 : 0, season||'S3', notes||'', req.params.id);
   res.json({ ok: true });
 });
 
