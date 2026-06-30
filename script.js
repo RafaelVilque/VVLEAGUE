@@ -1,7 +1,7 @@
 // ============================================================
 // STATIC DATA (non-DB sections)
 // ============================================================
-const UPCOMING_EVENTS = [
+let UPCOMING_EVENTS = [
   { name: 'VVL Season 3 Grand Championship', region: 'ALL REGIONS', date: '2026-08-01T20:00:00' },
   { name: 'NA Regional Qualifier',           region: 'NA',          date: '2026-07-05T18:00:00' },
   { name: 'EU Open Cup',                     region: 'EU',          date: '2026-07-12T19:00:00' },
@@ -66,6 +66,13 @@ let cdInterval     = null;
 // Admin
 let isAdmin    = false;
 let adminToken = sessionStorage.getItem('vvl_token') || null;
+let userPerms  = 'all';
+
+function hasPerm(perm) {
+  if (!isAdmin) return false;
+  if (userPerms === 'all') return true;
+  return userPerms.split(',').map(p => p.trim()).includes(perm);
+}
 
 // Logs state
 let warRegion    = 'ALL';
@@ -361,9 +368,11 @@ async function switchBracketSeason(btn, season) {
 async function loadBracketsFromAPI(season) {
   const s = season || currentBracketSeason;
   currentBracketSeason = s;
+  const emptyBr = () => ({qf:[], sf:[], f:[{t1:'TBD',s1:null,t2:'TBD',s2:null,done:false}], champion:null});
+  BRACKETS = {};
+  ['NA','EU','ASIA','OCE','SA'].forEach(r => { BRACKETS[r] = emptyBr(); });
   try {
     const data = await apiGet('/brackets?season=' + s);
-    BRACKETS = JSON.parse(JSON.stringify(DEFAULT_BRACKETS));
     if (data && typeof data === 'object' && !data.error) {
       Object.keys(data).forEach(r => { BRACKETS[r] = data[r]; });
     }
@@ -382,6 +391,9 @@ function openNewBracketForm() {
       <div class="admin-field"><label class="admin-label">REGION</label><select id="nb_region" class="admin-select">
         ${['NA','EU','ASIA','OCE','SA'].map(r=>`<option>${r}</option>`).join('')}
       </select></div>
+      <div class="admin-field"><label class="admin-label">QF MATCHES</label><input id="nb_qf" type="number" min="0" max="8" class="admin-input" value="4"></div>
+      <div class="admin-field"><label class="admin-label">SF MATCHES</label><input id="nb_sf" type="number" min="0" max="4" class="admin-input" value="2"></div>
+      <div class="admin-field" style="grid-column:span 2;"><label class="admin-label">FINAL MATCHES</label><input id="nb_f" type="number" min="1" max="2" class="admin-input" value="1"></div>
     </div>
     <div class="admin-modal-actions">
       <button class="admin-submit-btn" onclick="saveNewBracket()">CREATE</button>
@@ -393,15 +405,35 @@ function openNewBracketForm() {
 async function saveNewBracket() {
   const season = g('nb_season').trim(), region = g('nb_region');
   if (!season) return;
-  await apiPost('/brackets', { region, season });
+  const em = () => ({t1:'TBD',t2:'TBD',s1:null,s2:null,done:false});
+  const data = {
+    qf: Array.from({length:parseInt(g('nb_qf'))||0}, em),
+    sf: Array.from({length:parseInt(g('nb_sf'))||0}, em),
+    f:  Array.from({length:Math.max(1,parseInt(g('nb_f'))||1)}, em),
+    champion: null,
+  };
+  await apiPost('/brackets', { region, season, data });
   closeLogForm();
   if (!bracketSeasons.includes(season)) { bracketSeasons.unshift(season); renderBracketSeasonTabs(); }
   await loadBracketsFromAPI(season);
 }
 
+async function addBracketMatch(region, roundKey) {
+  if (!BRACKETS[region][roundKey]) BRACKETS[region][roundKey] = [];
+  BRACKETS[region][roundKey].push({t1:'TBD',t2:'TBD',s1:null,s2:null,done:false});
+  await apiPut('/brackets/'+region+'?season='+currentBracketSeason, BRACKETS[region]);
+  renderBracket();
+}
+
+async function deleteBracketMatch(region, roundKey, idx) {
+  BRACKETS[region][roundKey].splice(idx, 1);
+  await apiPut('/brackets/'+region+'?season='+currentBracketSeason, BRACKETS[region]);
+  renderBracket();
+}
+
 function switchBracket(btn, region) {
   currentBracket = region;
-  document.querySelectorAll('#secBrackets .rtab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('#bracketRegionTabs .rtab').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   renderBracket();
 }
@@ -415,17 +447,27 @@ function renderBracket() {
     const t1c = m.t1==='TBD'?'tbd':(m.done?(t1w?'winner':'loser'):'');
     const t2c = m.t2==='TBD'?'tbd':(m.done?(t2w?'winner':'loser'):'');
     const aa  = isAdmin ? `onclick="openMatchEdit('${currentBracket}','${rk}',${idx})" title="Edit"` : '';
-    return `<div class="bracket-match ${isAdmin?'admin-editable':''}" ${aa}>
+    const delBtn = isAdmin ? `<button class="tbl-btn del" style="position:absolute;top:2px;right:2px;font-size:.6rem;padding:.15rem .3rem;" onclick="event.stopPropagation();deleteBracketMatch('${currentBracket}','${rk}',${idx})">✕</button>` : '';
+    return `<div class="bracket-match ${isAdmin?'admin-editable':''}" ${aa} style="position:relative;">
       <div class="bracket-team ${t1c}"><span class="bt-name">${m.t1}</span><span class="bt-score">${m.done&&m.s1!==null?m.s1:'—'}</span></div>
       <div class="bracket-team ${t2c}"><span class="bt-name">${m.t2}</span><span class="bt-score">${m.done&&m.s2!==null?m.s2:'—'}</span></div>
       ${isAdmin?'<div class="admin-edit-hint">✎ EDIT</div>':''}
+      ${delBtn}
     </div>`;
   }
-  const rounds = [{key:'qf',label:'QUARTERFINALS'},{key:'sf',label:'SEMIFINALS'},{key:'f',label:'FINALS'}].filter(r=>br[r.key]&&br[r.key].length);
+  const allRounds = [{key:'qf',label:'QUARTERFINALS'},{key:'sf',label:'SEMIFINALS'},{key:'f',label:'FINALS'}];
+  const rounds = isAdmin ? allRounds : allRounds.filter(r=>br[r.key]&&br[r.key].length);
   const champBtn = isAdmin ? `<button class="admin-champion-btn" onclick="openChampionEdit('${currentBracket}')">✎ SET</button>` : '';
   document.getElementById('bracketView').innerHTML = `
     <div class="bracket">
-      ${rounds.map(r=>`<div class="bracket-round"><div class="round-label">${r.label}</div><div class="round-matches">${br[r.key].map((m,i)=>matchHtml(m,r.key,i)).join('')}</div></div>`).join('')}
+      ${rounds.map(r=>`
+        <div class="bracket-round">
+          <div class="round-label">${r.label}</div>
+          <div class="round-matches">
+            ${(br[r.key]||[]).map((m,i)=>matchHtml(m,r.key,i)).join('')}
+            ${isAdmin?`<button class="admin-cancel-btn" style="width:100%;margin-top:.4rem;font-size:.7rem;padding:.35rem;" onclick="addBracketMatch('${currentBracket}','${r.key}')">+ ADD MATCH</button>`:''}
+          </div>
+        </div>`).join('')}
       <div class="bracket-round"><div class="round-label">CHAMPION</div><div class="round-matches"><div class="champion-box"><div class="champion-label">🏆 Winner</div><div class="champion-name">${br.champion||'TBD'}</div>${champBtn}</div></div></div>
     </div>`;
 }
@@ -442,6 +484,24 @@ function filterSchedule(btn, region) {
 async function loadSchedule() {
   try { scheduleData = await apiGet('/schedule'); } catch(e) { scheduleData = []; }
   renderSchedule();
+  updateCountdownFromSchedule();
+}
+
+function updateCountdownFromSchedule() {
+  const upcoming = scheduleData
+    .filter(s => s.status === 'upcoming')
+    .slice(0, 6)
+    .map(s => ({
+      name:   s.match.toUpperCase(),
+      region: s.region,
+      date:   s.date + 'T' + (s.time || '00:00') + ':00',
+    }));
+  if (!upcoming.length) return;
+  UPCOMING_EVENTS.length = 0;
+  upcoming.forEach(e => UPCOMING_EVENTS.push(e));
+  cdEventIndex = 0;
+  buildDots();
+  renderCountdownEvent(0);
 }
 
 function renderSchedule() {
@@ -673,6 +733,7 @@ async function attemptLogin() {
       adminToken = res.token;
       sessionStorage.setItem('vvl_token', adminToken);
       isAdmin = true;
+      userPerms = res.perms || 'all';
       closeAdminLogin();
       setAdminUI(true);
       renderBracket();
@@ -709,13 +770,15 @@ function refreshAdminButtons() {
   ['warActTh','seasonActTh','wagerActTh','lbActTh','schedActTh'].forEach(id => {
     const el = document.getElementById(id); if (el) el.style.display = isAdmin ? '' : 'none';
   });
+  const mub = document.getElementById('manageUsersBtn');
+  if (mub) mub.style.display = hasPerm('all') ? '' : 'none';
 }
 
 async function verifyStoredToken() {
   if (!adminToken) return;
   try {
     const res = await apiGet('/auth/verify');
-    if (res.valid) { isAdmin = true; setAdminUI(true); }
+    if (res.valid) { isAdmin = true; userPerms = res.perms || 'all'; setAdminUI(true); }
     else { adminToken = null; sessionStorage.removeItem('vvl_token'); }
   } catch(e) { adminToken = null; sessionStorage.removeItem('vvl_token'); }
 }
@@ -916,7 +979,7 @@ function openLogForm(type, existing) {
       <div class="admin-form-grid-2">
         <div class="admin-field"><label class="admin-label">DATE</label><input id="lf_date" type="date" class="admin-input" value="${e.date||''}"></div>
         <div class="admin-field"><label class="admin-label">WINNER</label>${winSel(e.winner||'')}</div>
-        <div class="admin-field"><label class="admin-label">WAGER</label><input id="lf_wager" class="admin-input" value="${e.wager||''}" placeholder="ex: $500, itens, custom..."></div>
+        <div class="admin-field"><label class="admin-label">WAGER</label><input id="lf_wager" class="admin-input" value="${e.wager||''}" placeholder="ex: $500, items, custom..."></div>
         <div class="admin-field"><label class="admin-label">REGION</label><select id="lf_region" class="admin-select"><option ${e.region==='NA'?'selected':''}>NA</option><option ${e.region==='EU'?'selected':''}>EU</option><option ${e.region==='ASIA'?'selected':''}>ASIA</option><option ${e.region==='OCE'?'selected':''}>OCE</option><option ${e.region==='SA'?'selected':''}>SA</option></select></div>
         <div class="admin-field"><label class="admin-label">ELO ORG 1 (ex: +25 ou -20)</label><input id="lf_elo1" type="number" class="admin-input" value="${e.elo_org1??''}" placeholder="opcional"></div>
         <div class="admin-field"><label class="admin-label">ELO ORG 2 (ex: +25 ou -20)</label><input id="lf_elo2" type="number" class="admin-input" value="${e.elo_org2??''}" placeholder="opcional"></div>
@@ -938,6 +1001,8 @@ function openLogForm(type, existing) {
         <div class="admin-field"><label class="admin-label">EVENT NAME</label><input id="lf_event" class="admin-input" value="${e.event_name||''}"></div>
         <div class="admin-field"><label class="admin-label">WINNER</label>${winSel(e.winner||'')}</div>
         <div class="admin-field"><label class="admin-label">REGION</label><select id="lf_region" class="admin-select"><option ${e.region==='NA'?'selected':''}>NA</option><option ${e.region==='EU'?'selected':''}>EU</option><option ${e.region==='ASIA'?'selected':''}>ASIA</option><option ${e.region==='OCE'?'selected':''}>OCE</option><option ${e.region==='SA'?'selected':''}>SA</option></select></div>
+        <div class="admin-field"><label class="admin-label">POINTS WINNER</label><input id="lf_pts_w" type="number" class="admin-input" value="${e.points_winner??0}" placeholder="ex: 300"></div>
+        <div class="admin-field"><label class="admin-label">POINTS LOSER</label><input id="lf_pts_l" type="number" class="admin-input" value="${e.points_loser??0}" placeholder="ex: -100"></div>
         <div class="admin-field"><label class="admin-label">SEASON</label><input id="lf_season" class="admin-input" value="${e.season||'S3'}"></div>
         <div class="admin-field"><label class="admin-label">NOTES</label><input id="lf_notes" class="admin-input" value="${e.notes||''}"></div>
       </div>`;
@@ -948,7 +1013,7 @@ function openLogForm(type, existing) {
         <div class="admin-field"><label class="admin-label">SEASON</label><input id="lf_season" class="admin-input" value="${e.season||'S3'}"></div>
         <div class="admin-field"><label class="admin-label">CHALLENGER</label><input id="lf_challenger" class="admin-input" value="${e.challenger||''}"></div>
         <div class="admin-field"><label class="admin-label">CHALLENGED</label><input id="lf_challenged" class="admin-input" value="${e.challenged||''}"></div>
-        <div class="admin-field"><label class="admin-label">AMOUNT</label><input id="lf_amount" class="admin-input" value="${e.amount||''}" placeholder="ex: $500, itens, custom..."></div>
+        <div class="admin-field"><label class="admin-label">AMOUNT</label><input id="lf_amount" class="admin-input" value="${e.amount||''}" placeholder="ex: $500, items, custom..."></div>
         <div class="admin-field"><label class="admin-label">WINNER</label><input id="lf_winner" class="admin-input" value="${e.winner||''}" placeholder="Challenger or Challenged"></div>
         <div class="admin-field"><label class="admin-label">STATUS</label><select id="lf_status" class="admin-select"><option value="pending" ${e.status==='pending'||!e.status?'selected':''}>PENDING</option><option value="settled" ${e.status==='settled'?'selected':''}>SETTLED</option><option value="cancelled" ${e.status==='cancelled'?'selected':''}>CANCELLED</option></select></div>
         <div class="admin-field"><label class="admin-label">NOTES</label><input id="lf_notes" class="admin-input" value="${e.notes||''}"></div>
@@ -975,7 +1040,7 @@ async function saveLogForm(type, id) {
     const elo1raw = g('lf_elo1'), elo2raw = g('lf_elo2');
     body = { date:g('lf_date'), org1:g('lf_org1'), org2:g('lf_org2'), score1:parseInt(g('lf_s1'))||0, score2:parseInt(g('lf_s2'))||0, winner:g('lf_winner'), wager:g('lf_wager'), region:g('lf_region'), season:g('lf_season'), notes:g('lf_notes'), elo_org1:elo1raw!==''?parseInt(elo1raw):null, elo_org2:elo2raw!==''?parseInt(elo2raw):null };
   } else if (type === 'season') {
-    body = { season:g('lf_season'), date:g('lf_date'), event_name:g('lf_event')||'', org1:g('lf_org1'), org2:g('lf_org2'), score1:parseInt(g('lf_s1'))||0, score2:parseInt(g('lf_s2'))||0, winner:g('lf_winner'), region:g('lf_region'), notes:g('lf_notes') };
+    body = { season:g('lf_season'), date:g('lf_date'), event_name:g('lf_event')||'', org1:g('lf_org1'), org2:g('lf_org2'), score1:parseInt(g('lf_s1'))||0, score2:parseInt(g('lf_s2'))||0, winner:g('lf_winner'), region:g('lf_region'), notes:g('lf_notes'), points_winner:parseInt(g('lf_pts_w'))||0, points_loser:parseInt(g('lf_pts_l'))||0 };
   } else {
     body = { date:g('lf_date'), challenger:g('lf_challenger'), challenged:g('lf_challenged'), amount:g('lf_amount'), winner:g('lf_winner'), status:g('lf_status'), paid:document.getElementById('lf_paid').checked, season:g('lf_season'), notes:g('lf_notes') };
   }
@@ -1248,6 +1313,89 @@ async function confirmDeleteYes() {
 }
 
 function closeConfirmModal() { document.getElementById('confirmModal').classList.remove('open'); _deleteCtx=null; }
+
+// ============================================================
+// ADMIN USERS MANAGEMENT
+// ============================================================
+let _adminUsers = [];
+
+async function openAdminUsers() {
+  if (!hasPerm('all')) return;
+  document.getElementById('adminUsersModal').classList.add('open');
+  await refreshAdminUsersList();
+}
+
+function closeAdminUsers() {
+  document.getElementById('adminUsersModal').classList.remove('open');
+  const form = document.getElementById('adminUserForm');
+  if (form) form.style.display = 'none';
+}
+
+function maybeCloseAdminUsersModal(e) {
+  if (e.target === document.getElementById('adminUsersModal')) closeAdminUsers();
+}
+
+async function refreshAdminUsersList() {
+  try { _adminUsers = await apiGet('/admin-users'); } catch(e) { _adminUsers = []; }
+  renderAdminUsersList();
+}
+
+function renderAdminUsersList() {
+  const tbody = document.getElementById('adminUsersTbody');
+  if (!tbody) return;
+  if (!_adminUsers.length) { tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;opacity:.5">No sub-admins yet</td></tr>'; return; }
+  tbody.innerHTML = _adminUsers.map(u => `
+    <tr>
+      <td style="font-weight:600;color:var(--yellow)">${u.username}</td>
+      <td style="font-size:.75rem;color:var(--blue)">${u.perms}</td>
+      <td><span style="color:${u.active?'var(--green)':'var(--red)'};">${u.active?'ACTIVE':'INACTIVE'}</span></td>
+      <td>
+        <button class="tbl-btn" onclick="openAdminUserEditForm(${u.id})">✎</button>
+        <button class="tbl-btn del" onclick="deleteAdminUser(${u.id})">✕</button>
+      </td>
+    </tr>`).join('');
+}
+
+function showAdminUserForm(id, username, perms, active) {
+  const form = document.getElementById('adminUserForm');
+  if (!form) return;
+  document.getElementById('auf_id').value = id || '';
+  document.getElementById('auf_username').value = username || '';
+  document.getElementById('auf_pass').value = '';
+  document.getElementById('auf_perms').value = perms || 'logs';
+  document.getElementById('auf_active').checked = active !== false;
+  form.style.display = '';
+}
+
+function openAdminUserAddForm() { showAdminUserForm('', '', 'logs', true); }
+
+function openAdminUserEditForm(id) {
+  const u = _adminUsers.find(x => x.id === id);
+  if (!u) return;
+  showAdminUserForm(u.id, u.username, u.perms, !!u.active);
+}
+
+async function saveAdminUser() {
+  const id = document.getElementById('auf_id').value;
+  const body = {
+    username: document.getElementById('auf_username').value.trim(),
+    password: document.getElementById('auf_pass').value,
+    perms: document.getElementById('auf_perms').value.trim() || 'logs',
+    active: document.getElementById('auf_active').checked ? 1 : 0,
+  };
+  if (!body.username) return alert('Username is required');
+  try {
+    if (id) { await apiPut('/admin-users/' + id, body); }
+    else     { await apiPost('/admin-users', body); }
+    document.getElementById('adminUserForm').style.display = 'none';
+    await refreshAdminUsersList();
+  } catch(e) { alert('Error saving user'); }
+}
+
+async function deleteAdminUser(id) {
+  if (!confirm('Delete this admin user?')) return;
+  try { await apiDelete('/admin-users/' + id); await refreshAdminUsersList(); } catch(e) {}
+}
 
 // ============================================================
 // INIT

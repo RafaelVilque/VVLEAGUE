@@ -249,6 +249,22 @@ if (!bracketColCheck.find(c => c.name === 'season')) {
   `);
 }
 
+// Seed S3 brackets if empty
+if (!db.prepare('SELECT COUNT(*) as c FROM brackets').get().c) {
+  const insBr = db.prepare('INSERT INTO brackets (region,season,data) VALUES (?,?,?)');
+  [
+    ['NA','S3',JSON.stringify({qf:[{t1:'VVS',s1:3,t2:'TRX',s2:0,done:true},{t1:'NXS',s1:2,t2:'ABY',s2:3,done:true},{t1:'ZRO',s1:3,t2:'RVN',s2:1,done:true},{t1:'FRZ',s1:1,t2:'VLT',s2:3,done:true}],sf:[{t1:'VVS',s1:null,t2:'ABY',s2:null,done:false},{t1:'ZRO',s1:null,t2:'VLT',s2:null,done:false}],f:[{t1:'TBD',s1:null,t2:'TBD',s2:null,done:false}],champion:null})],
+    ['EU','S3',JSON.stringify({qf:[{t1:'FRZ',s1:3,t2:'EMP',s2:1,done:true},{t1:'VLT',s1:2,t2:'NOV',s2:3,done:true}],sf:[{t1:'FRZ',s1:null,t2:'NOV',s2:null,done:false}],f:[{t1:'TBD',s1:null,t2:'TBD',s2:null,done:false}],champion:null})],
+    ['ASIA','S3',JSON.stringify({qf:[{t1:'SKY',s1:3,t2:'ZEN',s2:0,done:true},{t1:'ONI',s1:1,t2:'KRN',s2:3,done:true}],sf:[{t1:'SKY',s1:null,t2:'KRN',s2:null,done:false}],f:[{t1:'TBD',s1:null,t2:'TBD',s2:null,done:false}],champion:null})],
+    ['OCE','S3',JSON.stringify({qf:[{t1:'WVE',s1:3,t2:'CRL',s2:1,done:true}],sf:[{t1:'WVE',s1:null,t2:'DNG',s2:null,done:false}],f:[{t1:'TBD',s1:null,t2:'TBD',s2:null,done:false}],champion:null})],
+    ['SA','S3',JSON.stringify({qf:[{t1:'JGR',s1:3,t2:'CAP',s2:0,done:true},{t1:'AND',s1:2,t2:'SOL',s2:3,done:true}],sf:[{t1:'JGR',s1:null,t2:'SOL',s2:null,done:false}],f:[{t1:'TBD',s1:null,t2:'TBD',s2:null,done:false}],champion:null})],
+  ].forEach(r => insBr.run(...r));
+}
+
+// Migrate: add points columns to season_logs
+try { db.exec('ALTER TABLE season_logs ADD COLUMN points_winner INTEGER DEFAULT 0'); } catch(e) {}
+try { db.exec('ALTER TABLE season_logs ADD COLUMN points_loser  INTEGER DEFAULT 0'); } catch(e) {}
+
 // Migrate: convert wager column to TEXT (recreate table preserving data)
 const warCols = db.prepare("PRAGMA table_info(war_logs)").all();
 if (warCols.find(c => c.name === 'wager' && c.type === 'INTEGER')) {
@@ -277,6 +293,18 @@ if (warCols.find(c => c.name === 'wager' && c.type === 'INTEGER')) {
   `);
 }
 
+// Admin users table (multi-login with permissions)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS admin_users (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    username   TEXT NOT NULL UNIQUE,
+    pass_hash  TEXT NOT NULL,
+    perms      TEXT DEFAULT 'logs',
+    active     INTEGER DEFAULT 1,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+`);
+
 // ============================================================
 // HELPERS
 // ============================================================
@@ -304,14 +332,56 @@ app.post('/api/auth/login', (req, res) => {
   const { username, password } = req.body || {};
   if (!username || !password) return res.status(400).json({ error: 'Missing credentials' });
 
+  // Super admin via env vars
   if (sha256(username) === ADMIN_USER_HASH && sha256(password) === ADMIN_PASS_HASH) {
-    const token = jwt.sign({ role: 'admin' }, JWT_SECRET, { expiresIn: '8h' });
-    return res.json({ token });
+    const token = jwt.sign({ role: 'admin', perms: 'all' }, JWT_SECRET, { expiresIn: '8h' });
+    return res.json({ token, perms: 'all' });
+  }
+  // Sub-admins via DB
+  const user = db.prepare('SELECT * FROM admin_users WHERE username = ? AND active = 1').get(username);
+  if (user && sha256(password) === user.pass_hash) {
+    const token = jwt.sign({ role: 'admin', perms: user.perms }, JWT_SECRET, { expiresIn: '8h' });
+    return res.json({ token, perms: user.perms });
   }
   return res.status(401).json({ error: 'Invalid credentials' });
 });
 
-app.get('/api/auth/verify', requireAdmin, (_req, res) => res.json({ valid: true }));
+app.get('/api/auth/verify', requireAdmin, (req, res) => res.json({ valid: true, perms: req.admin.perms || 'all' }));
+
+// ============================================================
+// ADMIN USERS (multi-login management)
+// ============================================================
+app.get('/api/admin-users', requireAdmin, (req, res) => {
+  if (req.admin.perms !== 'all') return res.status(403).json({ error: 'Forbidden' });
+  res.json(db.prepare('SELECT id,username,perms,active,created_at FROM admin_users ORDER BY id').all());
+});
+
+app.post('/api/admin-users', requireAdmin, (req, res) => {
+  if (req.admin.perms !== 'all') return res.status(403).json({ error: 'Forbidden' });
+  const { username, password, perms } = req.body;
+  if (!username || !password) return res.status(400).json({ error: 'username and password required' });
+  try {
+    const r = db.prepare('INSERT INTO admin_users (username,pass_hash,perms) VALUES (?,?,?)').run(username, sha256(password), perms||'logs');
+    res.json({ id: r.lastInsertRowid });
+  } catch(e) { res.status(400).json({ error: 'Username already exists' }); }
+});
+
+app.put('/api/admin-users/:id', requireAdmin, (req, res) => {
+  if (req.admin.perms !== 'all') return res.status(403).json({ error: 'Forbidden' });
+  const { perms, active, password } = req.body;
+  if (password) {
+    db.prepare('UPDATE admin_users SET perms=?,active=?,pass_hash=? WHERE id=?').run(perms||'logs', active?1:0, sha256(password), req.params.id);
+  } else {
+    db.prepare('UPDATE admin_users SET perms=?,active=? WHERE id=?').run(perms||'logs', active?1:0, req.params.id);
+  }
+  res.json({ ok: true });
+});
+
+app.delete('/api/admin-users/:id', requireAdmin, (req, res) => {
+  if (req.admin.perms !== 'all') return res.status(403).json({ error: 'Forbidden' });
+  db.prepare('DELETE FROM admin_users WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
 
 // ============================================================
 // WAR LOGS
@@ -360,19 +430,19 @@ app.get('/api/logs/season', (req, res) => {
 });
 
 app.post('/api/logs/season', requireAdmin, (req, res) => {
-  const { season, date, event_name, org1, org2, score1, score2, winner, region, notes } = req.body;
+  const { season, date, event_name, org1, org2, score1, score2, winner, region, notes, points_winner, points_loser } = req.body;
   if (!season || !date || !org1 || !org2) return res.status(400).json({ error: 'season, date, org1, org2 required' });
   const r = db.prepare(
-    'INSERT INTO season_logs (season,date,event_name,org1,org2,score1,score2,winner,region,notes) VALUES (?,?,?,?,?,?,?,?,?,?)'
-  ).run(season, date, event_name||'', org1, org2, score1||0, score2||0, winner||'', region||'NA', notes||'');
+    'INSERT INTO season_logs (season,date,event_name,org1,org2,score1,score2,winner,region,notes,points_winner,points_loser) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)'
+  ).run(season, date, event_name||'', org1, org2, score1||0, score2||0, winner||'', region||'NA', notes||'', points_winner||0, points_loser||0);
   res.json({ id: r.lastInsertRowid });
 });
 
 app.put('/api/logs/season/:id', requireAdmin, (req, res) => {
-  const { season, date, event_name, org1, org2, score1, score2, winner, region, notes } = req.body;
+  const { season, date, event_name, org1, org2, score1, score2, winner, region, notes, points_winner, points_loser } = req.body;
   db.prepare(
-    'UPDATE season_logs SET season=?,date=?,event_name=?,org1=?,org2=?,score1=?,score2=?,winner=?,region=?,notes=? WHERE id=?'
-  ).run(season, date, event_name||'', org1, org2, score1||0, score2||0, winner||'', region||'NA', notes||'', req.params.id);
+    'UPDATE season_logs SET season=?,date=?,event_name=?,org1=?,org2=?,score1=?,score2=?,winner=?,region=?,notes=?,points_winner=?,points_loser=? WHERE id=?'
+  ).run(season, date, event_name||'', org1, org2, score1||0, score2||0, winner||'', region||'NA', notes||'', points_winner||0, points_loser||0, req.params.id);
   res.json({ ok: true });
 });
 
@@ -471,11 +541,11 @@ app.get('/api/brackets', (req, res) => {
 });
 
 app.post('/api/brackets', requireAdmin, (req, res) => {
-  const { region, season } = req.body;
+  const { region, season, data } = req.body;
   if (!region || !season) return res.status(400).json({ error: 'region and season required' });
-  const empty = { qf:[], sf:[], f:[{t1:'TBD',s1:null,t2:'TBD',s2:null,done:false}], champion:null };
+  const initialData = data || { qf:[], sf:[], f:[{t1:'TBD',s1:null,t2:'TBD',s2:null,done:false}], champion:null };
   try {
-    db.prepare('INSERT INTO brackets (region,season,data) VALUES (?,?,?)').run(region.toUpperCase(), season, JSON.stringify(empty));
+    db.prepare('INSERT INTO brackets (region,season,data) VALUES (?,?,?)').run(region.toUpperCase(), season, JSON.stringify(initialData));
     res.json({ ok: true });
   } catch(e) { res.status(400).json({ error: 'Bracket already exists' }); }
 });

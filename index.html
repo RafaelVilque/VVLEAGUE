@@ -140,7 +140,7 @@
           <div id="bracketSeasonTabs" class="region-tabs" style="margin-bottom:0;"></div>
           <button id="newBracketBtn" class="log-add-btn" style="display:none;" onclick="openNewBracketForm()">+ NEW BRACKET</button>
         </div>
-        <div class="region-tabs">
+        <div id="bracketRegionTabs" class="region-tabs">
           <button class="rtab active" onclick="switchBracket(this,'NA')">NA</button>
           <button class="rtab" onclick="switchBracket(this,'EU')">EU</button>
           <button class="rtab" onclick="switchBracket(this,'ASIA')">ASIA</button>
@@ -149,6 +149,7 @@
         </div>
         <div class="admin-bar">
           <span id="adminBadge" class="admin-badge" style="display:none;">⚙ ADMIN MODE</span>
+          <button id="manageUsersBtn" class="log-add-btn" style="display:none;margin-right:.4rem;" onclick="openAdminUsers()">MANAGE USERS</button>
           <button id="adminLockBtn" class="admin-lock-btn" onclick="toggleAdminPanel()" title="Admin Login">🔒</button>
           <button id="adminLogoutBtn" class="admin-logout-btn" onclick="adminLogout()" style="display:none;">LOGOUT</button>
         </div>
@@ -390,6 +391,43 @@
         <button class="admin-submit-btn" onclick="saveRules()">SALVAR</button>
         <button class="admin-cancel-btn" onclick="closeRulesEditor()">CANCELAR</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Admin Users Modal -->
+  <div id="adminUsersModal" class="modal-overlay" onclick="maybeCloseAdminUsersModal(event)">
+    <div class="modal-box admin-modal-box" style="max-width:600px;">
+      <button class="modal-close" onclick="closeAdminUsers()">✕</button>
+      <div class="admin-modal-header" style="margin-bottom:1rem;">
+        <div class="admin-modal-icon">👥</div>
+        <div class="admin-modal-title">MANAGE ADMIN USERS</div>
+      </div>
+      <div style="margin-bottom:.8rem;">
+        <button class="log-add-btn" onclick="openAdminUserAddForm()">+ ADD USER</button>
+      </div>
+      <!-- Add/Edit form (hidden by default) -->
+      <div id="adminUserForm" style="display:none;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:1rem;margin-bottom:1rem;">
+        <input type="hidden" id="auf_id">
+        <div class="admin-form-grid-2">
+          <div class="admin-field"><label class="admin-label">USERNAME</label><input id="auf_username" class="admin-input" placeholder="username"></div>
+          <div class="admin-field"><label class="admin-label">PASSWORD (blank = no change)</label><input id="auf_pass" type="password" class="admin-input" placeholder="new password"></div>
+          <div class="admin-field"><label class="admin-label">PERMS (comma-separated)</label><input id="auf_perms" class="admin-input" placeholder="logs,brackets,schedule"></div>
+          <div class="admin-field" style="display:flex;align-items:center;gap:.5rem;padding-top:1.4rem;">
+            <input type="checkbox" id="auf_active" checked>
+            <label for="auf_active" class="admin-label" style="margin:0;">ACTIVE</label>
+          </div>
+        </div>
+        <div style="font-size:.7rem;color:var(--text);opacity:.6;margin:.5rem 0;">Perms: <code>all</code> = full access · <code>logs</code> · <code>brackets</code> · <code>schedule</code> · <code>orgs</code></div>
+        <div class="admin-modal-actions">
+          <button class="admin-submit-btn" onclick="saveAdminUser()">SAVE</button>
+          <button class="admin-cancel-btn" onclick="document.getElementById('adminUserForm').style.display='none'">CANCEL</button>
+        </div>
+      </div>
+      <!-- Users table -->
+      <table class="log-table" style="width:100%;">
+        <thead><tr><th>USERNAME</th><th>PERMS</th><th>STATUS</th><th>ACTIONS</th></tr></thead>
+        <tbody id="adminUsersTbody"><tr><td colspan="4" style="text-align:center;opacity:.5">Loading...</td></tr></tbody>
+      </table>
     </div>
   </div>
 
