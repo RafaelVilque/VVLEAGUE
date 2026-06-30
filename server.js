@@ -147,6 +147,21 @@ if (!db.prepare('SELECT COUNT(*) as c FROM orgs').get().c) {
   });
 }
 
+// Schedule table
+db.exec(`
+  CREATE TABLE IF NOT EXISTS schedule (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    date       TEXT NOT NULL,
+    time       TEXT DEFAULT '',
+    match      TEXT NOT NULL,
+    region     TEXT DEFAULT 'ALL',
+    round      TEXT DEFAULT '',
+    status     TEXT DEFAULT 'upcoming',
+    season     TEXT DEFAULT 'S3',
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+`);
+
 // Seed players if empty
 if (!db.prepare('SELECT COUNT(*) as c FROM players').get().c) {
   const insP = db.prepare('INSERT INTO players (name,org,elo,wins,losses) VALUES (?,?,?,?,?)');
@@ -167,6 +182,25 @@ if (!db.prepare('SELECT COUNT(*) as c FROM players').get().c) {
     {name:'BladeRush',  org:'VVS', elo:1390, wins:13, losses:31},
     {name:'HazeSpark',  org:'TRX', elo:890,  wins:7,  losses:37},
   ].forEach(p => insP.run(p.name, p.org, p.elo, p.wins, p.losses));
+}
+
+// Seed schedule if empty
+if (!db.prepare('SELECT COUNT(*) as c FROM schedule').get().c) {
+  const insS = db.prepare('INSERT INTO schedule (date,time,match,region,round,status,season) VALUES (?,?,?,?,?,?,?)');
+  [
+    ['2026-06-25','18:00','VVS vs ABY',  'NA',  'Semifinal',  'upcoming','S3'],
+    ['2026-06-25','20:00','ZRO vs VLT',  'NA',  'Semifinal',  'upcoming','S3'],
+    ['2026-06-26','17:00','FRZ vs NOV',  'EU',  'Semifinal',  'upcoming','S3'],
+    ['2026-06-27','14:00','SKY vs KRN',  'ASIA','Semifinal',  'upcoming','S3'],
+    ['2026-06-27','10:00','WVE vs DNG',  'OCE', 'Semifinal',  'upcoming','S3'],
+    ['2026-06-28','19:00','JGR vs SOL',  'SA',  'Semifinal',  'upcoming','S3'],
+    ['2026-07-05','20:00','NA Finals',   'NA',  'Final',      'upcoming','S3'],
+    ['2026-07-06','19:00','EU Finals',   'EU',  'Final',      'upcoming','S3'],
+    ['2026-07-07','14:00','ASIA Finals', 'ASIA','Final',      'upcoming','S3'],
+    ['2026-07-07','10:00','OCE Finals',  'OCE', 'Final',      'upcoming','S3'],
+    ['2026-07-08','19:00','SA Finals',   'SA',  'Final',      'upcoming','S3'],
+    ['2026-08-01','20:00','VVL S3 Championship','ALL','Grand Final','upcoming','S3'],
+  ].forEach(r => insS.run(...r));
 }
 
 // Migrate: convert amount column in wager_records to TEXT
@@ -190,6 +224,27 @@ if (wagerRecCols.find(c => c.name === 'amount' && c.type === 'INTEGER')) {
     );
     INSERT INTO wager_records SELECT id,date,challenger,challenged,CAST(amount AS TEXT),winner,status,paid,season,notes,created_at FROM _wager_records_old;
     DROP TABLE _wager_records_old;
+    COMMIT;
+  `);
+}
+
+// Migrate brackets to support seasons
+const bracketColCheck = db.prepare("PRAGMA table_info(brackets)").all();
+if (!bracketColCheck.find(c => c.name === 'season')) {
+  db.exec(`
+    BEGIN;
+    ALTER TABLE brackets RENAME TO _brackets_old;
+    CREATE TABLE brackets (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      region     TEXT NOT NULL,
+      season     TEXT NOT NULL DEFAULT 'S3',
+      data       TEXT NOT NULL,
+      updated_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(region, season)
+    );
+    INSERT INTO brackets (region, season, data, updated_at)
+      SELECT region, 'S3', data, updated_at FROM _brackets_old;
+    DROP TABLE _brackets_old;
     COMMIT;
   `);
 }
@@ -402,19 +457,66 @@ app.delete('/api/awards/:id', requireAdmin, (req, res) => {
 // ============================================================
 // BRACKETS
 // ============================================================
-app.get('/api/brackets', (_req, res) => {
-  const rows = db.prepare('SELECT region, data FROM brackets').all();
+app.get('/api/brackets/seasons', (_req, res) => {
+  const seasons = db.prepare('SELECT DISTINCT season FROM brackets ORDER BY season DESC').all().map(r => r.season);
+  res.json(seasons.length ? seasons : ['S3']);
+});
+
+app.get('/api/brackets', (req, res) => {
+  const season = req.query.season || 'S3';
+  const rows = db.prepare('SELECT region, data FROM brackets WHERE season = ?').all(season);
   const out  = {};
   rows.forEach(r => { out[r.region] = JSON.parse(r.data); });
   res.json(out);
 });
 
+app.post('/api/brackets', requireAdmin, (req, res) => {
+  const { region, season } = req.body;
+  if (!region || !season) return res.status(400).json({ error: 'region and season required' });
+  const empty = { qf:[], sf:[], f:[{t1:'TBD',s1:null,t2:'TBD',s2:null,done:false}], champion:null };
+  try {
+    db.prepare('INSERT INTO brackets (region,season,data) VALUES (?,?,?)').run(region.toUpperCase(), season, JSON.stringify(empty));
+    res.json({ ok: true });
+  } catch(e) { res.status(400).json({ error: 'Bracket already exists' }); }
+});
+
 app.put('/api/brackets/:region', requireAdmin, (req, res) => {
   const region = req.params.region.toUpperCase();
+  const season = req.query.season || 'S3';
   db.prepare(`
-    INSERT INTO brackets (region, data, updated_at) VALUES (?,?,datetime('now'))
-    ON CONFLICT(region) DO UPDATE SET data=excluded.data, updated_at=excluded.updated_at
-  `).run(region, JSON.stringify(req.body));
+    INSERT INTO brackets (region, season, data, updated_at) VALUES (?,?,?,datetime('now'))
+    ON CONFLICT(region, season) DO UPDATE SET data=excluded.data, updated_at=excluded.updated_at
+  `).run(region, season, JSON.stringify(req.body));
+  res.json({ ok: true });
+});
+
+// ============================================================
+// SCHEDULE
+// ============================================================
+app.get('/api/schedule', (req, res) => {
+  const { region, season } = req.query;
+  const conds = [], params = [];
+  if (season) { conds.push('season = ?'); params.push(season); }
+  if (region && region !== 'ALL') { conds.push('(region = ? OR region = ?)'); params.push(region, 'ALL'); }
+  const where = conds.length ? ' WHERE ' + conds.join(' AND ') : '';
+  res.json(db.prepare(`SELECT * FROM schedule${where} ORDER BY date ASC, time ASC`).all(...params));
+});
+
+app.post('/api/schedule', requireAdmin, (req, res) => {
+  const { date, time, match, region, round, status, season } = req.body;
+  if (!date || !match) return res.status(400).json({ error: 'date and match required' });
+  const r = db.prepare('INSERT INTO schedule (date,time,match,region,round,status,season) VALUES (?,?,?,?,?,?,?)').run(date, time||'', match, region||'ALL', round||'', status||'upcoming', season||'S3');
+  res.json({ id: r.lastInsertRowid });
+});
+
+app.put('/api/schedule/:id', requireAdmin, (req, res) => {
+  const { date, time, match, region, round, status, season } = req.body;
+  db.prepare('UPDATE schedule SET date=?,time=?,match=?,region=?,round=?,status=?,season=? WHERE id=?').run(date, time||'', match, region||'ALL', round||'', status||'upcoming', season||'S3', req.params.id);
+  res.json({ ok: true });
+});
+
+app.delete('/api/schedule/:id', requireAdmin, (req, res) => {
+  db.prepare('DELETE FROM schedule WHERE id=?').run(req.params.id);
   res.json({ ok: true });
 });
 

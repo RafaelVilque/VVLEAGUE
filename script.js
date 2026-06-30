@@ -31,6 +31,23 @@ const SCHEDULE = [
   {date:'2026-08-01',time:'20:00',match:'VVL S3 Championship', region:'ALL', round:'Grand Final', status:'upcoming'},
 ];
 
+const DEFAULT_ELO_INFO = {
+  description: 'The Off Season Elo system determines player rankings during the VVL pre-season. Points are calculated from ranked match results and opponent rating differences.',
+  tiers: [
+    {name:'BRONZE',  color:'#cd7f32', range:'0 — 999'},
+    {name:'SILVER',  color:'#aaa',    range:'1000 — 1499'},
+    {name:'GOLD',    color:'gold',    range:'1500 — 1999'},
+    {name:'PLATINUM',color:'#00ccff', range:'2000 — 2499'},
+    {name:'DIAMOND', color:'#aa44ff', range:'2500+'},
+  ],
+  gains: [
+    {case:'Win vs higher ranked', value:'+32'},
+    {case:'Win vs equal',         value:'+25'},
+    {case:'Win vs lower ranked',  value:'+16'},
+    {case:'Loss',                 value:'−20'},
+  ],
+};
+
 // ============================================================
 // STATE
 // ============================================================
@@ -39,6 +56,8 @@ let orgFilter      = 'all';
 let statsSort      = 'wins';
 let scheduleRegion = 'ALL';
 let currentBracket = 'NA';
+let currentBracketSeason = 'S3';
+let bracketSeasons = ['S3'];
 let currentGuildR  = 'NA';
 let currentTeamR   = 'NA';
 let cdEventIndex   = 0;
@@ -59,6 +78,8 @@ let orgsData      = [];
 let leaderboardData = [];
 let guildsData    = {};
 let teamsData     = {};
+let scheduleData  = [];
+let eloInfoData   = null;
 
 // Pending delete / edit
 let _deleteCtx = null;
@@ -148,6 +169,7 @@ async function loadOrgs() {
   renderStats();
   renderGuilds();
   renderTeams();
+  renderGuildLeaderboard();
 }
 
 function buildGuildsFromOrgs(orgs) {
@@ -316,14 +338,65 @@ function renderTeams() {
 // ============================================================
 // BRACKETS
 // ============================================================
-async function loadBracketsFromAPI() {
+async function loadBracketSeasons() {
+  try { bracketSeasons = await apiGet('/brackets/seasons'); } catch(e) { bracketSeasons = ['S3']; }
+  if (!bracketSeasons.length) bracketSeasons = ['S3'];
+  renderBracketSeasonTabs();
+}
+
+function renderBracketSeasonTabs() {
+  const wrap = document.getElementById('bracketSeasonTabs');
+  if (!wrap) return;
+  wrap.innerHTML = bracketSeasons.map(s =>
+    `<button class="rtab ${s===currentBracketSeason?'active':''}" onclick="switchBracketSeason(this,'${s}')">${s}</button>`
+  ).join('');
+}
+
+async function switchBracketSeason(btn, season) {
+  document.querySelectorAll('#bracketSeasonTabs .rtab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  await loadBracketsFromAPI(season);
+}
+
+async function loadBracketsFromAPI(season) {
+  const s = season || currentBracketSeason;
+  currentBracketSeason = s;
   try {
-    const data = await apiGet('/brackets');
+    const data = await apiGet('/brackets?season=' + s);
+    BRACKETS = JSON.parse(JSON.stringify(DEFAULT_BRACKETS));
     if (data && typeof data === 'object' && !data.error) {
-      Object.keys(data).forEach(r => { if (BRACKETS[r]) BRACKETS[r] = data[r]; });
+      Object.keys(data).forEach(r => { BRACKETS[r] = data[r]; });
     }
   } catch(e) {}
   renderBracket();
+}
+
+function openNewBracketForm() {
+  document.getElementById('logFormContent').innerHTML = `
+    <div class="admin-modal-header" style="margin-bottom:1rem;">
+      <div class="admin-modal-icon">+</div>
+      <div class="admin-modal-title">NEW BRACKET</div>
+    </div>
+    <div class="admin-form-grid-2">
+      <div class="admin-field"><label class="admin-label">SEASON</label><input id="nb_season" class="admin-input" value="" placeholder="S4, S5..."></div>
+      <div class="admin-field"><label class="admin-label">REGION</label><select id="nb_region" class="admin-select">
+        ${['NA','EU','ASIA','OCE','SA'].map(r=>`<option>${r}</option>`).join('')}
+      </select></div>
+    </div>
+    <div class="admin-modal-actions">
+      <button class="admin-submit-btn" onclick="saveNewBracket()">CREATE</button>
+      <button class="admin-cancel-btn" onclick="closeLogForm()">CANCEL</button>
+    </div>`;
+  document.getElementById('logFormModal').classList.add('open');
+}
+
+async function saveNewBracket() {
+  const season = g('nb_season').trim(), region = g('nb_region');
+  if (!season) return;
+  await apiPost('/brackets', { region, season });
+  closeLogForm();
+  if (!bracketSeasons.includes(season)) { bracketSeasons.unshift(season); renderBracketSeasonTabs(); }
+  await loadBracketsFromAPI(season);
 }
 
 function switchBracket(btn, region) {
@@ -365,12 +438,181 @@ function filterSchedule(btn, region) {
   document.querySelectorAll('#secSchedule .filter-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active'); renderSchedule();
 }
+
+async function loadSchedule() {
+  try { scheduleData = await apiGet('/schedule'); } catch(e) { scheduleData = []; }
+  renderSchedule();
+}
+
 function renderSchedule() {
-  const data = scheduleRegion==='ALL' ? SCHEDULE : SCHEDULE.filter(s=>s.region===scheduleRegion||s.region==='ALL');
+  const data = scheduleRegion === 'ALL'
+    ? scheduleData
+    : scheduleData.filter(s => s.region === scheduleRegion || s.region === 'ALL');
+  const actTh = document.getElementById('schedActTh');
+  if (actTh) actTh.style.display = isAdmin ? '' : 'none';
   document.getElementById('scheduleBody').innerHTML = data.map(s => {
     const sc = s.status==='live'?'status-live':s.status==='done'?'status-done':'status-upcoming';
     const sl = s.status==='live'?'🔴 LIVE':s.status==='done'?'DONE':'UPCOMING';
-    return `<tr><td>${s.date}</td><td>${s.time}</td><td style="color:var(--blue);font-weight:600;">${s.match}</td><td><span class="org-badge badge-active" style="font-size:.65rem;">${s.region}</span></td><td style="color:var(--text);opacity:.7">${s.round}</td><td class="${sc}">${sl}</td></tr>`;
+    const adminBtns = isAdmin
+      ? `<td><button class="tbl-btn" onclick="openScheduleForm(${JSON.stringify(s).replace(/"/g,'&quot;')})">✎</button><button class="tbl-btn del" onclick="confirmDelete('schedule',${s.id})">✕</button></td>`
+      : '';
+    return `<tr><td>${s.date}</td><td>${s.time}</td><td style="color:var(--blue);font-weight:600;">${s.match}</td><td><span class="org-badge badge-active" style="font-size:.65rem;">${s.region}</span></td><td style="color:var(--text);opacity:.7">${s.round}</td><td class="${sc}">${sl}</td>${adminBtns}</tr>`;
+  }).join('');
+}
+
+function openScheduleForm(existing) {
+  const e = existing || {}, isEdit = !!e.id;
+  const regions = ['ALL','NA','EU','ASIA','OCE','SA'];
+  document.getElementById('logFormContent').innerHTML = `
+    <div class="admin-modal-header" style="margin-bottom:1rem;">
+      <div class="admin-modal-icon">${isEdit?'✎':'+'}</div>
+      <div class="admin-modal-title">${isEdit?'EDIT':'ADD'} SCHEDULE</div>
+    </div>
+    <div class="admin-form-grid-2">
+      <div class="admin-field"><label class="admin-label">DATE</label><input id="sf_date" type="date" class="admin-input" value="${e.date||''}"></div>
+      <div class="admin-field"><label class="admin-label">TIME (UTC)</label><input id="sf_time" class="admin-input" value="${e.time||''}" placeholder="18:00"></div>
+      <div class="admin-field" style="grid-column:span 2;"><label class="admin-label">MATCH</label><input id="sf_match" class="admin-input" value="${e.match||''}" placeholder="VVS vs NXS"></div>
+      <div class="admin-field"><label class="admin-label">REGION</label><select id="sf_region" class="admin-select">${regions.map(r=>`<option ${(e.region||'ALL')===r?'selected':''}>${r}</option>`).join('')}</select></div>
+      <div class="admin-field"><label class="admin-label">ROUND</label><input id="sf_round" class="admin-input" value="${e.round||''}" placeholder="Semifinal, Final..."></div>
+      <div class="admin-field"><label class="admin-label">STATUS</label><select id="sf_status" class="admin-select">
+        <option value="upcoming" ${(!e.status||e.status==='upcoming')?'selected':''}>UPCOMING</option>
+        <option value="live" ${e.status==='live'?'selected':''}>LIVE</option>
+        <option value="done" ${e.status==='done'?'selected':''}>DONE</option>
+      </select></div>
+      <div class="admin-field"><label class="admin-label">SEASON</label><input id="sf_season" class="admin-input" value="${e.season||'S3'}" placeholder="S1, S2, S3..."></div>
+    </div>
+    <div class="admin-modal-actions">
+      <button class="admin-submit-btn" onclick="saveScheduleForm(${e.id||'null'})">SAVE</button>
+      <button class="admin-cancel-btn" onclick="closeLogForm()">CANCEL</button>
+    </div>`;
+  document.getElementById('logFormModal').classList.add('open');
+}
+
+async function saveScheduleForm(id) {
+  const body = { date:g('sf_date'), time:g('sf_time'), match:g('sf_match'), region:g('sf_region'), round:g('sf_round'), status:g('sf_status'), season:g('sf_season') };
+  if (!body.date || !body.match) return;
+  id ? await apiPut('/schedule/'+id, body) : await apiPost('/schedule', body);
+  closeLogForm();
+  await loadSchedule();
+}
+
+// ============================================================
+// ELO INFO
+// ============================================================
+async function loadEloInfo() {
+  try {
+    const data = await apiGet('/rules/elo_info');
+    eloInfoData = data.content ? JSON.parse(data.content) : DEFAULT_ELO_INFO;
+  } catch(e) { eloInfoData = DEFAULT_ELO_INFO; }
+  renderEloInfo();
+}
+
+function renderEloInfo() {
+  const info = eloInfoData || DEFAULT_ELO_INFO;
+  const el = document.getElementById('eloInfoContent');
+  if (!el) return;
+  el.innerHTML = `
+    <h3>OFF SEASON ELO SYSTEM</h3>
+    <p>${info.description}</p>
+    <h3>TIERS</h3>
+    <div class="elo-tiers">
+      ${info.tiers.map(t=>`<div class="elo-tier" style="--tc:${t.color}"><span class="tier-name">${t.name}</span><span class="tier-range">${t.range}</span></div>`).join('')}
+    </div>
+    <h3>ELO GAINS / LOSSES</h3>
+    <div class="elo-rules">
+      ${info.gains.map(gn=>{const pos=!String(gn.value).startsWith('−')&&!String(gn.value).startsWith('-');return`<div class="elo-rule"><span class="elo-case">${gn.case}</span><span class="${pos?'stat-green':'stat-red'}">${gn.value}</span></div>`;}).join('')}
+    </div>`;
+}
+
+function _collectEloForm() {
+  const tiers = [], gains = [];
+  document.querySelectorAll('#ei_tiers > div').forEach((_, i) => {
+    const name = g('ei_tier_name_'+i);
+    if (name) tiers.push({name, color: g('ei_tier_color_'+i), range: g('ei_tier_range_'+i)});
+  });
+  document.querySelectorAll('#ei_gains > div').forEach((_, i) => {
+    const c = g('ei_gain_case_'+i);
+    if (c) gains.push({case: c, value: g('ei_gain_val_'+i)});
+  });
+  const desc = document.getElementById('ei_desc');
+  return { description: desc ? desc.value : (eloInfoData||DEFAULT_ELO_INFO).description, tiers, gains };
+}
+
+function openEloInfoEditor() {
+  const info = eloInfoData || DEFAULT_ELO_INFO;
+  document.getElementById('logFormContent').innerHTML = `
+    <div class="admin-modal-header" style="margin-bottom:1rem;">
+      <div class="admin-modal-icon">✎</div>
+      <div class="admin-modal-title">EDIT ELO INFO</div>
+    </div>
+    <div class="admin-field" style="margin-bottom:.7rem;">
+      <label class="admin-label">DESCRIPTION</label>
+      <textarea id="ei_desc" class="admin-textarea">${info.description}</textarea>
+    </div>
+    <div class="admin-label" style="margin:.4rem 0;">TIERS</div>
+    <div id="ei_tiers">
+      ${info.tiers.map((t,i)=>`
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:.4rem;margin-bottom:.3rem;">
+          <input class="admin-input" id="ei_tier_name_${i}" value="${t.name}" placeholder="Nome">
+          <input class="admin-input" id="ei_tier_color_${i}" value="${t.color}" placeholder="#cor">
+          <input class="admin-input" id="ei_tier_range_${i}" value="${t.range}" placeholder="0 — 999">
+          <button class="tbl-btn del" onclick="removeEloTier(${i})">✕</button>
+        </div>`).join('')}
+    </div>
+    <button class="admin-cancel-btn" style="width:100%;margin-bottom:.8rem;" onclick="addEloTier()">+ ADD TIER</button>
+    <div class="admin-label" style="margin:.4rem 0;">ELO GAINS / LOSSES</div>
+    <div id="ei_gains">
+      ${info.gains.map((gn,i)=>`
+        <div style="display:grid;grid-template-columns:1fr 6rem auto;gap:.4rem;margin-bottom:.3rem;">
+          <input class="admin-input" id="ei_gain_case_${i}" value="${gn.case}" placeholder="Descrição">
+          <input class="admin-input" id="ei_gain_val_${i}" value="${gn.value}" placeholder="+25">
+          <button class="tbl-btn del" onclick="removeEloGain(${i})">✕</button>
+        </div>`).join('')}
+    </div>
+    <button class="admin-cancel-btn" style="width:100%;margin-bottom:.8rem;" onclick="addEloGain()">+ ADD RULE</button>
+    <div class="admin-modal-actions">
+      <button class="admin-submit-btn" onclick="saveEloInfo()">SAVE</button>
+      <button class="admin-cancel-btn" onclick="closeLogForm()">CANCEL</button>
+    </div>`;
+  document.getElementById('logFormModal').classList.add('open');
+}
+
+function removeEloTier(i)  { const info=_collectEloForm(); info.tiers.splice(i,1);  eloInfoData=info; openEloInfoEditor(); }
+function addEloTier()       { const info=_collectEloForm(); info.tiers.push({name:'NEW',color:'#ffffff',range:'0 — 0'}); eloInfoData=info; openEloInfoEditor(); }
+function removeEloGain(i)  { const info=_collectEloForm(); info.gains.splice(i,1);  eloInfoData=info; openEloInfoEditor(); }
+function addEloGain()       { const info=_collectEloForm(); info.gains.push({case:'New rule',value:'+0'}); eloInfoData=info; openEloInfoEditor(); }
+
+async function saveEloInfo() {
+  const info = _collectEloForm();
+  await apiPut('/rules/elo_info', { content: JSON.stringify(info) });
+  eloInfoData = info;
+  closeLogForm();
+  renderEloInfo();
+}
+
+// ============================================================
+// GUILD LEADERBOARD
+// ============================================================
+function renderGuildLeaderboard() {
+  const el = document.getElementById('guildLbBody');
+  if (!el) return;
+  const sorted = [...orgsData].sort((a,b) => {
+    const pa = (a.wins||0)*100 + (a.wonEvents||0)*200;
+    const pb = (b.wins||0)*100 + (b.wonEvents||0)*200;
+    return pb - pa;
+  });
+  el.innerHTML = sorted.map((o,i) => {
+    const points = (o.wins||0)*100 + (o.wonEvents||0)*200;
+    const rc = i<3?`lb-rank-${i+1}`:'', rd = i<3?['①','②','③'][i]:i+1;
+    return `<tr class="${rc}">
+      <td class="lb-rank">${rd}</td>
+      <td style="font-weight:600">${o.icon||''} ${o.name}</td>
+      <td style="color:rgba(160,200,255,.5);font-size:.85rem;">[${o.tag}]</td>
+      <td style="color:var(--yellow);font-weight:700">${points.toLocaleString()}</td>
+      <td style="font-size:.85rem;"><span class="stat-wins">${o.wins||0}W</span>&nbsp;<span style="opacity:.4">/</span>&nbsp;<span class="stat-losses">${o.losses||0}L</span></td>
+      <td style="color:var(--yellow)">${o.wonEvents||0}</td>
+      <td>${o.members.length}</td>
+    </tr>`;
   }).join('');
 }
 
@@ -457,14 +699,14 @@ function setAdminUI(on) {
   document.getElementById('adminBadge').style.display  = on ? '' : 'none';
   document.getElementById('adminLogoutBtn').style.display = on ? '' : 'none';
   refreshAdminButtons();
-  if (on) { renderOrgList(); renderLeaderboard(); }
+  if (on) { renderOrgList(); renderLeaderboard(); renderSchedule(); }
 }
 
 function refreshAdminButtons() {
-  ['addWarLogBtn','addSeasonLogBtn','addWagerBtn','addAwardBtn','editHomeRulesBtn','editLogsRulesBtn','addOrgBtn','addPlayerBtn'].forEach(id => {
+  ['addWarLogBtn','addSeasonLogBtn','addWagerBtn','addAwardBtn','editHomeRulesBtn','editLogsRulesBtn','addOrgBtn','addPlayerBtn','addScheduleBtn','editEloInfoBtn','newBracketBtn'].forEach(id => {
     const el = document.getElementById(id); if (el) el.style.display = isAdmin ? '' : 'none';
   });
-  ['warActTh','seasonActTh','wagerActTh','lbActTh'].forEach(id => {
+  ['warActTh','seasonActTh','wagerActTh','lbActTh','schedActTh'].forEach(id => {
     const el = document.getElementById(id); if (el) el.style.display = isAdmin ? '' : 'none';
   });
 }
@@ -507,7 +749,7 @@ async function saveMatchEdit() {
   const s1v = document.getElementById('eS1').value, s2v = document.getElementById('eS2').value;
   const m = { t1:document.getElementById('eT1').value.trim()||'TBD', t2:document.getElementById('eT2').value.trim()||'TBD', s1:s1v!==''?parseInt(s1v):null, s2:s2v!==''?parseInt(s2v):null, done:document.getElementById('eDone').checked };
   BRACKETS[region][roundKey][idx] = m;
-  await apiPut('/brackets/'+region, BRACKETS[region]);
+  await apiPut('/brackets/'+region+'?season='+currentBracketSeason, BRACKETS[region]);
   closeMatchEdit(); renderBracket();
 }
 
@@ -530,7 +772,7 @@ function openChampionEdit(region) {
 
 async function saveChampion(region) {
   BRACKETS[region].champion = document.getElementById('eChamp').value.trim()||null;
-  await apiPut('/brackets/'+region, BRACKETS[region]);
+  await apiPut('/brackets/'+region+'?season='+currentBracketSeason, BRACKETS[region]);
   closeMatchEdit(); renderBracket();
 }
 
@@ -993,15 +1235,16 @@ function confirmDelete(type, id) {
 async function confirmDeleteYes() {
   if (!_deleteCtx) return;
   const { type, id } = _deleteCtx;
-  const pathMap = { war:'/logs/war/', season:'/logs/season/', wager:'/logs/wager/', award:'/awards/', org:'/orgs/', player:'/players/' };
+  const pathMap = { war:'/logs/war/', season:'/logs/season/', wager:'/logs/wager/', award:'/awards/', org:'/orgs/', player:'/players/', schedule:'/schedule/' };
   await apiDelete(pathMap[type]+id);
   closeConfirmModal();
-  if (type==='war')    { loadWarLogs(); loadOrgs(); }
-  if (type==='season') { loadSeasonLogs(); loadOrgs(); }
-  if (type==='wager')  loadWagerRecords();
-  if (type==='award')  loadAwards();
-  if (type==='org')    loadOrgs();
-  if (type==='player') loadLeaderboard();
+  if (type==='war')      { loadWarLogs(); loadOrgs(); }
+  if (type==='season')   { loadSeasonLogs(); loadOrgs(); }
+  if (type==='wager')    loadWagerRecords();
+  if (type==='award')    loadAwards();
+  if (type==='org')      loadOrgs();
+  if (type==='player')   loadLeaderboard();
+  if (type==='schedule') loadSchedule();
 }
 
 function closeConfirmModal() { document.getElementById('confirmModal').classList.remove('open'); _deleteCtx=null; }
@@ -1011,8 +1254,13 @@ function closeConfirmModal() { document.getElementById('confirmModal').classList
 // ============================================================
 (async function init() {
   initCountdown();
-  renderSchedule();
-
   await verifyStoredToken();
-  await Promise.all([loadOrgs(), loadLeaderboard(), loadBracketsFromAPI()]);
+  await Promise.all([
+    loadOrgs(),
+    loadLeaderboard(),
+    loadBracketsFromAPI(),
+    loadBracketSeasons(),
+    loadSchedule(),
+    loadEloInfo(),
+  ]);
 })();

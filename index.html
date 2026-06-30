@@ -136,6 +136,10 @@
 
     <section id="secBrackets" class="home-section active">
       <div class="bracket-top-bar">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;">
+          <div id="bracketSeasonTabs" class="region-tabs" style="margin-bottom:0;"></div>
+          <button id="newBracketBtn" class="log-add-btn" style="display:none;" onclick="openNewBracketForm()">+ NEW BRACKET</button>
+        </div>
         <div class="region-tabs">
           <button class="rtab active" onclick="switchBracket(this,'NA')">NA</button>
           <button class="rtab" onclick="switchBracket(this,'EU')">EU</button>
@@ -153,18 +157,21 @@
     </section>
 
     <section id="secSchedule" class="home-section">
-      <div class="filter-row">
-        <span class="sort-label">REGION:</span>
-        <button class="filter-btn active" onclick="filterSchedule(this,'ALL')">ALL</button>
-        <button class="filter-btn" onclick="filterSchedule(this,'NA')">NA</button>
-        <button class="filter-btn" onclick="filterSchedule(this,'EU')">EU</button>
-        <button class="filter-btn" onclick="filterSchedule(this,'ASIA')">ASIA</button>
-        <button class="filter-btn" onclick="filterSchedule(this,'OCE')">OCE</button>
-        <button class="filter-btn" onclick="filterSchedule(this,'SA')">SA</button>
+      <div class="logs-bar" style="margin-bottom:.6rem;">
+        <div class="filter-row" style="margin-bottom:0;">
+          <span class="sort-label">REGION:</span>
+          <button class="filter-btn active" onclick="filterSchedule(this,'ALL')">ALL</button>
+          <button class="filter-btn" onclick="filterSchedule(this,'NA')">NA</button>
+          <button class="filter-btn" onclick="filterSchedule(this,'EU')">EU</button>
+          <button class="filter-btn" onclick="filterSchedule(this,'ASIA')">ASIA</button>
+          <button class="filter-btn" onclick="filterSchedule(this,'OCE')">OCE</button>
+          <button class="filter-btn" onclick="filterSchedule(this,'SA')">SA</button>
+        </div>
+        <button id="addScheduleBtn" class="log-add-btn" style="display:none;" onclick="openScheduleForm()">+ ADD ENTRY</button>
       </div>
       <div class="stats-table-wrap">
         <table class="stats-table">
-          <thead><tr><th>DATE</th><th>TIME (UTC)</th><th>MATCH</th><th>REGION</th><th>ROUND</th><th>STATUS</th></tr></thead>
+          <thead><tr><th>DATE</th><th>TIME (UTC)</th><th>MATCH</th><th>REGION</th><th>ROUND</th><th>STATUS</th><th id="schedActTh" style="display:none;"></th></tr></thead>
           <tbody id="scheduleBody"></tbody>
         </table>
       </div>
@@ -282,27 +289,21 @@
     </div>
     <div class="section-tabs">
       <button class="sec-tab active" onclick="switchSection(this,'secEloInfo')">ELO INFO</button>
-      <button class="sec-tab" onclick="switchSection(this,'secLeaderboard')">LEADERBOARD</button>
+      <button class="sec-tab" onclick="switchSection(this,'secLeaderboard')">PLAYER LB</button>
+      <button class="sec-tab" onclick="switchSection(this,'secGuildLeaderboard');renderGuildLeaderboard()">GUILD LB</button>
     </div>
     <section id="secEloInfo" class="home-section active">
-      <div class="panel-box">
-        <h3>OFF SEASON ELO SYSTEM</h3>
-        <p>The Off Season Elo system determines player rankings during the VVL pre-season. Points are calculated from ranked match results and opponent rating differences.</p>
-        <h3>TIERS</h3>
-        <div class="elo-tiers">
-          <div class="elo-tier" style="--tc:#cd7f32"><span class="tier-name">BRONZE</span><span class="tier-range">0 — 999</span></div>
-          <div class="elo-tier" style="--tc:#aaa"><span class="tier-name">SILVER</span><span class="tier-range">1000 — 1499</span></div>
-          <div class="elo-tier" style="--tc:gold"><span class="tier-name">GOLD</span><span class="tier-range">1500 — 1999</span></div>
-          <div class="elo-tier" style="--tc:#00ccff"><span class="tier-name">PLATINUM</span><span class="tier-range">2000 — 2499</span></div>
-          <div class="elo-tier" style="--tc:#aa44ff"><span class="tier-name">DIAMOND</span><span class="tier-range">2500+</span></div>
-        </div>
-        <h3>ELO GAINS / LOSSES</h3>
-        <div class="elo-rules">
-          <div class="elo-rule"><span class="elo-case">Win vs higher ranked</span><span class="stat-green">+32</span></div>
-          <div class="elo-rule"><span class="elo-case">Win vs equal</span><span class="stat-green">+25</span></div>
-          <div class="elo-rule"><span class="elo-case">Win vs lower ranked</span><span class="stat-green">+16</span></div>
-          <div class="elo-rule"><span class="elo-case">Loss</span><span class="stat-red">−20</span></div>
-        </div>
+      <div style="display:flex;justify-content:flex-end;margin-bottom:.6rem;">
+        <button id="editEloInfoBtn" class="log-add-btn" style="display:none;" onclick="openEloInfoEditor()">✎ EDIT ELO INFO</button>
+      </div>
+      <div id="eloInfoContent" class="panel-box"><div class="loading-state">LOADING...</div></div>
+    </section>
+    <section id="secGuildLeaderboard" class="home-section">
+      <div class="stats-table-wrap">
+        <table class="leaderboard-table">
+          <thead><tr><th>#</th><th>ORG</th><th>TAG</th><th>POINTS</th><th>W/L</th><th>EVENTS</th><th>MEMBERS</th></tr></thead>
+          <tbody id="guildLbBody"></tbody>
+        </table>
       </div>
     </section>
     <section id="secLeaderboard" class="home-section">
