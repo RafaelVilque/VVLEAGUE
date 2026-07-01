@@ -264,6 +264,7 @@ if (!db.prepare('SELECT COUNT(*) as c FROM brackets').get().c) {
 // Migrate: add points columns to season_logs
 try { db.exec('ALTER TABLE season_logs ADD COLUMN points_winner INTEGER DEFAULT 0'); } catch(e) {}
 try { db.exec('ALTER TABLE season_logs ADD COLUMN points_loser  INTEGER DEFAULT 0'); } catch(e) {}
+try { db.exec("ALTER TABLE orgs ADD COLUMN logo_url TEXT DEFAULT ''"); } catch(e) {}
 
 // Migrate: convert wager column to TEXT (recreate table preserving data)
 const warCols = db.prepare("PRAGMA table_info(war_logs)").all();
@@ -617,7 +618,13 @@ function computeOrgStats(tag) {
   const seaTotal = db.prepare("SELECT COUNT(*) as c FROM season_logs WHERE org1 = ? OR org2 = ?").get(tag, tag).c;
   const wagerRows = db.prepare("SELECT wager FROM war_logs WHERE org1 = ? OR org2 = ?").all(tag, tag);
   const wager = wagerRows.reduce((s, r) => s + (parseFloat(r.wager) || 0), 0);
-  return { wins: warWins + seaWins, losses: (warTotal - warWins) + (seaTotal - seaWins), wonEvents: seaWins, wager };
+  // Custom points: ELO from war_logs + season log points
+  const eloOrg1 = db.prepare("SELECT COALESCE(SUM(elo_org1),0) as s FROM war_logs WHERE org1 = ? AND elo_org1 IS NOT NULL").get(tag).s;
+  const eloOrg2 = db.prepare("SELECT COALESCE(SUM(elo_org2),0) as s FROM war_logs WHERE org2 = ? AND elo_org2 IS NOT NULL").get(tag).s;
+  const seaPtsWin  = db.prepare("SELECT COALESCE(SUM(points_winner),0) as s FROM season_logs WHERE winner = ?").get(tag).s;
+  const seaPtsLose = db.prepare("SELECT COALESCE(SUM(points_loser),0) as s FROM season_logs WHERE (org1 = ? OR org2 = ?) AND winner != ?").get(tag, tag, tag).s;
+  const points = eloOrg1 + eloOrg2 + seaPtsWin + seaPtsLose;
+  return { wins: warWins + seaWins, losses: (warTotal - warWins) + (seaTotal - seaWins), wonEvents: seaWins, wager, points };
 }
 
 function orgWithStats(o) {
@@ -640,17 +647,17 @@ app.get('/api/orgs/:id', (req, res) => {
 });
 
 app.post('/api/orgs', requireAdmin, (req, res) => {
-  const { tag, name, status, founded, region, icon, mvp } = req.body;
+  const { tag, name, status, founded, region, icon, mvp, logo_url } = req.body;
   if (!tag || !name) return res.status(400).json({ error: 'tag and name required' });
   try {
-    const r = db.prepare('INSERT INTO orgs (tag,name,status,founded,region,icon,mvp) VALUES (?,?,?,?,?,?,?)').run(tag.toUpperCase(), name, status||'active', founded||'S1', region||'NA', icon||'', mvp||'');
+    const r = db.prepare('INSERT INTO orgs (tag,name,status,founded,region,icon,mvp,logo_url) VALUES (?,?,?,?,?,?,?,?)').run(tag.toUpperCase(), name, status||'active', founded||'S1', region||'NA', icon||'', mvp||'', logo_url||'');
     res.json({ id: r.lastInsertRowid });
   } catch(e) { res.status(400).json({ error: 'Tag already exists' }); }
 });
 
 app.put('/api/orgs/:id', requireAdmin, (req, res) => {
-  const { tag, name, status, founded, region, icon, mvp } = req.body;
-  db.prepare('UPDATE orgs SET tag=?,name=?,status=?,founded=?,region=?,icon=?,mvp=? WHERE id=?').run(tag.toUpperCase(), name, status||'active', founded||'S1', region||'NA', icon||'', mvp||'', req.params.id);
+  const { tag, name, status, founded, region, icon, mvp, logo_url } = req.body;
+  db.prepare('UPDATE orgs SET tag=?,name=?,status=?,founded=?,region=?,icon=?,mvp=?,logo_url=? WHERE id=?').run(tag.toUpperCase(), name, status||'active', founded||'S1', region||'NA', icon||'', mvp||'', logo_url||'', req.params.id);
   res.json({ ok: true });
 });
 

@@ -56,8 +56,8 @@ let orgFilter      = 'all';
 let statsSort      = 'wins';
 let scheduleRegion = 'ALL';
 let currentBracket = 'NA';
-let currentBracketSeason = 'S3';
-let bracketSeasons = ['S3'];
+let currentBracketSeason = 'S1';
+let bracketSeasons = ['S1'];
 let currentGuildR  = 'NA';
 let currentTeamR   = 'NA';
 let cdEventIndex   = 0;
@@ -183,7 +183,7 @@ function buildGuildsFromOrgs(orgs) {
   const regions = { NA:[], EU:[], ASIA:[], OCE:[], SA:[] };
   orgs.filter(o => o.status === 'active').forEach(o => {
     if (!regions[o.region]) return;
-    const points = (o.wins || 0) * 100 + (o.wonEvents || 0) * 200;
+    const points = o.points || 0;
     regions[o.region].push({ tag:o.tag, name:o.name, icon:o.icon||o.tag.slice(0,2), wins:o.wins||0, members:o.members.length, points, rank:0 });
   });
   Object.keys(regions).forEach(r => {
@@ -236,7 +236,7 @@ function renderOrgList() {
       : '';
     return `
       <div class="org-card" onclick="openOrgModal(${o.id})">
-        <div class="org-avatar">${o.tag.slice(0,2)}</div>
+        ${o.logo_url ? `<img src="${o.logo_url}" alt="${o.tag}" class="org-avatar" style="object-fit:contain;padding:2px;">` : `<div class="org-avatar">${o.tag.slice(0,2)}</div>`}
         <div class="org-info">
           <div class="org-name">${o.name}</div>
           <div class="org-meta">[${o.tag}] · ${o.members.length} members · ${o.region} · Since ${o.founded}</div>
@@ -257,7 +257,7 @@ function openOrgModal(id) {
   const wagerStr = o.wager ? '$'+Number(o.wager).toLocaleString() : '—';
   document.getElementById('modalContent').innerHTML = `
     <div class="modal-org-header">
-      <div class="modal-org-avatar">${o.tag.slice(0,2)}</div>
+      ${o.logo_url ? `<img src="${o.logo_url}" alt="${o.tag}" style="width:52px;height:52px;object-fit:contain;border-radius:6px;flex-shrink:0;">` : `<div class="modal-org-avatar">${o.tag.slice(0,2)}</div>`}
       <div><div class="modal-org-name">${o.name}</div><div class="modal-org-tag">[${o.tag}] · ${o.region} · ${o.status==='active'?'● ACTIVE':'○ INACTIVE'} · Since ${o.founded}</div></div>
     </div>
     <div class="modal-stats-grid">
@@ -346,8 +346,18 @@ function renderTeams() {
 // BRACKETS
 // ============================================================
 async function loadBracketSeasons() {
-  try { bracketSeasons = await apiGet('/brackets/seasons'); } catch(e) { bracketSeasons = ['S3']; }
-  if (!bracketSeasons.length) bracketSeasons = ['S3'];
+  try { bracketSeasons = await apiGet('/brackets/seasons'); } catch(e) { bracketSeasons = ['S1']; }
+  if (!Array.isArray(bracketSeasons) || !bracketSeasons.length) bracketSeasons = ['S1'];
+  // Sort seasons naturally: S1 < S2 < S10 etc.
+  bracketSeasons.sort((a, b) => {
+    const na = parseInt(a.replace(/\D/g,'')) || 0;
+    const nb = parseInt(b.replace(/\D/g,'')) || 0;
+    return na - nb;
+  });
+  // Default to the first (earliest) season
+  if (!bracketSeasons.includes(currentBracketSeason)) {
+    currentBracketSeason = bracketSeasons[0];
+  }
   renderBracketSeasonTabs();
 }
 
@@ -655,13 +665,9 @@ async function saveEloInfo() {
 function renderGuildLeaderboard() {
   const el = document.getElementById('guildLbBody');
   if (!el) return;
-  const sorted = [...orgsData].sort((a,b) => {
-    const pa = (a.wins||0)*100 + (a.wonEvents||0)*200;
-    const pb = (b.wins||0)*100 + (b.wonEvents||0)*200;
-    return pb - pa;
-  });
+  const sorted = [...orgsData].sort((a,b) => (b.points||0) - (a.points||0));
   el.innerHTML = sorted.map((o,i) => {
-    const points = (o.wins||0)*100 + (o.wonEvents||0)*200;
+    const points = o.points || 0;
     const rc = i<3?`lb-rank-${i+1}`:'', rd = i<3?['①','②','③'][i]:i+1;
     return `<tr class="${rc}">
       <td class="lb-rank">${rd}</td>
@@ -967,7 +973,7 @@ function openLogForm(type, existing) {
 
   if (type === 'war') {
     const orgSel = (id, val) => `<select id="${id}" class="admin-select">${orgsData.map(o=>`<option value="${o.tag}" ${val===o.tag?'selected':''}>${o.tag} — ${o.name}</option>`).join('')}</select>`;
-    const winSel = (val) => `<select id="lf_winner" class="admin-select"><option value="">— NENHUM —</option>${orgsData.map(o=>`<option value="${o.tag}" ${val===o.tag?'selected':''}>${o.tag} — ${o.name}</option>`).join('')}</select>`;
+    const winSel = (val) => `<select id="lf_winner" class="admin-select"><option value="">— NONE —</option>${orgsData.map(o=>`<option value="${o.tag}" ${val===o.tag?'selected':''}>${o.tag} — ${o.name}</option>`).join('')}</select>`;
     formHtml = `
       <div class="admin-form-grid-3">
         <div class="admin-field"><label class="admin-label">ORG 1</label>${orgSel('lf_org1', e.org1||'')}</div>
@@ -980,14 +986,14 @@ function openLogForm(type, existing) {
         <div class="admin-field"><label class="admin-label">WINNER</label>${winSel(e.winner||'')}</div>
         <div class="admin-field"><label class="admin-label">WAGER</label><input id="lf_wager" class="admin-input" value="${e.wager||''}" placeholder="ex: $500, items, custom..."></div>
         <div class="admin-field"><label class="admin-label">REGION</label><select id="lf_region" class="admin-select"><option ${e.region==='NA'?'selected':''}>NA</option><option ${e.region==='EU'?'selected':''}>EU</option><option ${e.region==='ASIA'?'selected':''}>ASIA</option><option ${e.region==='OCE'?'selected':''}>OCE</option><option ${e.region==='SA'?'selected':''}>SA</option></select></div>
-        <div class="admin-field"><label class="admin-label">ELO ORG 1 (ex: +25 ou -20)</label><input id="lf_elo1" type="number" class="admin-input" value="${e.elo_org1??''}" placeholder="opcional"></div>
-        <div class="admin-field"><label class="admin-label">ELO ORG 2 (ex: +25 ou -20)</label><input id="lf_elo2" type="number" class="admin-input" value="${e.elo_org2??''}" placeholder="opcional"></div>
+        <div class="admin-field"><label class="admin-label">ELO ORG 1 (ex: +25 or -20)</label><input id="lf_elo1" type="number" class="admin-input" value="${e.elo_org1??''}" placeholder="optional"></div>
+        <div class="admin-field"><label class="admin-label">ELO ORG 2 (ex: +25 or -20)</label><input id="lf_elo2" type="number" class="admin-input" value="${e.elo_org2??''}" placeholder="optional"></div>
         <div class="admin-field"><label class="admin-label">SEASON</label><input id="lf_season" class="admin-input" value="${e.season||'S3'}" placeholder="S1, S2, S3..."></div>
         <div class="admin-field"><label class="admin-label">NOTES</label><input id="lf_notes" class="admin-input" value="${e.notes||''}"></div>
       </div>`;
   } else if (type === 'season') {
     const orgSel = (id, val) => `<select id="${id}" class="admin-select">${orgsData.map(o=>`<option value="${o.tag}" ${val===o.tag?'selected':''}>${o.tag} — ${o.name}</option>`).join('')}</select>`;
-    const winSel = (val) => `<select id="lf_winner" class="admin-select"><option value="">— NENHUM —</option>${orgsData.map(o=>`<option value="${o.tag}" ${val===o.tag?'selected':''}>${o.tag} — ${o.name}</option>`).join('')}</select>`;
+    const winSel = (val) => `<select id="lf_winner" class="admin-select"><option value="">— NONE —</option>${orgsData.map(o=>`<option value="${o.tag}" ${val===o.tag?'selected':''}>${o.tag} — ${o.name}</option>`).join('')}</select>`;
     formHtml = `
       <div class="admin-form-grid-3">
         <div class="admin-field"><label class="admin-label">ORG 1</label>${orgSel('lf_org1', e.org1||'')}</div>
@@ -1070,7 +1076,7 @@ function openOrgForm(existing) {
         </div>`).join('')}
     </div>
     <div class="admin-form-grid-2" style="margin-bottom:.4rem;">
-      <div class="admin-field"><input id="of_mem_name" class="admin-input" placeholder="Nome do player"></div>
+      <div class="admin-field"><input id="of_mem_name" class="admin-input" placeholder="Player name"></div>
       <div class="admin-field"><select id="of_mem_role" class="admin-select"><option>Player</option><option>Leader</option><option>Sub</option><option>Coach</option></select></div>
     </div>
     <button class="admin-cancel-btn" style="margin-bottom:.8rem;width:100%;" onclick="addMember(${e.id})">+ ADD MEMBER</button>` : '';
@@ -1087,8 +1093,10 @@ function openOrgForm(existing) {
       <div class="admin-field"><label class="admin-label">REGION</label><select id="of_region" class="admin-select"><option ${!e.region||e.region==='NA'?'selected':''}>NA</option><option ${e.region==='EU'?'selected':''}>EU</option><option ${e.region==='ASIA'?'selected':''}>ASIA</option><option ${e.region==='OCE'?'selected':''}>OCE</option><option ${e.region==='SA'?'selected':''}>SA</option></select></div>
       <div class="admin-field"><label class="admin-label">FOUNDED</label><input id="of_founded" class="admin-input" value="${e.founded||'S1'}" placeholder="Season 1, S2..."></div>
       <div class="admin-field"><label class="admin-label">ICON (emoji)</label><input id="of_icon" class="admin-input" value="${e.icon||''}" placeholder="⚡ 🔥 🐉..."></div>
-      <div class="admin-field" style="grid-column:span 2;"><label class="admin-label">MVP</label><input id="of_mvp" class="admin-input" value="${e.mvp||''}" placeholder="Nome do player"></div>
+      <div class="admin-field" style="grid-column:span 2;"><label class="admin-label">MVP</label><input id="of_mvp" class="admin-input" value="${e.mvp||''}" placeholder="Player name"></div>
+      <div class="admin-field" style="grid-column:span 2;"><label class="admin-label">LOGO URL (image link)</label><input id="of_logo" class="admin-input" value="${e.logo_url||''}" placeholder="https://..."></div>
     </div>
+    ${e.logo_url ? `<div style="text-align:center;margin-bottom:.6rem;"><img src="${e.logo_url}" alt="logo" style="max-height:60px;max-width:120px;object-fit:contain;border-radius:4px;opacity:.85;"></div>` : ''}
     ${membersHtml}
     <div class="admin-modal-actions">
       <button class="admin-submit-btn" onclick="saveOrgForm(${e.id||'null'})">SAVE</button>
@@ -1098,7 +1106,7 @@ function openOrgForm(existing) {
 }
 
 async function saveOrgForm(id) {
-  const body = { tag:g('of_tag'), name:g('of_name'), status:g('of_status'), region:g('of_region'), founded:g('of_founded'), icon:g('of_icon'), mvp:g('of_mvp') };
+  const body = { tag:g('of_tag'), name:g('of_name'), status:g('of_status'), region:g('of_region'), founded:g('of_founded'), icon:g('of_icon'), mvp:g('of_mvp'), logo_url:g('of_logo') };
   if (!body.tag || !body.name) return;
   id ? await apiPut('/orgs/'+id, body) : await apiPost('/orgs', body);
   closeLogForm();
@@ -1259,7 +1267,7 @@ async function loadRules(page) {
     contentEl.textContent = data.content;
   } else {
     contentEl.className = 'rules-display empty';
-    contentEl.textContent = isAdmin ? 'Nenhuma regra cadastrada. Clique em EDIT RULES para adicionar.' : 'NENHUMA REGRA CADASTRADA.';
+    contentEl.textContent = isAdmin ? 'No rules added yet. Click EDIT RULES to add.' : 'NO RULES ADDED YET.';
   }
   if (editBtn) editBtn.style.display = isAdmin ? '' : 'none';
 }
@@ -1335,7 +1343,10 @@ function maybeCloseAdminUsersModal(e) {
 }
 
 async function refreshAdminUsersList() {
-  try { _adminUsers = await apiGet('/admin-users'); } catch(e) { _adminUsers = []; }
+  try {
+    const res = await apiGet('/admin-users');
+    _adminUsers = Array.isArray(res) ? res : [];
+  } catch(e) { _adminUsers = []; }
   renderAdminUsersList();
 }
 
@@ -1383,9 +1394,10 @@ async function saveAdminUser() {
     active: document.getElementById('auf_active').checked ? 1 : 0,
   };
   if (!body.username) return alert('Username is required');
+  if (!id && !body.password) return alert('Password is required for new users');
   try {
-    if (id) { await apiPut('/admin-users/' + id, body); }
-    else     { await apiPost('/admin-users', body); }
+    const res = id ? await apiPut('/admin-users/' + id, body) : await apiPost('/admin-users', body);
+    if (res && res.error) return alert('Error: ' + res.error);
     document.getElementById('adminUserForm').style.display = 'none';
     await refreshAdminUsersList();
   } catch(e) { alert('Error saving user'); }
