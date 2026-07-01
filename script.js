@@ -348,31 +348,33 @@ function renderTeams() {
 async function loadBracketSeasons() {
   try { bracketSeasons = await apiGet('/brackets/seasons'); } catch(e) { bracketSeasons = ['S1']; }
   if (!Array.isArray(bracketSeasons) || !bracketSeasons.length) bracketSeasons = ['S1'];
-  // Sort seasons naturally: S1 < S2 < S10 etc.
-  bracketSeasons.sort((a, b) => {
-    const na = parseInt(a.replace(/\D/g,'')) || 0;
-    const nb = parseInt(b.replace(/\D/g,'')) || 0;
-    return na - nb;
-  });
-  // Default to the first (earliest) season
-  if (!bracketSeasons.includes(currentBracketSeason)) {
-    currentBracketSeason = bracketSeasons[0];
-  }
+  bracketSeasons.sort((a, b) => (parseInt(a.replace(/\D/g,''))||0) - (parseInt(b.replace(/\D/g,''))||0));
+  if (!bracketSeasons.includes(currentBracketSeason)) currentBracketSeason = bracketSeasons[bracketSeasons.length - 1];
   renderBracketSeasonTabs();
 }
 
 function renderBracketSeasonTabs() {
   const wrap = document.getElementById('bracketSeasonTabs');
   if (!wrap) return;
-  wrap.innerHTML = bracketSeasons.map(s =>
-    `<button class="rtab ${s===currentBracketSeason?'active':''}" onclick="switchBracketSeason(this,'${s}')">${s}</button>`
-  ).join('');
+  wrap.innerHTML = bracketSeasons.map(s => {
+    const delBtn = isAdmin
+      ? `<span onclick="event.stopPropagation();deleteBracketSeason('${s}')" style="margin-left:.35rem;font-size:.65rem;opacity:.6;cursor:pointer;" title="Delete season">✕</span>`
+      : '';
+    return `<button class="rtab ${s===currentBracketSeason?'active':''}" onclick="switchBracketSeason(this,'${s}')">${s}${delBtn}</button>`;
+  }).join('');
 }
 
 async function switchBracketSeason(btn, season) {
   document.querySelectorAll('#bracketSeasonTabs .rtab').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   await loadBracketsFromAPI(season);
+}
+
+async function deleteBracketSeason(season) {
+  if (!confirm(`Delete season "${season}" and all its brackets? This cannot be undone.`)) return;
+  await apiDelete('/brackets/season/' + season);
+  await loadBracketSeasons();
+  await loadBracketsFromAPI();
 }
 
 async function loadBracketsFromAPI(season) {
@@ -1012,14 +1014,17 @@ function openLogForm(type, existing) {
         <div class="admin-field"><label class="admin-label">NOTES</label><input id="lf_notes" class="admin-input" value="${e.notes||''}"></div>
       </div>`;
   } else {
+    const orgOptW = orgsData.map(o=>`<option value="${o.tag}" ${e.challenger===o.tag?'selected':''}>${o.tag} — ${o.name}</option>`).join('');
+    const orgOptD = orgsData.map(o=>`<option value="${o.tag}" ${e.challenged===o.tag?'selected':''}>${o.tag} — ${o.name}</option>`).join('');
+    const winOptW = `<option value="">— NONE —</option>${orgsData.map(o=>`<option value="${o.tag}" ${e.winner===o.tag?'selected':''}>${o.tag} — ${o.name}</option>`).join('')}`;
     formHtml = `
       <div class="admin-form-grid-2">
         <div class="admin-field"><label class="admin-label">DATE</label><input id="lf_date" type="date" class="admin-input" value="${e.date||''}"></div>
         <div class="admin-field"><label class="admin-label">SEASON</label><input id="lf_season" class="admin-input" value="${e.season||'S3'}"></div>
-        <div class="admin-field"><label class="admin-label">CHALLENGER</label><input id="lf_challenger" class="admin-input" value="${e.challenger||''}"></div>
-        <div class="admin-field"><label class="admin-label">CHALLENGED</label><input id="lf_challenged" class="admin-input" value="${e.challenged||''}"></div>
+        <div class="admin-field"><label class="admin-label">CHALLENGER</label><select id="lf_challenger" class="admin-select">${orgOptW}</select></div>
+        <div class="admin-field"><label class="admin-label">CHALLENGED</label><select id="lf_challenged" class="admin-select">${orgOptD}</select></div>
         <div class="admin-field"><label class="admin-label">AMOUNT</label><input id="lf_amount" class="admin-input" value="${e.amount||''}" placeholder="ex: $500, items, custom..."></div>
-        <div class="admin-field"><label class="admin-label">WINNER</label><input id="lf_winner" class="admin-input" value="${e.winner||''}" placeholder="Challenger or Challenged"></div>
+        <div class="admin-field"><label class="admin-label">WINNER</label><select id="lf_winner" class="admin-select">${winOptW}</select></div>
         <div class="admin-field"><label class="admin-label">STATUS</label><select id="lf_status" class="admin-select"><option value="pending" ${e.status==='pending'||!e.status?'selected':''}>PENDING</option><option value="settled" ${e.status==='settled'?'selected':''}>SETTLED</option><option value="cancelled" ${e.status==='cancelled'?'selected':''}>CANCELLED</option></select></div>
         <div class="admin-field"><label class="admin-label">NOTES</label><input id="lf_notes" class="admin-input" value="${e.notes||''}"></div>
       </div>
@@ -1141,7 +1146,7 @@ function openPlayerForm(existing) {
     </div>
     <div class="admin-form-grid-2">
       <div class="admin-field"><label class="admin-label">NAME</label><input id="pf_name" class="admin-input" value="${e.name||''}"></div>
-      <div class="admin-field"><label class="admin-label">ORG TAG</label><input id="pf_org" class="admin-input" value="${e.org||''}" placeholder="VVS, NXS..."></div>
+      <div class="admin-field"><label class="admin-label">ORG</label><select id="pf_org" class="admin-select"><option value="">— FREE AGENT —</option>${orgsData.map(o=>`<option value="${o.tag}" ${e.org===o.tag?'selected':''}>${o.tag} — ${o.name}</option>`).join('')}</select></div>
       <div class="admin-field"><label class="admin-label">ELO</label><input id="pf_elo" type="number" class="admin-input" value="${e.elo||1000}"></div>
       <div class="admin-field"><label class="admin-label">WINS</label><input id="pf_wins" type="number" min="0" class="admin-input" value="${e.wins||0}"></div>
       <div class="admin-field" style="grid-column:span 2;"><label class="admin-label">LOSSES</label><input id="pf_losses" type="number" min="0" class="admin-input" value="${e.losses||0}"></div>
@@ -1212,7 +1217,8 @@ function setAwardsSeason(btn, s) {
 function openAwardForm(existing) {
   const e = existing || {}, isEdit = !!e.id;
   const AWARD_PRESETS = ['Champion','MVP','Top Fragger','Best Support','Most Improved','Best Org','Fair Play'];
-  document.getElementById('awardFormContent').innerHTML = `
+  const orgOpt = `<option value="">— NONE —</option>${orgsData.map(o=>`<option value="${o.tag}" ${e.recipient_org===o.tag?'selected':''}>${o.tag} — ${o.name}</option>`).join('')}`;
+  document.getElementById('logFormContent').innerHTML = `
     <div class="admin-modal-header" style="margin-bottom:1rem;">
       <div class="admin-modal-icon">${isEdit?'✎':'🏆'}</div>
       <div class="admin-modal-title">${isEdit?'EDIT':'ADD'} AWARD</div>
@@ -1227,17 +1233,18 @@ function openAwardForm(existing) {
         <input id="af_title" class="admin-input" style="margin-top:.4rem;${AWARD_PRESETS.includes(e.award_title)||!e.award_title?'display:none;':''}" value="${!AWARD_PRESETS.includes(e.award_title)?e.award_title||'':''}" placeholder="Custom title">
       </div>
       <div class="admin-field"><label class="admin-label">RECIPIENT NAME</label><input id="af_name" class="admin-input" value="${e.recipient_name||''}"></div>
-      <div class="admin-field"><label class="admin-label">ORG TAG</label><input id="af_org" class="admin-input" value="${e.recipient_org||''}" placeholder="VVS, NXS..."></div>
+      <div class="admin-field"><label class="admin-label">ORG</label><select id="af_org" class="admin-select">${orgOpt}</select></div>
+      <div class="admin-field" style="grid-column:span 2;"><label class="admin-label">DESCRIPTION</label><textarea id="af_desc" class="admin-textarea" placeholder="What they won / why...">${e.award_description||''}</textarea></div>
+      <div class="admin-field" style="grid-column:span 2;"><label class="admin-label">PHOTO URL</label><input id="af_photo" class="admin-input" value="${e.photo_url||''}" placeholder="https://cdn.discordapp.com/..."></div>
     </div>
-    <div class="admin-field" style="margin-bottom:.7rem;"><label class="admin-label">DESCRIPTION</label><textarea id="af_desc" class="admin-textarea" placeholder="What they won / why...">${e.award_description||''}</textarea></div>
-    <div class="admin-field" style="margin-bottom:1rem;"><label class="admin-label">PHOTO URL</label><input id="af_photo" class="admin-input" value="${e.photo_url||''}" placeholder="https://cdn.discordapp.com/..."></div>
-    <div class="admin-modal-actions"><button class="admin-submit-btn" onclick="saveAwardForm(${e.id||'null'})">SAVE</button><button class="admin-cancel-btn" onclick="closeAwardForm()">CANCEL</button></div>`;
+    ${e.photo_url?`<div style="text-align:center;margin:.4rem 0 .8rem;"><img src="${e.photo_url}" style="max-height:70px;max-width:140px;object-fit:contain;border-radius:4px;opacity:.85;"></div>`:''}
+    <div class="admin-modal-actions"><button class="admin-submit-btn" onclick="saveAwardForm(${e.id||'null'})">SAVE</button><button class="admin-cancel-btn" onclick="closeLogForm()">CANCEL</button></div>`;
   if (!AWARD_PRESETS.includes(e.award_title) && e.award_title) {
     document.getElementById('af_title_sel').value = 'custom';
     document.getElementById('af_title').style.display = '';
     document.getElementById('af_title').value = e.award_title;
   }
-  document.getElementById('awardFormModal').classList.add('open');
+  document.getElementById('logFormModal').classList.add('open');
 }
 
 async function saveAwardForm(id) {
@@ -1245,11 +1252,11 @@ async function saveAwardForm(id) {
   const title  = selVal === 'custom' ? g('af_title') : selVal;
   const body = { season:g('af_season'), recipient_name:g('af_name'), recipient_org:g('af_org'), award_title:title, award_description:g('af_desc'), photo_url:g('af_photo') };
   id ? await apiPut('/awards/'+id, body) : await apiPost('/awards', body);
-  closeAwardForm(); loadAwards();
+  closeLogForm(); loadAwards();
 }
 
-function closeAwardForm()  { document.getElementById('awardFormModal').classList.remove('open'); }
-function maybeCloseAwardModal(e) { if (e.target===document.getElementById('awardFormModal')) closeAwardForm(); }
+function closeAwardForm()  { closeLogForm(); }
+function maybeCloseAwardModal(e) { if (e.target===document.getElementById('awardFormModal')) closeLogForm(); }
 
 // ============================================================
 // RULES
