@@ -1385,14 +1385,27 @@ function renderAdminUsersList() {
     </tr>`).join('');
 }
 
+function toggleAllPerm(checked) {
+  ['logs','wager','awards','brackets','orgs','schedule'].forEach(p => {
+    const el = document.getElementById('aufp_' + p);
+    if (el) { el.disabled = checked; if (checked) el.checked = false; }
+  });
+}
+
 function showAdminUserForm(id, username, perms, active) {
   const form = document.getElementById('adminUserForm');
   if (!form) return;
   document.getElementById('auf_id').value = id || '';
   document.getElementById('auf_username').value = username || '';
   document.getElementById('auf_pass').value = '';
-  document.getElementById('auf_perms').value = perms || 'logs';
   document.getElementById('auf_active').checked = active !== false;
+  const permList = ['all','logs','wager','awards','brackets','orgs','schedule'];
+  const permsArr = (perms || 'logs').split(',').map(p => p.trim());
+  permList.forEach(p => {
+    const el = document.getElementById('aufp_' + p);
+    if (el) { el.checked = permsArr.includes(p); el.disabled = false; }
+  });
+  toggleAllPerm(permsArr.includes('all'));
   form.style.display = '';
 }
 
@@ -1409,7 +1422,7 @@ async function saveAdminUser() {
   const body = {
     username: document.getElementById('auf_username').value.trim(),
     password: document.getElementById('auf_pass').value,
-    perms: document.getElementById('auf_perms').value.trim() || 'logs',
+    perms: (() => { const all = document.getElementById('aufp_all'); if (all && all.checked) return 'all'; const ps = ['logs','wager','awards','brackets','orgs','schedule'].filter(p => { const el = document.getElementById('aufp_' + p); return el && el.checked; }); return ps.join(',') || 'logs'; })(),
     active: document.getElementById('auf_active').checked ? 1 : 0,
   };
   if (!body.username) return alert('Username is required');

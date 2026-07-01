@@ -411,14 +411,26 @@
         <div class="admin-form-grid-2">
           <div class="admin-field"><label class="admin-label">USERNAME</label><input id="auf_username" class="admin-input" placeholder="username"></div>
           <div class="admin-field"><label class="admin-label">PASSWORD (blank = no change)</label><input id="auf_pass" type="password" class="admin-input" placeholder="new password"></div>
-          <div class="admin-field"><label class="admin-label">PERMS (comma-separated)</label><input id="auf_perms" class="admin-input" placeholder="logs,brackets,schedule"></div>
-          <div class="admin-field" style="display:flex;align-items:center;gap:.5rem;padding-top:1.4rem;">
+          <div class="admin-field" style="grid-column:span 2;">
+            <label class="admin-label" style="margin-bottom:.5rem;display:block;">PERMISSIONS</label>
+            <div style="display:flex;flex-wrap:wrap;gap:.4rem .9rem;">
+              <label style="display:flex;align-items:center;gap:.35rem;font-size:.75rem;cursor:pointer;color:var(--yellow);font-weight:700;">
+                <input type="checkbox" id="aufp_all" onchange="toggleAllPerm(this.checked)"> ALL ACCESS
+              </label>
+              <label style="display:flex;align-items:center;gap:.35rem;font-size:.75rem;cursor:pointer;"><input type="checkbox" id="aufp_logs"> LOGS</label>
+              <label style="display:flex;align-items:center;gap:.35rem;font-size:.75rem;cursor:pointer;"><input type="checkbox" id="aufp_wager"> WAGER</label>
+              <label style="display:flex;align-items:center;gap:.35rem;font-size:.75rem;cursor:pointer;"><input type="checkbox" id="aufp_awards"> AWARDS</label>
+              <label style="display:flex;align-items:center;gap:.35rem;font-size:.75rem;cursor:pointer;"><input type="checkbox" id="aufp_brackets"> BRACKETS</label>
+              <label style="display:flex;align-items:center;gap:.35rem;font-size:.75rem;cursor:pointer;"><input type="checkbox" id="aufp_orgs"> ORGS</label>
+              <label style="display:flex;align-items:center;gap:.35rem;font-size:.75rem;cursor:pointer;"><input type="checkbox" id="aufp_schedule"> SCHEDULE</label>
+            </div>
+          </div>
+          <div class="admin-field" style="display:flex;align-items:center;gap:.5rem;padding-top:.4rem;">
             <input type="checkbox" id="auf_active" checked>
             <label for="auf_active" class="admin-label" style="margin:0;">ACTIVE</label>
           </div>
         </div>
-        <div style="font-size:.7rem;color:var(--text);opacity:.6;margin:.5rem 0;">Perms: <code>all</code> = full access · <code>logs</code> · <code>brackets</code> · <code>schedule</code> · <code>orgs</code></div>
-        <div class="admin-modal-actions">
+        <div class="admin-modal-actions" style="margin-top:.8rem;">
           <button class="admin-submit-btn" onclick="saveAdminUser()">SAVE</button>
           <button class="admin-cancel-btn" onclick="document.getElementById('adminUserForm').style.display='none'">CANCEL</button>
         </div>
