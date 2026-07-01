@@ -529,7 +529,7 @@ app.delete('/api/awards/:id', requireAdmin, (req, res) => {
 // BRACKETS
 // ============================================================
 app.get('/api/brackets/seasons', (_req, res) => {
-  const seasons = db.prepare('SELECT DISTINCT season FROM brackets ORDER BY season DESC').all().map(r => r.season);
+  const seasons = db.prepare("SELECT DISTINCT season FROM brackets ORDER BY CAST(REPLACE(UPPER(season),'S','') AS INTEGER) ASC").all().map(r => r.season);
   res.json(seasons.length ? seasons : ['S3']);
 });
 
@@ -558,6 +558,11 @@ app.put('/api/brackets/:region', requireAdmin, (req, res) => {
     INSERT INTO brackets (region, season, data, updated_at) VALUES (?,?,?,datetime('now'))
     ON CONFLICT(region, season) DO UPDATE SET data=excluded.data, updated_at=excluded.updated_at
   `).run(region, season, JSON.stringify(req.body));
+  res.json({ ok: true });
+});
+
+app.delete('/api/brackets/season/:season', requireAdmin, (req, res) => {
+  db.prepare('DELETE FROM brackets WHERE season = ?').run(req.params.season);
   res.json({ ok: true });
 });
 

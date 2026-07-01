@@ -358,15 +358,15 @@ function renderBracketSeasonTabs() {
   if (!wrap) return;
   wrap.innerHTML = bracketSeasons.map(s => {
     const delBtn = isAdmin
-      ? `<span onclick="event.stopPropagation();deleteBracketSeason('${s}')" style="margin-left:.35rem;font-size:.65rem;opacity:.6;cursor:pointer;" title="Delete season">✕</span>`
+      ? `<button class="tbl-btn del" onclick="deleteBracketSeason('${s}')" style="padding:.1rem .4rem;font-size:.65rem;margin-left:2px;vertical-align:middle;" title="Delete season">✕</button>`
       : '';
-    return `<button class="rtab ${s===currentBracketSeason?'active':''}" onclick="switchBracketSeason(this,'${s}')">${s}${delBtn}</button>`;
+    return `<button class="rtab ${s===currentBracketSeason?'active':''}" onclick="switchBracketSeason(this,'${s}')">${s}</button>${delBtn}`;
   }).join('');
 }
 
 async function switchBracketSeason(btn, season) {
   document.querySelectorAll('#bracketSeasonTabs .rtab').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
+  if (btn) btn.classList.add('active');
   await loadBracketsFromAPI(season);
 }
 
