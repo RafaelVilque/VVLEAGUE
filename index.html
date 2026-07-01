@@ -413,17 +413,17 @@
           <div class="admin-field"><label class="admin-label">PASSWORD (blank = no change)</label><input id="auf_pass" type="password" class="admin-input" placeholder="new password"></div>
           <div class="admin-field" style="grid-column:span 2;">
             <label class="admin-label" style="margin-bottom:.5rem;display:block;">PERMISSIONS</label>
-            <div style="display:flex;flex-wrap:wrap;gap:.4rem .9rem;">
-              <label style="display:flex;align-items:center;gap:.35rem;font-size:.75rem;cursor:pointer;color:var(--yellow);font-weight:700;">
-                <input type="checkbox" id="aufp_all" onchange="toggleAllPerm(this.checked)"> ALL ACCESS
-              </label>
-              <label style="display:flex;align-items:center;gap:.35rem;font-size:.75rem;cursor:pointer;"><input type="checkbox" id="aufp_logs"> LOGS</label>
-              <label style="display:flex;align-items:center;gap:.35rem;font-size:.75rem;cursor:pointer;"><input type="checkbox" id="aufp_wager"> WAGER</label>
-              <label style="display:flex;align-items:center;gap:.35rem;font-size:.75rem;cursor:pointer;"><input type="checkbox" id="aufp_awards"> AWARDS</label>
-              <label style="display:flex;align-items:center;gap:.35rem;font-size:.75rem;cursor:pointer;"><input type="checkbox" id="aufp_brackets"> BRACKETS</label>
-              <label style="display:flex;align-items:center;gap:.35rem;font-size:.75rem;cursor:pointer;"><input type="checkbox" id="aufp_orgs"> ORGS</label>
-              <label style="display:flex;align-items:center;gap:.35rem;font-size:.75rem;cursor:pointer;"><input type="checkbox" id="aufp_schedule"> SCHEDULE</label>
-            </div>
+            <div id="auf_perms_tags" style="display:flex;flex-wrap:wrap;gap:.3rem;min-height:1.6rem;margin-bottom:.4rem;"></div>
+            <select id="auf_perms_sel" class="admin-select" onchange="addPermTag(this.value);this.value='';" style="width:auto;min-width:180px;">
+              <option value="">— Add permission —</option>
+              <option value="all">ALL ACCESS</option>
+              <option value="logs">LOGS</option>
+              <option value="wager">WAGER</option>
+              <option value="awards">AWARDS</option>
+              <option value="brackets">BRACKETS</option>
+              <option value="orgs">ORGS</option>
+              <option value="schedule">SCHEDULE</option>
+            </select>
           </div>
           <div class="admin-field" style="display:flex;align-items:center;gap:.5rem;padding-top:.4rem;">
             <input type="checkbox" id="auf_active" checked>

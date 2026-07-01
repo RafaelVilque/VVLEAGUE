@@ -1384,11 +1384,30 @@ function renderAdminUsersList() {
     </tr>`).join('');
 }
 
-function toggleAllPerm(checked) {
-  ['logs','wager','awards','brackets','orgs','schedule'].forEach(p => {
-    const el = document.getElementById('aufp_' + p);
-    if (el) { el.disabled = checked; if (checked) el.checked = false; }
-  });
+let _currentPerms = [];
+
+function renderPermTags() {
+  const container = document.getElementById('auf_perms_tags');
+  if (!container) return;
+  const labelMap = { all:'ALL ACCESS', logs:'LOGS', wager:'WAGER', awards:'AWARDS', brackets:'BRACKETS', orgs:'ORGS', schedule:'SCHEDULE' };
+  container.innerHTML = _currentPerms.map(p =>
+    `<span style="display:inline-flex;align-items:center;gap:.3rem;background:rgba(100,180,255,.12);border:1px solid rgba(100,180,255,.3);border-radius:4px;padding:.2rem .5rem;font-size:.72rem;color:${p==='all'?'var(--yellow)':'var(--blue)'};font-weight:700;">
+      ${labelMap[p]||p.toUpperCase()}
+      <button onclick="removePermTag('${p}')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:.85rem;padding:0;line-height:1;margin-left:.1rem;">✕</button>
+    </span>`
+  ).join('');
+}
+
+function addPermTag(perm) {
+  if (!perm) return;
+  if (perm === 'all') { _currentPerms = ['all']; }
+  else { _currentPerms = _currentPerms.filter(p => p !== 'all'); if (!_currentPerms.includes(perm)) _currentPerms.push(perm); }
+  renderPermTags();
+}
+
+function removePermTag(perm) {
+  _currentPerms = _currentPerms.filter(p => p !== perm);
+  renderPermTags();
 }
 
 function showAdminUserForm(id, username, perms, active) {
@@ -1398,13 +1417,8 @@ function showAdminUserForm(id, username, perms, active) {
   document.getElementById('auf_username').value = username || '';
   document.getElementById('auf_pass').value = '';
   document.getElementById('auf_active').checked = active !== false;
-  const permList = ['all','logs','wager','awards','brackets','orgs','schedule'];
-  const permsArr = (perms || 'logs').split(',').map(p => p.trim());
-  permList.forEach(p => {
-    const el = document.getElementById('aufp_' + p);
-    if (el) { el.checked = permsArr.includes(p); el.disabled = false; }
-  });
-  toggleAllPerm(permsArr.includes('all'));
+  _currentPerms = (perms || 'logs').split(',').map(p => p.trim()).filter(Boolean);
+  renderPermTags();
   form.style.display = '';
 }
 
@@ -1421,7 +1435,7 @@ async function saveAdminUser() {
   const body = {
     username: document.getElementById('auf_username').value.trim(),
     password: document.getElementById('auf_pass').value,
-    perms: (() => { const all = document.getElementById('aufp_all'); if (all && all.checked) return 'all'; const ps = ['logs','wager','awards','brackets','orgs','schedule'].filter(p => { const el = document.getElementById('aufp_' + p); return el && el.checked; }); return ps.join(',') || 'logs'; })(),
+    perms: _currentPerms.includes('all') ? 'all' : (_currentPerms.join(',') || 'logs'),
     active: document.getElementById('auf_active').checked ? 1 : 0,
   };
   if (!body.username) return alert('Username is required');
