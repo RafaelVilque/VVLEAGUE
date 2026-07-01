@@ -326,6 +326,15 @@ function requireAdmin(req, res, next) {
   }
 }
 
+function requirePerm(perm) {
+  return (req, res, next) => {
+    if (req.admin.perms === 'all') return next();
+    const perms = (req.admin.perms || '').split(',').map(p => p.trim());
+    if (!perms.includes(perm)) return res.status(403).json({ error: 'Forbidden' });
+    next();
+  };
+}
+
 // ============================================================
 // AUTH
 // ============================================================
@@ -396,7 +405,7 @@ app.get('/api/logs/war', (req, res) => {
   res.json(db.prepare(`SELECT * FROM war_logs${where} ORDER BY date DESC, id DESC`).all(...params));
 });
 
-app.post('/api/logs/war', requireAdmin, (req, res) => {
+app.post('/api/logs/war', requireAdmin, requirePerm('logs'), (req, res) => {
   const { date, org1, org2, score1, score2, winner, wager, region, season, notes, elo_org1, elo_org2 } = req.body;
   if (!date || !org1 || !org2) return res.status(400).json({ error: 'date, org1, org2 required' });
   const r = db.prepare(
@@ -405,7 +414,7 @@ app.post('/api/logs/war', requireAdmin, (req, res) => {
   res.json({ id: r.lastInsertRowid });
 });
 
-app.put('/api/logs/war/:id', requireAdmin, (req, res) => {
+app.put('/api/logs/war/:id', requireAdmin, requirePerm('logs'), (req, res) => {
   const { date, org1, org2, score1, score2, winner, wager, region, season, notes, elo_org1, elo_org2 } = req.body;
   db.prepare(
     'UPDATE war_logs SET date=?,org1=?,org2=?,score1=?,score2=?,winner=?,wager=?,region=?,season=?,notes=?,elo_org1=?,elo_org2=? WHERE id=?'
@@ -413,7 +422,7 @@ app.put('/api/logs/war/:id', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
-app.delete('/api/logs/war/:id', requireAdmin, (req, res) => {
+app.delete('/api/logs/war/:id', requireAdmin, requirePerm('logs'), (req, res) => {
   db.prepare('DELETE FROM war_logs WHERE id=?').run(req.params.id);
   res.json({ ok: true });
 });
@@ -430,7 +439,7 @@ app.get('/api/logs/season', (req, res) => {
   res.json(db.prepare(`SELECT * FROM season_logs${where} ORDER BY date DESC, id DESC`).all(...params));
 });
 
-app.post('/api/logs/season', requireAdmin, (req, res) => {
+app.post('/api/logs/season', requireAdmin, requirePerm('logs'), (req, res) => {
   const { season, date, event_name, org1, org2, score1, score2, winner, region, notes, points_winner, points_loser } = req.body;
   if (!season || !date || !org1 || !org2) return res.status(400).json({ error: 'season, date, org1, org2 required' });
   const r = db.prepare(
@@ -439,7 +448,7 @@ app.post('/api/logs/season', requireAdmin, (req, res) => {
   res.json({ id: r.lastInsertRowid });
 });
 
-app.put('/api/logs/season/:id', requireAdmin, (req, res) => {
+app.put('/api/logs/season/:id', requireAdmin, requirePerm('logs'), (req, res) => {
   const { season, date, event_name, org1, org2, score1, score2, winner, region, notes, points_winner, points_loser } = req.body;
   db.prepare(
     'UPDATE season_logs SET season=?,date=?,event_name=?,org1=?,org2=?,score1=?,score2=?,winner=?,region=?,notes=?,points_winner=?,points_loser=? WHERE id=?'
@@ -447,7 +456,7 @@ app.put('/api/logs/season/:id', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
-app.delete('/api/logs/season/:id', requireAdmin, (req, res) => {
+app.delete('/api/logs/season/:id', requireAdmin, requirePerm('logs'), (req, res) => {
   db.prepare('DELETE FROM season_logs WHERE id=?').run(req.params.id);
   res.json({ ok: true });
 });
@@ -464,7 +473,7 @@ app.get('/api/logs/wager', (req, res) => {
   res.json(db.prepare(`SELECT * FROM wager_records${where} ORDER BY date DESC, id DESC`).all(...params));
 });
 
-app.post('/api/logs/wager', requireAdmin, (req, res) => {
+app.post('/api/logs/wager', requireAdmin, requirePerm('wager'), (req, res) => {
   const { date, challenger, challenged, amount, winner, status, paid, season, notes } = req.body;
   if (!date || !challenger || !challenged || amount === undefined)
     return res.status(400).json({ error: 'date, challenger, challenged, amount required' });
@@ -474,7 +483,7 @@ app.post('/api/logs/wager', requireAdmin, (req, res) => {
   res.json({ id: r.lastInsertRowid });
 });
 
-app.put('/api/logs/wager/:id', requireAdmin, (req, res) => {
+app.put('/api/logs/wager/:id', requireAdmin, requirePerm('wager'), (req, res) => {
   const { date, challenger, challenged, amount, winner, status, paid, season, notes } = req.body;
   db.prepare(
     'UPDATE wager_records SET date=?,challenger=?,challenged=?,amount=?,winner=?,status=?,paid=?,season=?,notes=? WHERE id=?'
@@ -482,7 +491,7 @@ app.put('/api/logs/wager/:id', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
-app.delete('/api/logs/wager/:id', requireAdmin, (req, res) => {
+app.delete('/api/logs/wager/:id', requireAdmin, requirePerm('wager'), (req, res) => {
   db.prepare('DELETE FROM wager_records WHERE id=?').run(req.params.id);
   res.json({ ok: true });
 });
@@ -502,7 +511,7 @@ app.get('/api/awards', (req, res) => {
   res.json(rows);
 });
 
-app.post('/api/awards', requireAdmin, (req, res) => {
+app.post('/api/awards', requireAdmin, requirePerm('awards'), (req, res) => {
   const { season, recipient_name, recipient_org, award_title, award_description, photo_url, sort_order } = req.body;
   if (!season || !recipient_name || !award_title)
     return res.status(400).json({ error: 'season, recipient_name, award_title required' });
@@ -512,7 +521,7 @@ app.post('/api/awards', requireAdmin, (req, res) => {
   res.json({ id: r.lastInsertRowid });
 });
 
-app.put('/api/awards/:id', requireAdmin, (req, res) => {
+app.put('/api/awards/:id', requireAdmin, requirePerm('awards'), (req, res) => {
   const { season, recipient_name, recipient_org, award_title, award_description, photo_url, sort_order } = req.body;
   db.prepare(
     'UPDATE awards SET season=?,recipient_name=?,recipient_org=?,award_title=?,award_description=?,photo_url=?,sort_order=? WHERE id=?'
@@ -520,7 +529,7 @@ app.put('/api/awards/:id', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
-app.delete('/api/awards/:id', requireAdmin, (req, res) => {
+app.delete('/api/awards/:id', requireAdmin, requirePerm('awards'), (req, res) => {
   db.prepare('DELETE FROM awards WHERE id=?').run(req.params.id);
   res.json({ ok: true });
 });
@@ -541,7 +550,7 @@ app.get('/api/brackets', (req, res) => {
   res.json(out);
 });
 
-app.post('/api/brackets', requireAdmin, (req, res) => {
+app.post('/api/brackets', requireAdmin, requirePerm('brackets'), (req, res) => {
   const { region, season, data } = req.body;
   if (!region || !season) return res.status(400).json({ error: 'region and season required' });
   const initialData = data || { qf:[], sf:[], f:[{t1:'TBD',s1:null,t2:'TBD',s2:null,done:false}], champion:null };
@@ -551,7 +560,7 @@ app.post('/api/brackets', requireAdmin, (req, res) => {
   } catch(e) { res.status(400).json({ error: 'Bracket already exists' }); }
 });
 
-app.put('/api/brackets/:region', requireAdmin, (req, res) => {
+app.put('/api/brackets/:region', requireAdmin, requirePerm('brackets'), (req, res) => {
   const region = req.params.region.toUpperCase();
   const season = req.query.season || 'S3';
   db.prepare(`
@@ -561,7 +570,7 @@ app.put('/api/brackets/:region', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
-app.delete('/api/brackets/season/:season', requireAdmin, (req, res) => {
+app.delete('/api/brackets/season/:season', requireAdmin, requirePerm('brackets'), (req, res) => {
   db.prepare('DELETE FROM brackets WHERE season = ?').run(req.params.season);
   res.json({ ok: true });
 });
@@ -578,20 +587,20 @@ app.get('/api/schedule', (req, res) => {
   res.json(db.prepare(`SELECT * FROM schedule${where} ORDER BY date ASC, time ASC`).all(...params));
 });
 
-app.post('/api/schedule', requireAdmin, (req, res) => {
+app.post('/api/schedule', requireAdmin, requirePerm('schedule'), (req, res) => {
   const { date, time, match, region, round, status, season } = req.body;
   if (!date || !match) return res.status(400).json({ error: 'date and match required' });
   const r = db.prepare('INSERT INTO schedule (date,time,match,region,round,status,season) VALUES (?,?,?,?,?,?,?)').run(date, time||'', match, region||'ALL', round||'', status||'upcoming', season||'S3');
   res.json({ id: r.lastInsertRowid });
 });
 
-app.put('/api/schedule/:id', requireAdmin, (req, res) => {
+app.put('/api/schedule/:id', requireAdmin, requirePerm('schedule'), (req, res) => {
   const { date, time, match, region, round, status, season } = req.body;
   db.prepare('UPDATE schedule SET date=?,time=?,match=?,region=?,round=?,status=?,season=? WHERE id=?').run(date, time||'', match, region||'ALL', round||'', status||'upcoming', season||'S3', req.params.id);
   res.json({ ok: true });
 });
 
-app.delete('/api/schedule/:id', requireAdmin, (req, res) => {
+app.delete('/api/schedule/:id', requireAdmin, requirePerm('schedule'), (req, res) => {
   db.prepare('DELETE FROM schedule WHERE id=?').run(req.params.id);
   res.json({ ok: true });
 });
@@ -604,7 +613,7 @@ app.get('/api/rules/:page', (req, res) => {
   res.json({ content: row ? row.content : '' });
 });
 
-app.put('/api/rules/:page', requireAdmin, (req, res) => {
+app.put('/api/rules/:page', requireAdmin, requirePerm('all'), (req, res) => {
   const { content } = req.body;
   db.prepare(`
     INSERT INTO rules (page, content, updated_at) VALUES (?, ?, datetime('now'))
@@ -651,7 +660,7 @@ app.get('/api/orgs/:id', (req, res) => {
   res.json(orgWithStats(o));
 });
 
-app.post('/api/orgs', requireAdmin, (req, res) => {
+app.post('/api/orgs', requireAdmin, requirePerm('orgs'), (req, res) => {
   const { tag, name, status, founded, region, icon, mvp, logo_url } = req.body;
   if (!tag || !name) return res.status(400).json({ error: 'tag and name required' });
   try {
@@ -660,26 +669,26 @@ app.post('/api/orgs', requireAdmin, (req, res) => {
   } catch(e) { res.status(400).json({ error: 'Tag already exists' }); }
 });
 
-app.put('/api/orgs/:id', requireAdmin, (req, res) => {
+app.put('/api/orgs/:id', requireAdmin, requirePerm('orgs'), (req, res) => {
   const { tag, name, status, founded, region, icon, mvp, logo_url } = req.body;
   db.prepare('UPDATE orgs SET tag=?,name=?,status=?,founded=?,region=?,icon=?,mvp=?,logo_url=? WHERE id=?').run(tag.toUpperCase(), name, status||'active', founded||'S1', region||'NA', icon||'', mvp||'', logo_url||'', req.params.id);
   res.json({ ok: true });
 });
 
-app.delete('/api/orgs/:id', requireAdmin, (req, res) => {
+app.delete('/api/orgs/:id', requireAdmin, requirePerm('orgs'), (req, res) => {
   db.prepare('DELETE FROM org_members WHERE org_id = ?').run(req.params.id);
   db.prepare('DELETE FROM orgs WHERE id = ?').run(req.params.id);
   res.json({ ok: true });
 });
 
-app.post('/api/orgs/:id/members', requireAdmin, (req, res) => {
+app.post('/api/orgs/:id/members', requireAdmin, requirePerm('orgs'), (req, res) => {
   const { name, role } = req.body;
   if (!name) return res.status(400).json({ error: 'name required' });
   const r = db.prepare('INSERT INTO org_members (org_id,name,role) VALUES (?,?,?)').run(req.params.id, name, role||'Player');
   res.json({ id: r.lastInsertRowid });
 });
 
-app.delete('/api/org-members/:id', requireAdmin, (req, res) => {
+app.delete('/api/org-members/:id', requireAdmin, requirePerm('orgs'), (req, res) => {
   db.prepare('DELETE FROM org_members WHERE id = ?').run(req.params.id);
   res.json({ ok: true });
 });
@@ -691,20 +700,20 @@ app.get('/api/players', (_req, res) => {
   res.json(db.prepare('SELECT * FROM players ORDER BY elo DESC').all());
 });
 
-app.post('/api/players', requireAdmin, (req, res) => {
+app.post('/api/players', requireAdmin, requirePerm('orgs'), (req, res) => {
   const { name, org, elo, wins, losses } = req.body;
   if (!name) return res.status(400).json({ error: 'name required' });
   const r = db.prepare('INSERT INTO players (name,org,elo,wins,losses) VALUES (?,?,?,?,?)').run(name, org||'', elo||1000, wins||0, losses||0);
   res.json({ id: r.lastInsertRowid });
 });
 
-app.put('/api/players/:id', requireAdmin, (req, res) => {
+app.put('/api/players/:id', requireAdmin, requirePerm('orgs'), (req, res) => {
   const { name, org, elo, wins, losses } = req.body;
   db.prepare('UPDATE players SET name=?,org=?,elo=?,wins=?,losses=? WHERE id=?').run(name, org||'', elo||1000, wins||0, losses||0, req.params.id);
   res.json({ ok: true });
 });
 
-app.delete('/api/players/:id', requireAdmin, (req, res) => {
+app.delete('/api/players/:id', requireAdmin, requirePerm('orgs'), (req, res) => {
   db.prepare('DELETE FROM players WHERE id = ?').run(req.params.id);
   res.json({ ok: true });
 });

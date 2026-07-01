@@ -231,7 +231,7 @@ function renderOrgList() {
   if (!filtered.length) { list.innerHTML = ''; empty.style.display = ''; return; }
   empty.style.display = 'none';
   list.innerHTML = filtered.map(o => {
-    const editBtns = isAdmin
+    const editBtns = hasPerm('orgs')
       ? `<button class="tbl-btn" onclick="event.stopPropagation();openOrgForm(${JSON.stringify(o).replace(/"/g,'&quot;')})">✎</button><button class="tbl-btn del" onclick="event.stopPropagation();confirmDelete('org',${o.id})">✕</button>`
       : '';
     return `
@@ -357,7 +357,7 @@ function renderBracketSeasonTabs() {
   const wrap = document.getElementById('bracketSeasonTabs');
   if (!wrap) return;
   wrap.innerHTML = bracketSeasons.map(s => {
-    const delBtn = isAdmin
+    const delBtn = hasPerm('brackets')
       ? `<button class="tbl-btn del" onclick="deleteBracketSeason('${s}')" style="padding:.1rem .4rem;font-size:.65rem;margin-left:2px;vertical-align:middle;" title="Delete season">✕</button>`
       : '';
     return `<button class="rtab ${s===currentBracketSeason?'active':''}" onclick="switchBracketSeason(this,'${s}')">${s}</button>${delBtn}`;
@@ -458,17 +458,17 @@ function renderBracket() {
     const t2w = m.done && m.s2!==null && m.s2>m.s1;
     const t1c = m.t1==='TBD'?'tbd':(m.done?(t1w?'winner':'loser'):'');
     const t2c = m.t2==='TBD'?'tbd':(m.done?(t2w?'winner':'loser'):'');
-    const aa  = isAdmin ? `onclick="openMatchEdit('${currentBracket}','${rk}',${idx})" title="Edit"` : '';
-    const delBtn = isAdmin ? `<button class="tbl-btn del" style="font-size:.6rem;padding:.1rem .35rem;line-height:1;" onclick="event.stopPropagation();deleteBracketMatch('${currentBracket}','${rk}',${idx})">✕</button>` : '';
-    return `<div class="bracket-match ${isAdmin?'admin-editable':''}">
+    const aa  = hasPerm('brackets') ? `onclick="openMatchEdit('${currentBracket}','${rk}',${idx})" title="Edit"` : '';
+    const delBtn = hasPerm('brackets') ? `<button class="tbl-btn del" style="font-size:.6rem;padding:.1rem .35rem;line-height:1;" onclick="event.stopPropagation();deleteBracketMatch('${currentBracket}','${rk}',${idx})">✕</button>` : '';
+    return `<div class="bracket-match ${hasPerm('brackets')?'admin-editable':''}">
       <div class="bracket-team ${t1c}"><span class="bt-name">${m.t1}</span><span class="bt-score">${m.done&&m.s1!==null?m.s1:'—'}</span></div>
       <div class="bracket-team ${t2c}"><span class="bt-name">${m.t2}</span><span class="bt-score">${m.done&&m.s2!==null?m.s2:'—'}</span></div>
-      ${isAdmin?`<div class="admin-edit-hint" style="display:flex;justify-content:space-between;align-items:center;padding:.15rem .4rem;">✎ EDIT${delBtn}</div>`:''}
+      ${hasPerm('brackets')?`<div class="admin-edit-hint" style="display:flex;justify-content:space-between;align-items:center;padding:.15rem .4rem;">✎ EDIT${delBtn}</div>`:''}
     </div>`;
   }
   const allRounds = [{key:'qf',label:'QUARTERFINALS'},{key:'sf',label:'SEMIFINALS'},{key:'f',label:'FINALS'}];
-  const rounds = isAdmin ? allRounds : allRounds.filter(r=>br[r.key]&&br[r.key].length);
-  const champBtn = isAdmin ? `<button class="admin-champion-btn" onclick="openChampionEdit('${currentBracket}')">✎ SET</button>` : '';
+  const rounds = hasPerm('brackets') ? allRounds : allRounds.filter(r=>br[r.key]&&br[r.key].length);
+  const champBtn = hasPerm('brackets') ? `<button class="admin-champion-btn" onclick="openChampionEdit('${currentBracket}')">✎ SET</button>` : '';
   document.getElementById('bracketView').innerHTML = `
     <div class="bracket">
       ${rounds.map(r=>`
@@ -476,7 +476,7 @@ function renderBracket() {
           <div class="round-label">${r.label}</div>
           <div class="round-matches">
             ${(br[r.key]||[]).map((m,i)=>matchHtml(m,r.key,i)).join('')}
-            ${isAdmin?`<button class="admin-cancel-btn" style="width:100%;margin-top:.4rem;font-size:.7rem;padding:.35rem;" onclick="addBracketMatch('${currentBracket}','${r.key}')">+ ADD MATCH</button>`:''}
+            ${hasPerm('brackets')?`<button class="admin-cancel-btn" style="width:100%;margin-top:.4rem;font-size:.7rem;padding:.35rem;" onclick="addBracketMatch('${currentBracket}','${r.key}')">+ ADD MATCH</button>`:''}
           </div>
         </div>`).join('')}
       <div class="bracket-round"><div class="round-label">CHAMPION</div><div class="round-matches"><div class="champion-box"><div class="champion-label">🏆 Winner</div><div class="champion-name">${br.champion||'TBD'}</div>${champBtn}</div></div></div>
@@ -520,11 +520,11 @@ function renderSchedule() {
     ? scheduleData
     : scheduleData.filter(s => s.region === scheduleRegion || s.region === 'ALL');
   const actTh = document.getElementById('schedActTh');
-  if (actTh) actTh.style.display = isAdmin ? '' : 'none';
+  if (actTh) actTh.style.display = hasPerm('schedule') ? '' : 'none';
   document.getElementById('scheduleBody').innerHTML = data.map(s => {
     const sc = s.status==='live'?'status-live':s.status==='done'?'status-done':'status-upcoming';
     const sl = s.status==='live'?'🔴 LIVE':s.status==='done'?'DONE':'UPCOMING';
-    const adminBtns = isAdmin
+    const adminBtns = hasPerm('schedule')
       ? `<td><button class="tbl-btn" onclick="openScheduleForm(${JSON.stringify(s).replace(/"/g,'&quot;')})">✎</button><button class="tbl-btn del" onclick="confirmDelete('schedule',${s.id})">✕</button></td>`
       : '';
     return `<tr><td>${s.date}</td><td>${s.time}</td><td style="color:var(--blue);font-weight:600;">${s.match}</td><td><span class="org-badge badge-active" style="font-size:.65rem;">${s.region}</span></td><td style="color:var(--text);opacity:.7">${s.round}</td><td class="${sc}">${sl}</td>${adminBtns}</tr>`;
@@ -703,10 +703,10 @@ function renderLeaderboard() {
   const q = (document.getElementById('lbSearch').value||'').toLowerCase().trim();
   const data = leaderboardData.filter(p=>!q||p.name.toLowerCase().includes(q)||p.org.toLowerCase().includes(q));
   const actTh = document.getElementById('lbActTh');
-  if (actTh) actTh.style.display = isAdmin ? '' : 'none';
+  if (actTh) actTh.style.display = hasPerm('orgs') ? '' : 'none';
   document.getElementById('lbBody').innerHTML = data.map((p,i) => {
     const rc=i<3?`lb-rank-${i+1}`:'', rd=i<3?['①','②','③'][i]:i+1, t=getEloTier(p.elo);
-    const adminBtns = isAdmin
+    const adminBtns = hasPerm('orgs')
       ? `<td><button class="tbl-btn" onclick="openPlayerForm(${JSON.stringify(p).replace(/"/g,'&quot;')})">✎</button><button class="tbl-btn del" onclick="confirmDelete('player',${p.id})">✕</button></td>`
       : '';
     return `<tr class="${rc}"><td class="lb-rank">${rd}</td><td style="font-weight:600">${p.name}</td><td style="color:rgba(160,200,255,.5);font-size:.85rem;">[${p.org}]</td><td class="lb-elo">${p.elo}</td><td><span class="tier-badge ${t.cls}">${t.label}</span></td><td style="font-size:.85rem;"><span class="stat-wins">${p.wins}W</span>&nbsp;<span style="opacity:.4">/</span>&nbsp;<span class="stat-losses">${p.losses}L</span></td>${adminBtns}</tr>`;
@@ -771,11 +771,23 @@ function setAdminUI(on) {
 }
 
 function refreshAdminButtons() {
-  ['addWarLogBtn','addSeasonLogBtn','addWagerBtn','addAwardBtn','editHomeRulesBtn','editLogsRulesBtn','addOrgBtn','addPlayerBtn','addScheduleBtn','editEloInfoBtn','newBracketBtn'].forEach(id => {
-    const el = document.getElementById(id); if (el) el.style.display = isAdmin ? '' : 'none';
+  const btnPerms = {
+    addWarLogBtn: 'logs', addSeasonLogBtn: 'logs',
+    addWagerBtn: 'wager',
+    addAwardBtn: 'awards',
+    editHomeRulesBtn: 'all', editLogsRulesBtn: 'all', editEloInfoBtn: 'all',
+    addOrgBtn: 'orgs', addPlayerBtn: 'orgs',
+    addScheduleBtn: 'schedule',
+    newBracketBtn: 'brackets',
+  };
+  Object.entries(btnPerms).forEach(([id, perm]) => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = hasPerm(perm) ? '' : 'none';
   });
-  ['warActTh','seasonActTh','wagerActTh','lbActTh','schedActTh'].forEach(id => {
-    const el = document.getElementById(id); if (el) el.style.display = isAdmin ? '' : 'none';
+  const thPerms = { warActTh: 'logs', seasonActTh: 'logs', wagerActTh: 'wager', lbActTh: 'orgs', schedActTh: 'schedule' };
+  Object.entries(thPerms).forEach(([id, perm]) => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = hasPerm(perm) ? '' : 'none';
   });
   const mub = document.getElementById('manageUsersBtn');
   if (mub) mub.style.display = hasPerm('all') ? '' : 'none';
@@ -794,7 +806,7 @@ async function verifyStoredToken() {
 // BRACKET EDIT (admin)
 // ============================================================
 function openMatchEdit(region, roundKey, idx) {
-  if (!isAdmin) return;
+  if (!hasPerm('brackets')) return;
   _editCtx = { region, roundKey, idx, type:'match' };
   const m = BRACKETS[region][roundKey][idx];
   document.getElementById('matchEditContent').innerHTML = `
@@ -827,7 +839,7 @@ function closeMatchEdit() { document.getElementById('matchEditModal').classList.
 function maybeCloseMatchModal(e) { if (e.target===document.getElementById('matchEditModal')) closeMatchEdit(); }
 
 function openChampionEdit(region) {
-  if (!isAdmin) return;
+  if (!hasPerm('brackets')) return;
   _editCtx = { region, type:'champion' };
   document.getElementById('matchEditContent').innerHTML = `
     <div class="admin-modal-header" style="margin-bottom:1.2rem;">
@@ -864,7 +876,7 @@ async function loadWarLogs() {
   loadEl.style.display='none';
   if (!data.length) { emptyEl.style.display=''; return; }
   body.innerHTML = data.map(r => {
-    const actBtns = isAdmin ? `<td><button class="tbl-btn" onclick="openLogForm('war',${JSON.stringify(r).replace(/"/g,'&quot;')})">✎</button><button class="tbl-btn del" onclick="confirmDelete('war',${r.id})">✕</button></td>` : '';
+    const actBtns = hasPerm('logs') ? `<td><button class="tbl-btn" onclick="openLogForm('war',${JSON.stringify(r).replace(/"/g,'&quot;')})">✎</button><button class="tbl-btn del" onclick="confirmDelete('war',${r.id})">✕</button></td>` : '';
     const eloHtml = (r.elo_org1 == null && r.elo_org2 == null) ? '—' :
       `<span class="${r.elo_org1>0?'stat-wins':r.elo_org1<0?'stat-losses':''}">${r.elo_org1!=null?(r.elo_org1>0?'+':'')+r.elo_org1:'—'}</span>&nbsp;/&nbsp;<span class="${r.elo_org2>0?'stat-wins':r.elo_org2<0?'stat-losses':''}">${r.elo_org2!=null?(r.elo_org2>0?'+':'')+r.elo_org2:'—'}</span>`;
     return `<tr>
@@ -911,7 +923,7 @@ async function loadSeasonLogs() {
   loadEl.style.display='none';
   if (!data.length) { emptyEl.style.display=''; return; }
   body.innerHTML = data.map(r => {
-    const actBtns = isAdmin ? `<td><button class="tbl-btn" onclick="openLogForm('season',${JSON.stringify(r).replace(/"/g,'&quot;')})">✎</button><button class="tbl-btn del" onclick="confirmDelete('season',${r.id})">✕</button></td>` : '';
+    const actBtns = hasPerm('logs') ? `<td><button class="tbl-btn" onclick="openLogForm('season',${JSON.stringify(r).replace(/"/g,'&quot;')})">✎</button><button class="tbl-btn del" onclick="confirmDelete('season',${r.id})">✕</button></td>` : '';
     return `<tr>
       <td>${r.date}</td>
       <td style="color:rgba(160,200,255,.6);font-size:.85rem;">${r.event_name||'—'}</td>
@@ -947,7 +959,7 @@ async function loadWagerRecords() {
   body.innerHTML = data.map(r => {
     const stCls = r.status==='settled'?'pill-settled':r.status==='cancelled'?'pill-cancelled':'pill-pending';
     const paidCls = r.paid ? 'pill-paid' : 'pill-unpaid';
-    const actBtns = isAdmin ? `<td><button class="tbl-btn" onclick="openLogForm('wager',${JSON.stringify(r).replace(/"/g,'&quot;')})">✎</button><button class="tbl-btn del" onclick="confirmDelete('wager',${r.id})">✕</button></td>` : '';
+    const actBtns = hasPerm('wager') ? `<td><button class="tbl-btn" onclick="openLogForm('wager',${JSON.stringify(r).replace(/"/g,'&quot;')})">✎</button><button class="tbl-btn del" onclick="confirmDelete('wager',${r.id})">✕</button></td>` : '';
     return `<tr>
       <td>${r.date}</td>
       <td style="color:var(--blue);font-weight:600;">${r.challenger}</td>
@@ -1180,7 +1192,7 @@ async function loadAwards() {
     const photoEl = a.photo_url
       ? `<img class="award-photo" src="${a.photo_url}" alt="${a.recipient_name}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="award-photo-placeholder" style="display:none;">👤</div>`
       : `<div class="award-photo-placeholder">👤</div>`;
-    const adminBtns = isAdmin ? `<div class="award-admin-btns"><button class="tbl-btn" onclick="openAwardForm(${JSON.stringify(a).replace(/"/g,'&quot;')})">✎ EDIT</button><button class="tbl-btn del" onclick="confirmDelete('award',${a.id})">✕</button></div>` : '';
+    const adminBtns = hasPerm('awards') ? `<div class="award-admin-btns"><button class="tbl-btn" onclick="openAwardForm(${JSON.stringify(a).replace(/"/g,'&quot;')})">✎ EDIT</button><button class="tbl-btn del" onclick="confirmDelete('award',${a.id})">✕</button></div>` : '';
     return `
       <div class="award-card">
         <div class="award-card-top">${photoEl}<div class="award-season-tag">${a.season}</div></div>
@@ -1274,9 +1286,9 @@ async function loadRules(page) {
     contentEl.textContent = data.content;
   } else {
     contentEl.className = 'rules-display empty';
-    contentEl.textContent = isAdmin ? 'No rules added yet. Click EDIT RULES to add.' : 'NO RULES ADDED YET.';
+    contentEl.textContent = hasPerm('all') ? 'No rules added yet. Click EDIT RULES to add.' : 'NO RULES ADDED YET.';
   }
-  if (editBtn) editBtn.style.display = isAdmin ? '' : 'none';
+  if (editBtn) editBtn.style.display = hasPerm('all') ? '' : 'none';
 }
 
 function openRulesEditor(page) {
