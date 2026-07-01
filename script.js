@@ -426,7 +426,7 @@ async function saveNewBracket() {
   };
   await apiPost('/brackets', { region, season, data });
   closeLogForm();
-  if (!bracketSeasons.includes(season)) { bracketSeasons.unshift(season); renderBracketSeasonTabs(); }
+  if (!bracketSeasons.includes(season)) { bracketSeasons.push(season); bracketSeasons.sort((a,b)=>(parseInt(a.replace(/\D/g,''))||0)-(parseInt(b.replace(/\D/g,''))||0)); renderBracketSeasonTabs(); }
   await loadBracketsFromAPI(season);
 }
 
