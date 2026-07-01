@@ -458,12 +458,11 @@ function renderBracket() {
     const t2w = m.done && m.s2!==null && m.s2>m.s1;
     const t1c = m.t1==='TBD'?'tbd':(m.done?(t1w?'winner':'loser'):'');
     const t2c = m.t2==='TBD'?'tbd':(m.done?(t2w?'winner':'loser'):'');
-    const aa  = hasPerm('brackets') ? `onclick="openMatchEdit('${currentBracket}','${rk}',${idx})" title="Edit"` : '';
     const delBtn = hasPerm('brackets') ? `<button class="tbl-btn del" style="font-size:.6rem;padding:.1rem .35rem;line-height:1;" onclick="event.stopPropagation();deleteBracketMatch('${currentBracket}','${rk}',${idx})">✕</button>` : '';
     return `<div class="bracket-match ${hasPerm('brackets')?'admin-editable':''}">
       <div class="bracket-team ${t1c}"><span class="bt-name">${m.t1}</span><span class="bt-score">${m.done&&m.s1!==null?m.s1:'—'}</span></div>
       <div class="bracket-team ${t2c}"><span class="bt-name">${m.t2}</span><span class="bt-score">${m.done&&m.s2!==null?m.s2:'—'}</span></div>
-      ${hasPerm('brackets')?`<div class="admin-edit-hint" style="display:flex;justify-content:space-between;align-items:center;padding:.15rem .4rem;">✎ EDIT${delBtn}</div>`:''}
+      ${hasPerm('brackets')?`<div class="admin-edit-hint" style="display:flex;justify-content:space-between;align-items:center;padding:.15rem .4rem;cursor:pointer;" onclick="openMatchEdit('${currentBracket}','${rk}',${idx})">✎ EDIT${delBtn}</div>`:''}
     </div>`;
   }
   const allRounds = [{key:'qf',label:'QUARTERFINALS'},{key:'sf',label:'SEMIFINALS'},{key:'f',label:'FINALS'}];
