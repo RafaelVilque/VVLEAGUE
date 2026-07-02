@@ -456,8 +456,8 @@ function renderBracket() {
     if (!m) return '';
     const t1w = m.done && m.s1!==null && m.s1>m.s2;
     const t2w = m.done && m.s2!==null && m.s2>m.s1;
-    const t1c = m.t1==='TBD'?'tbd':(m.done?(t1w?'winner':'loser'):'');
-    const t2c = m.t2==='TBD'?'tbd':(m.done?(t2w?'winner':'loser'):'');
+    const t1c = m.t1==='TBD'?'tbd':(m.done?(t1w?'winner':'loser'):'filled');
+    const t2c = m.t2==='TBD'?'tbd':(m.done?(t2w?'winner':'loser'):'filled');
     const delBtn = hasPerm('brackets') ? `<button class="tbl-btn del" style="font-size:.6rem;padding:.1rem .35rem;line-height:1;" onclick="event.stopPropagation();deleteBracketMatch('${currentBracket}','${rk}',${idx})">✕</button>` : '';
     return `<div class="bracket-match ${hasPerm('brackets')?'admin-editable':''}">
       <div class="bracket-team ${t1c}"><span class="bt-name">${m.t1}</span><span class="bt-score">${m.done&&m.s1!==null?m.s1:'—'}</span></div>
