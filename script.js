@@ -766,6 +766,7 @@ function setAdminUI(on) {
   document.getElementById('adminBadge').style.display  = on ? '' : 'none';
   document.getElementById('adminLogoutBtn').style.display = on ? '' : 'none';
   refreshAdminButtons();
+  renderBracketSeasonTabs();
   if (on) { renderOrgList(); renderLeaderboard(); renderSchedule(); }
 }
 
