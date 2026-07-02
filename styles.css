@@ -491,7 +491,7 @@ body::after {
 }
 .bracket-team:first-child { border-bottom:1px solid rgba(91,173,255,0.08); }
 .bracket-team.winner { color:rgba(210,230,255,0.95); border-color:rgba(91,173,255,0.45); background:rgba(91,173,255,0.07); }
-.bracket-team.winner .bt-score { color:var(--blue); font-weight:700; }
+.bracket-team.winner .bt-score, .bracket-team.loser .bt-score { color:#fff; font-weight:700; }
 .bracket-team.loser { color:rgba(210,230,255,0.95); border-color:rgba(91,173,255,0.45); background:rgba(91,173,255,0.07); }
 .bracket-team.tbd { color:rgba(160,200,255,0.5); border-color:rgba(91,173,255,0.15); font-style:italic; }
 .bracket-team.filled { color:rgba(210,230,255,0.95); border-color:rgba(91,173,255,0.45); background:rgba(91,173,255,0.07); }
