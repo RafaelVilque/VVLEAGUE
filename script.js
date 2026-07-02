@@ -900,8 +900,8 @@ async function loadWarLogs() {
 function buildSeasonFilterBtns(seasons) {
   const wrap = document.getElementById('seasonLogSeasonBtns');
   const allSeasons = ['ALL', ...seasons];
-  wrap.innerHTML = allSeasons.map((s,i) =>
-    `<button class="filter-btn ${i===0?'active':''}" onclick="setSeasonLogFilter(this,'${s}')">${s}</button>`
+  wrap.innerHTML = allSeasons.map(s =>
+    `<button class="filter-btn ${s===seasonFilter?'active':''}" onclick="setSeasonLogFilter(this,'${s}')">${s}</button>`
   ).join('');
 }
 
@@ -916,8 +916,11 @@ async function loadSeasonLogs() {
   const loadEl=document.getElementById('seasonLogsLoading'), emptyEl=document.getElementById('seasonLogsEmpty'), body=document.getElementById('seasonLogsBody');
   loadEl.style.display=''; emptyEl.style.display='none'; body.innerHTML='';
   const params = seasonFilter!=='ALL' ? '?season='+encodeURIComponent(seasonFilter) : '';
-  const data = await apiGet('/logs/season'+params);
-  const seasons = [...new Set(data.map(r=>r.season))].sort().reverse();
+  const [data, allData] = await Promise.all([
+    apiGet('/logs/season'+params),
+    seasonFilter!=='ALL' ? apiGet('/logs/season') : Promise.resolve(null),
+  ]);
+  const seasons = [...new Set((allData||data).map(r=>r.season))].sort().reverse();
   buildSeasonFilterBtns(seasons);
   loadEl.style.display='none';
   if (!data.length) { emptyEl.style.display=''; return; }
