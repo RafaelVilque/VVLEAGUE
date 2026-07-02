@@ -223,6 +223,7 @@ body::after {
   display: flex;
   border-bottom: 1px solid rgba(91,173,255,0.15);
   margin-bottom: 1.5rem;
+  position: relative; z-index: 3;
 }
 
 .sec-tab {
@@ -462,7 +463,7 @@ body::after {
 .team-row span:last-child { color:var(--text); font-weight:600; }
 
 /* ====== PAGE HEADER ====== */
-.page-header { padding:2rem 0 1.5rem; text-align:center; }
+.page-header { padding:2rem 0 1.5rem; text-align:center; position:relative; z-index:3; }
 .page-title { font-family:'Cinzel Decorative',cursive; font-size:1.8rem; color:var(--blue); text-shadow:var(--glow); letter-spacing:0.08em; }
 .page-desc { font-size:0.85rem; color:rgba(160,200,255,0.45); letter-spacing:0.12em; margin-top:0.3rem; }
 
@@ -471,7 +472,7 @@ body::after {
 
 .bracket { display:flex; gap:0; min-width:700px; align-items:stretch; }
 
-.bracket-round { display:flex; flex-direction:column; flex:1; }
+.bracket-round { display:flex; flex-direction:column; flex:1; min-width:170px; }
 
 .round-label { font-size:0.7rem; letter-spacing:0.25em; color:var(--yellow); text-transform:uppercase; text-align:center; padding:0.5rem; border-bottom:1px solid rgba(245,240,122,0.18); margin-bottom:0.5rem; }
 
@@ -860,6 +861,7 @@ body::after {
   flex-wrap: wrap;
   gap: 0.6rem;
   margin-bottom: 0.4rem;
+  position: relative; z-index: 3;
 }
 
 .log-add-btn {
