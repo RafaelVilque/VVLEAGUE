@@ -489,10 +489,10 @@ body::after {
   color: var(--text);
   transition: all 0.15s; gap: 0.5rem;
 }
-.bracket-team:first-child { border-bottom:1px solid rgba(91,173,255,0.08); }
-.bracket-team.winner { color:#fff; border-color:var(--blue); background:rgba(91,173,255,0.25); }
+.bracket-team:first-child { border-bottom:1px solid rgba(91,173,255,0.25); }
+.bracket-team.winner { color:#fff; border-color:rgba(91,173,255,0.35); border-left:3px solid var(--blue); background:rgba(91,173,255,0.15); }
 .bracket-team.winner .bt-score { color:var(--blue); font-weight:700; }
-.bracket-team.loser { color:rgba(140,165,200,0.45); border-color:rgba(91,173,255,0.08); background:rgba(5,10,20,0.35); }
+.bracket-team.loser { color:rgba(140,165,200,0.45); border-color:rgba(91,173,255,0.12); border-left:3px solid rgba(91,173,255,0.15); background:rgba(5,10,20,0.3); }
 .bracket-team.loser .bt-score { color:rgba(140,165,200,0.45); font-weight:700; }
 .bracket-team.tbd { color:rgba(160,200,255,0.5); border-color:rgba(91,173,255,0.15); font-style:italic; }
 .bracket-team.filled { color:rgba(210,230,255,0.95); border-color:rgba(91,173,255,0.45); background:rgba(91,173,255,0.07); }
