@@ -553,7 +553,7 @@ app.get('/api/brackets', (req, res) => {
 app.post('/api/brackets', requireAdmin, requirePerm('brackets'), (req, res) => {
   const { region, season, data } = req.body;
   if (!region || !season) return res.status(400).json({ error: 'region and season required' });
-  const initialData = data || { qf:[], sf:[], f:[{t1:'TBD',s1:null,t2:'TBD',s2:null,done:false}], champion:null };
+  const initialData = data || { qf:[], sf:[], f:[{t1:'TBD',s1:null,t2:'TBD',s2:null,done:false}], gf:[], champion:null, labels:{} };
   try {
     db.prepare('INSERT INTO brackets (region,season,data) VALUES (?,?,?)').run(region.toUpperCase(), season, JSON.stringify(initialData));
     res.json({ ok: true });

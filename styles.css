@@ -475,6 +475,7 @@ body::after {
 .bracket-round { display:flex; flex-direction:column; flex:1; min-width:170px; }
 
 .round-label { font-size:0.7rem; letter-spacing:0.25em; color:var(--yellow); text-transform:uppercase; text-align:center; padding:0.5rem; border-bottom:1px solid rgba(245,240,122,0.18); margin-bottom:0.5rem; }
+.round-label-input { font-size:0.7rem; letter-spacing:0.25em; color:var(--yellow); text-transform:uppercase; text-align:center; padding:0.5rem; border:none; border-bottom:1px solid rgba(245,240,122,0.4); margin-bottom:0.5rem; background:transparent; width:100%; font-family:inherit; font-weight:inherit; outline:none; cursor:text; box-sizing:border-box; }
 
 .round-matches { display:flex; flex-direction:column; flex:1; justify-content:space-around; padding:0 0.5rem; gap:0.6rem; }
 

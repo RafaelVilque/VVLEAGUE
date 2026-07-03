@@ -465,20 +465,27 @@ function renderBracket() {
       ${hasPerm('brackets')?`<div class="admin-edit-hint" style="display:flex;justify-content:space-between;align-items:center;padding:.15rem .4rem;cursor:pointer;" onclick="openMatchEdit('${currentBracket}','${rk}',${idx})">✎ EDIT${delBtn}</div>`:''}
     </div>`;
   }
-  const allRounds = [{key:'qf',label:'QUARTERFINALS'},{key:'sf',label:'SEMIFINALS'},{key:'f',label:'FINALS'}];
+  const allRounds = [{key:'qf',label:'QUARTERFINALS'},{key:'sf',label:'SEMIFINALS'},{key:'f',label:'FINALS'},{key:'gf',label:'GRAND FINALS'}];
   const rounds = hasPerm('brackets') ? allRounds : allRounds.filter(r=>br[r.key]&&br[r.key].length);
   const champBtn = hasPerm('brackets') ? `<button class="admin-champion-btn" onclick="openChampionEdit('${currentBracket}')">✎ SET</button>` : '';
+  function roundLabelHtml(key, defaultLabel) {
+    const val = (br.labels&&br.labels[key]) || defaultLabel;
+    if (hasPerm('brackets')) return `<input class="round-label-input" value="${val.replace(/"/g,'&quot;')}" onblur="saveBracketLabel('${currentBracket}','${key}',this.value)" onkeydown="if(event.key==='Enter')this.blur();if(event.key==='Escape'){this.value=(BRACKETS['${currentBracket}'].labels&&BRACKETS['${currentBracket}'].labels['${key}'])||'${defaultLabel}';this.blur();}">`;
+    return `<div class="round-label">${val}</div>`;
+  }
+  const champLabel = (br.labels&&br.labels['champion'])||'CHAMPION';
+  const champLabelHtml = hasPerm('brackets') ? `<input class="round-label-input" value="${champLabel.replace(/"/g,'&quot;')}" onblur="saveBracketLabel('${currentBracket}','champion',this.value)" onkeydown="if(event.key==='Enter')this.blur();">` : `<div class="round-label">${champLabel}</div>`;
   document.getElementById('bracketView').innerHTML = `
     <div class="bracket">
       ${rounds.map(r=>`
         <div class="bracket-round">
-          <div class="round-label">${r.label}</div>
+          ${roundLabelHtml(r.key, r.label)}
           <div class="round-matches">
             ${(br[r.key]||[]).map((m,i)=>matchHtml(m,r.key,i)).join('')}
             ${hasPerm('brackets')?`<button class="admin-cancel-btn" style="width:100%;margin-top:.4rem;font-size:.7rem;padding:.35rem;" onclick="addBracketMatch('${currentBracket}','${r.key}')">+ ADD MATCH</button>`:''}
           </div>
         </div>`).join('')}
-      <div class="bracket-round"><div class="round-label">CHAMPION</div><div class="round-matches"><div class="champion-box"><div class="champion-label">🏆 Winner</div><div class="champion-name">${br.champion||'TBD'}</div>${champBtn}</div></div></div>
+      <div class="bracket-round">${champLabelHtml}<div class="round-matches"><div class="champion-box"><div class="champion-label">🏆 Winner</div><div class="champion-name">${br.champion||'TBD'}</div>${champBtn}</div></div></div>
     </div>`;
 }
 
@@ -856,6 +863,15 @@ async function saveChampion(region) {
   BRACKETS[region].champion = document.getElementById('eChamp').value.trim()||null;
   await apiPut('/brackets/'+region+'?season='+currentBracketSeason, BRACKETS[region]);
   closeMatchEdit(); renderBracket();
+}
+
+async function saveBracketLabel(region, key, val) {
+  const br = BRACKETS[region]; if (!br) return;
+  if (!br.labels) br.labels = {};
+  const defaults = {qf:'QUARTERFINALS',sf:'SEMIFINALS',f:'FINALS',gf:'GRAND FINALS',champion:'CHAMPION'};
+  br.labels[key] = val.trim() || defaults[key] || key.toUpperCase();
+  await apiPut('/brackets/'+region+'?season='+currentBracketSeason, br);
+  renderBracket();
 }
 
 // ============================================================
