@@ -389,6 +389,7 @@ async function loadBracketsFromAPI(season) {
       Object.keys(data).forEach(r => { BRACKETS[r] = data[r]; });
     }
   } catch(e) {}
+  renderBracketRegionTabs();
   renderBracket();
 }
 
@@ -443,10 +444,35 @@ async function deleteBracketMatch(region, roundKey, idx) {
   renderBracket();
 }
 
-function switchBracket(btn, region) {
+function renderBracketRegionTabs() {
+  const wrap = document.getElementById('bracketRegionTabs');
+  if (!wrap) return;
+  const regions = ['NA','EU','ASIA','OCE','SA'];
+  wrap.innerHTML = regions.map(r => {
+    const isActive = r === currentBracket;
+    const displayName = BRACKETS[r]?.regionName || r;
+    if (isActive && hasPerm('brackets')) {
+      return `<span class="rtab active" style="display:inline-flex;align-items:center;padding:0;">
+        <input class="region-name-input" value="${displayName.replace(/"/g,'&quot;')}"
+          onblur="saveBracketRegionName('${r}',this.value)"
+          onkeydown="if(event.key==='Enter')this.blur();"
+          onclick="event.stopPropagation()">
+      </span>`;
+    }
+    return `<button class="rtab ${isActive?'active':''}" onclick="switchBracket(null,'${r}')">${displayName}</button>`;
+  }).join('');
+}
+
+async function saveBracketRegionName(region, name) {
+  const br = BRACKETS[region]; if (!br) return;
+  br.regionName = name.trim() || region;
+  await apiPut('/brackets/'+region+'?season='+currentBracketSeason, br);
+  renderBracketRegionTabs();
+}
+
+function switchBracket(_btn, region) {
   currentBracket = region;
-  document.querySelectorAll('#bracketRegionTabs .rtab').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
+  renderBracketRegionTabs();
   renderBracket();
 }
 
