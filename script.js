@@ -452,12 +452,10 @@ function renderBracketRegionTabs() {
     const isActive = r === currentBracket;
     const displayName = BRACKETS[r]?.regionName || r;
     if (isActive && hasPerm('brackets')) {
-      return `<span class="rtab active" style="display:inline-flex;align-items:center;padding:0;">
-        <input class="region-name-input" value="${displayName.replace(/"/g,'&quot;')}"
-          onblur="saveBracketRegionName('${r}',this.value)"
-          onkeydown="if(event.key==='Enter')this.blur();"
-          onclick="event.stopPropagation()">
-      </span>`;
+      return `<input class="region-name-input" value="${displayName.replace(/"/g,'&quot;')}" size="${Math.max(displayName.length,3)}"
+        onblur="saveBracketRegionName('${r}',this.value)"
+        onkeydown="if(event.key==='Enter')this.blur();"
+        onclick="event.stopPropagation()">`;
     }
     return `<button class="rtab ${isActive?'active':''}" onclick="switchBracket(null,'${r}')">${displayName}</button>`;
   }).join('');

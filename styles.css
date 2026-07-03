@@ -476,7 +476,7 @@ body::after {
 
 .round-label { font-size:0.7rem; letter-spacing:0.25em; color:var(--yellow); text-transform:uppercase; text-align:center; padding:0.5rem; border-bottom:1px solid rgba(245,240,122,0.18); margin-bottom:0.5rem; }
 .round-label-input { font-size:0.7rem; letter-spacing:0.25em; color:var(--yellow); text-transform:uppercase; text-align:center; padding:0.5rem; border:none; border-bottom:1px solid rgba(245,240,122,0.4); margin-bottom:0.5rem; background:transparent; width:100%; font-family:inherit; font-weight:inherit; outline:none; cursor:text; box-sizing:border-box; }
-.region-name-input { font-size:0.72rem; letter-spacing:0.12em; color:var(--blue); text-transform:uppercase; text-align:center; padding:0.3rem 0.6rem; border:none; border-bottom:2px solid var(--blue); background:transparent; font-family:inherit; font-weight:700; outline:none; cursor:text; min-width:40px; max-width:100px; box-sizing:border-box; }
+.region-name-input { background:var(--blue); border:1px solid var(--blue); color:var(--bg); font-family:'Rajdhani',sans-serif; font-size:0.85rem; font-weight:700; letter-spacing:0.2em; text-transform:uppercase; padding:0.4rem 1.2rem; outline:none; cursor:text; text-align:center; box-sizing:border-box; }
 
 .round-matches { display:flex; flex-direction:column; flex:1; justify-content:space-around; padding:0 0.5rem; gap:0.6rem; }
 
