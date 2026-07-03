@@ -494,11 +494,19 @@ function renderBracket() {
   const champBtn = hasPerm('brackets') ? `<button class="admin-champion-btn" onclick="openChampionEdit('${currentBracket}')">✎ SET</button>` : '';
   function roundLabelHtml(key, defaultLabel) {
     const val = (br.labels&&br.labels[key]) || defaultLabel;
-    if (hasPerm('brackets')) return `<input class="round-label-input" value="${val.replace(/"/g,'&quot;')}" onblur="saveBracketLabel('${currentBracket}','${key}',this.value)" onkeydown="if(event.key==='Enter')this.blur();if(event.key==='Escape'){this.value=(BRACKETS['${currentBracket}'].labels&&BRACKETS['${currentBracket}'].labels['${key}'])||'${defaultLabel}';this.blur();}">`;
+    if (hasPerm('brackets')) return `<div class="round-label" style="display:flex;align-items:center;justify-content:center;gap:.4rem;" id="rl_wrap_${key}">
+      <span>${val}</span>
+      <button class="rl-edit-btn" onclick="startEditRoundLabel(this,'${currentBracket}','${key}','${defaultLabel}')">✎</button>
+    </div>`;
     return `<div class="round-label">${val}</div>`;
   }
   const champLabel = (br.labels&&br.labels['champion'])||'CHAMPION';
-  const champLabelHtml = hasPerm('brackets') ? `<input class="round-label-input" value="${champLabel.replace(/"/g,'&quot;')}" onblur="saveBracketLabel('${currentBracket}','champion',this.value)" onkeydown="if(event.key==='Enter')this.blur();">` : `<div class="round-label">${champLabel}</div>`;
+  const champLabelHtml = hasPerm('brackets')
+    ? `<div class="round-label" style="display:flex;align-items:center;justify-content:center;gap:.4rem;" id="rl_wrap_champion">
+        <span>${champLabel}</span>
+        <button class="rl-edit-btn" onclick="startEditRoundLabel(this,'${currentBracket}','champion','CHAMPION')">✎</button>
+      </div>`
+    : `<div class="round-label">${champLabel}</div>`;
   document.getElementById('bracketView').innerHTML = `
     <div class="bracket">
       ${rounds.map(r=>`
@@ -896,6 +904,23 @@ async function saveBracketLabel(region, key, val) {
   br.labels[key] = val.trim() || defaults[key] || key.toUpperCase();
   await apiPut('/brackets/'+region+'?season='+currentBracketSeason, br);
   renderBracket();
+}
+
+function startEditRoundLabel(btn, region, key, defaultLabel) {
+  const wrap = btn.closest('.round-label');
+  const currentVal = (BRACKETS[region]?.labels?.[key]) || defaultLabel;
+  wrap.innerHTML = `
+    <input class="round-label-input" id="rl_input_${key}" value="${currentVal.replace(/"/g,'&quot;')}"
+      onkeydown="if(event.key==='Enter')saveRoundLabelInline('${region}','${key}','${defaultLabel}');"
+      style="flex:1;margin-bottom:0;">
+    <button class="rl-save-btn" onclick="saveRoundLabelInline('${region}','${key}','${defaultLabel}')">SAVE</button>`;
+  const inp = document.getElementById('rl_input_'+key);
+  if (inp) { inp.focus(); inp.select(); }
+}
+
+async function saveRoundLabelInline(region, key, defaultLabel) {
+  const inp = document.getElementById('rl_input_'+key);
+  await saveBracketLabel(region, key, inp?.value || defaultLabel);
 }
 
 // ============================================================
