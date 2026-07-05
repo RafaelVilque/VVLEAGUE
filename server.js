@@ -93,10 +93,6 @@ db.exec(`
 // Migrate: add elo columns to war_logs if not present
 try { db.exec('ALTER TABLE war_logs ADD COLUMN elo_org1 INTEGER DEFAULT NULL'); } catch(e) {}
 try { db.exec('ALTER TABLE war_logs ADD COLUMN elo_org2 INTEGER DEFAULT NULL'); } catch(e) {}
-// Migrate: add stats column to all log tables
-try { db.exec('ALTER TABLE war_logs ADD COLUMN stats TEXT DEFAULT ""'); } catch(e) {}
-try { db.exec('ALTER TABLE season_logs ADD COLUMN stats TEXT DEFAULT ""'); } catch(e) {}
-try { db.exec('ALTER TABLE wager_records ADD COLUMN stats TEXT DEFAULT ""'); } catch(e) {}
 
 // ============================================================
 // ORGS / MEMBERS / PLAYERS TABLES
@@ -224,9 +220,10 @@ if (wagerRecCols.find(c => c.name === 'amount' && c.type === 'INTEGER')) {
       paid       INTEGER DEFAULT 0,
       season     TEXT DEFAULT 'S3',
       notes      TEXT DEFAULT '',
-      created_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT DEFAULT (datetime('now')),
+      stats      TEXT DEFAULT ''
     );
-    INSERT INTO wager_records SELECT id,date,challenger,challenged,CAST(amount AS TEXT),winner,status,paid,season,notes,created_at FROM _wager_records_old;
+    INSERT INTO wager_records SELECT id,date,challenger,challenged,CAST(amount AS TEXT),winner,status,paid,season,notes,created_at,COALESCE(stats,'') FROM _wager_records_old;
     DROP TABLE _wager_records_old;
     COMMIT;
   `);
@@ -270,6 +267,10 @@ try { db.exec('ALTER TABLE season_logs ADD COLUMN points_winner INTEGER DEFAULT 
 try { db.exec('ALTER TABLE season_logs ADD COLUMN points_loser  INTEGER DEFAULT 0'); } catch(e) {}
 try { db.exec("ALTER TABLE orgs ADD COLUMN logo_url TEXT DEFAULT ''"); } catch(e) {}
 
+// Migrate: add stats column to all log tables (must run after table recreations below)
+// NOTE: placed here so recreated tables also get the column
+try { db.exec('ALTER TABLE season_logs ADD COLUMN stats TEXT DEFAULT ""'); } catch(e) {}
+
 // Migrate: convert wager column to TEXT (recreate table preserving data)
 const warCols = db.prepare("PRAGMA table_info(war_logs)").all();
 if (warCols.find(c => c.name === 'wager' && c.type === 'INTEGER')) {
@@ -290,13 +291,18 @@ if (warCols.find(c => c.name === 'wager' && c.type === 'INTEGER')) {
       notes      TEXT DEFAULT '',
       created_at TEXT DEFAULT (datetime('now')),
       elo_org1   INTEGER DEFAULT NULL,
-      elo_org2   INTEGER DEFAULT NULL
+      elo_org2   INTEGER DEFAULT NULL,
+      stats      TEXT DEFAULT ''
     );
-    INSERT INTO war_logs SELECT id,date,org1,org2,score1,score2,winner,CAST(wager AS TEXT),region,season,notes,created_at,elo_org1,elo_org2 FROM _war_logs_old;
+    INSERT INTO war_logs SELECT id,date,org1,org2,score1,score2,winner,CAST(wager AS TEXT),region,season,notes,created_at,elo_org1,elo_org2,COALESCE(stats,'') FROM _war_logs_old;
     DROP TABLE _war_logs_old;
     COMMIT;
   `);
 }
+
+// Migrate: add stats to war_logs and wager_records (safe after recreation above)
+try { db.exec('ALTER TABLE war_logs ADD COLUMN stats TEXT DEFAULT ""'); } catch(e) {}
+try { db.exec('ALTER TABLE wager_records ADD COLUMN stats TEXT DEFAULT ""'); } catch(e) {}
 
 // Admin users table (multi-login with permissions)
 db.exec(`

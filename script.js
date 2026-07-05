@@ -189,7 +189,7 @@ function buildGuildsFromOrgs(orgs) {
   orgs.filter(o => o.status === 'active').forEach(o => {
     if (!regions[o.region]) return;
     const points = o.points || 0;
-    regions[o.region].push({ tag:o.tag, name:o.name, icon:o.icon||o.tag.slice(0,2), wins:o.wins||0, members:o.members.length, points, rank:0 });
+    regions[o.region].push({ tag:o.tag, name:o.name, logo_url:o.logo_url||'', icon:o.tag.slice(0,2), wins:o.wins||0, members:o.members.length, points, rank:0 });
   });
   Object.keys(regions).forEach(r => {
     regions[r].sort((a,b) => b.points - a.points);
@@ -202,7 +202,7 @@ function buildTeamsFromOrgs(orgs) {
   const regions = { NA:[], EU:[], ASIA:[], OCE:[], SA:[] };
   orgs.forEach(o => {
     if (!regions[o.region]) return;
-    regions[o.region].push({ tag:o.tag, name:o.name, icon:o.icon||o.tag.slice(0,2), region:o.region, players:o.members.length, record:`${o.wins||0}-${o.losses||0}`, rank:'#?' });
+    regions[o.region].push({ tag:o.tag, name:o.name, logo_url:o.logo_url||'', icon:o.tag.slice(0,2), region:o.region, players:o.members.length, record:`${o.wins||0}-${o.losses||0}`, rank:'#?' });
   });
   Object.keys(regions).forEach(r => {
     regions[r].sort((a,b) => {
@@ -318,7 +318,7 @@ function renderGuilds() {
   document.getElementById('guildGrid').innerHTML = (guildsData[currentGuildR]||[]).map(g => `
     <div class="guild-card">
       <div class="guild-rank">RANK #${g.rank}</div>
-      <div class="guild-icon">${g.icon}</div>
+      <div class="guild-icon">${g.logo_url ? '<img src="'+g.logo_url+'" alt="'+g.tag+'" style="width:100%;height:100%;object-fit:contain;border-radius:50%;padding:4px;">' : g.icon}</div>
       <div class="guild-name">${g.name}</div>
       <div class="guild-tag">[${g.tag}]</div>
       <div class="guild-stats">
@@ -338,7 +338,7 @@ function renderTeams() {
   document.getElementById('teamGrid').innerHTML = (teamsData[currentTeamR]||[]).map(t => `
     <div class="team-card">
       <div class="team-card-header">
-        <div class="team-icon">${t.icon}</div>
+        <div class="team-icon">${t.logo_url ? '<img src="'+t.logo_url+'" alt="'+t.tag+'" style="width:100%;height:100%;object-fit:contain;border-radius:6px;padding:3px;">' : t.icon}</div>
         <div><div class="team-name">${t.name}</div><div class="team-region">[${t.tag}] · ${t.region}</div></div>
       </div>
       <div class="team-row"><span>Rank</span><span>${t.rank}</span></div>
@@ -1118,15 +1118,13 @@ function openLogForm(type, existing) {
         <div class="admin-field"><label class="admin-label">NOTES</label><input id="lf_notes" class="admin-input" value="${e.notes||''}"></div>
       </div>`;
   } else {
-    const orgOptW = orgsData.map(o=>`<option value="${o.tag}" ${e.challenger===o.tag?'selected':''}>${o.tag} — ${o.name}</option>`).join('');
-    const orgOptD = orgsData.map(o=>`<option value="${o.tag}" ${e.challenged===o.tag?'selected':''}>${o.tag} — ${o.name}</option>`).join('');
     const winOptW = `<option value="">— NONE —</option>${orgsData.map(o=>`<option value="${o.tag}" ${e.winner===o.tag?'selected':''}>${o.tag} — ${o.name}</option>`).join('')}`;
     formHtml = `
       <div class="admin-form-grid-2">
         <div class="admin-field"><label class="admin-label">DATE</label><input id="lf_date" type="date" class="admin-input" value="${e.date||''}"></div>
         <div class="admin-field"><label class="admin-label">SEASON</label><input id="lf_season" class="admin-input" value="${e.season||'S3'}"></div>
-        <div class="admin-field"><label class="admin-label">CHALLENGER</label><select id="lf_challenger" class="admin-select">${orgOptW}</select></div>
-        <div class="admin-field"><label class="admin-label">CHALLENGED</label><select id="lf_challenged" class="admin-select">${orgOptD}</select></div>
+        <div class="admin-field"><label class="admin-label">CHALLENGER</label><input id="lf_challenger" class="admin-input" value="${(e.challenger||'').replace(/"/g,'&quot;')}" placeholder="Player or org name"></div>
+        <div class="admin-field"><label class="admin-label">CHALLENGED</label><input id="lf_challenged" class="admin-input" value="${(e.challenged||'').replace(/"/g,'&quot;')}" placeholder="Player or org name"></div>
         <div class="admin-field"><label class="admin-label">AMOUNT</label><input id="lf_amount" class="admin-input" value="${e.amount||''}" placeholder="ex: $500, items, custom..."></div>
         <div class="admin-field"><label class="admin-label">WINNER</label><select id="lf_winner" class="admin-select">${winOptW}</select></div>
         <div class="admin-field"><label class="admin-label">STATUS</label><select id="lf_status" class="admin-select"><option value="pending" ${e.status==='pending'||!e.status?'selected':''}>PENDING</option><option value="settled" ${e.status==='settled'?'selected':''}>SETTLED</option><option value="cancelled" ${e.status==='cancelled'?'selected':''}>CANCELLED</option></select></div>
