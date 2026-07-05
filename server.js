@@ -334,8 +334,10 @@ function requirePerm(perm) {
   return (req, res, next) => {
     if (req.admin.perms === 'all') return next();
     const perms = (req.admin.perms || '').split(',').map(p => p.trim());
-    if (!perms.includes(perm)) return res.status(403).json({ error: 'Forbidden' });
-    next();
+    if (perms.includes(perm)) return next();
+    // _delete variant implies the base permission
+    if (!perm.endsWith('_delete') && perms.includes(perm + '_delete')) return next();
+    return res.status(403).json({ error: 'Forbidden' });
   };
 }
 
@@ -427,7 +429,7 @@ app.put('/api/logs/war/:id', requireAdmin, requirePerm('logs'), (req, res) => {
   res.json({ ok: true });
 });
 
-app.delete('/api/logs/war/:id', requireAdmin, requirePerm('logs'), (req, res) => {
+app.delete('/api/logs/war/:id', requireAdmin, requirePerm('logs_delete'), (req, res) => {
   db.prepare('DELETE FROM war_logs WHERE id=?').run(req.params.id);
   res.json({ ok: true });
 });
@@ -462,7 +464,7 @@ app.put('/api/logs/season/:id', requireAdmin, requirePerm('logs'), (req, res) =>
   res.json({ ok: true });
 });
 
-app.delete('/api/logs/season/:id', requireAdmin, requirePerm('logs'), (req, res) => {
+app.delete('/api/logs/season/:id', requireAdmin, requirePerm('logs_delete'), (req, res) => {
   db.prepare('DELETE FROM season_logs WHERE id=?').run(req.params.id);
   res.json({ ok: true });
 });
@@ -498,7 +500,7 @@ app.put('/api/logs/wager/:id', requireAdmin, requirePerm('wager'), (req, res) =>
   res.json({ ok: true });
 });
 
-app.delete('/api/logs/wager/:id', requireAdmin, requirePerm('wager'), (req, res) => {
+app.delete('/api/logs/wager/:id', requireAdmin, requirePerm('wager_delete'), (req, res) => {
   db.prepare('DELETE FROM wager_records WHERE id=?').run(req.params.id);
   res.json({ ok: true });
 });
@@ -536,7 +538,7 @@ app.put('/api/awards/:id', requireAdmin, requirePerm('awards'), (req, res) => {
   res.json({ ok: true });
 });
 
-app.delete('/api/awards/:id', requireAdmin, requirePerm('awards'), (req, res) => {
+app.delete('/api/awards/:id', requireAdmin, requirePerm('awards_delete'), (req, res) => {
   db.prepare('DELETE FROM awards WHERE id=?').run(req.params.id);
   res.json({ ok: true });
 });
@@ -577,7 +579,7 @@ app.put('/api/brackets/:region', requireAdmin, requirePerm('brackets'), (req, re
   res.json({ ok: true });
 });
 
-app.delete('/api/brackets/season/:season', requireAdmin, requirePerm('brackets'), (req, res) => {
+app.delete('/api/brackets/season/:season', requireAdmin, requirePerm('brackets_delete'), (req, res) => {
   db.prepare('DELETE FROM brackets WHERE season = ?').run(req.params.season);
   res.json({ ok: true });
 });
@@ -607,7 +609,7 @@ app.put('/api/schedule/:id', requireAdmin, requirePerm('schedule'), (req, res) =
   res.json({ ok: true });
 });
 
-app.delete('/api/schedule/:id', requireAdmin, requirePerm('schedule'), (req, res) => {
+app.delete('/api/schedule/:id', requireAdmin, requirePerm('schedule_delete'), (req, res) => {
   db.prepare('DELETE FROM schedule WHERE id=?').run(req.params.id);
   res.json({ ok: true });
 });
@@ -682,7 +684,7 @@ app.put('/api/orgs/:id', requireAdmin, requirePerm('orgs'), (req, res) => {
   res.json({ ok: true });
 });
 
-app.delete('/api/orgs/:id', requireAdmin, requirePerm('orgs'), (req, res) => {
+app.delete('/api/orgs/:id', requireAdmin, requirePerm('orgs_delete'), (req, res) => {
   db.prepare('DELETE FROM org_members WHERE org_id = ?').run(req.params.id);
   db.prepare('DELETE FROM orgs WHERE id = ?').run(req.params.id);
   res.json({ ok: true });
@@ -695,7 +697,7 @@ app.post('/api/orgs/:id/members', requireAdmin, requirePerm('orgs'), (req, res) 
   res.json({ id: r.lastInsertRowid });
 });
 
-app.delete('/api/org-members/:id', requireAdmin, requirePerm('orgs'), (req, res) => {
+app.delete('/api/org-members/:id', requireAdmin, requirePerm('orgs_delete'), (req, res) => {
   db.prepare('DELETE FROM org_members WHERE id = ?').run(req.params.id);
   res.json({ ok: true });
 });
@@ -720,7 +722,7 @@ app.put('/api/players/:id', requireAdmin, requirePerm('orgs'), (req, res) => {
   res.json({ ok: true });
 });
 
-app.delete('/api/players/:id', requireAdmin, requirePerm('orgs'), (req, res) => {
+app.delete('/api/players/:id', requireAdmin, requirePerm('orgs_delete'), (req, res) => {
   db.prepare('DELETE FROM players WHERE id = ?').run(req.params.id);
   res.json({ ok: true });
 });
