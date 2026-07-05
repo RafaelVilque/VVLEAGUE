@@ -223,7 +223,7 @@ if (wagerRecCols.find(c => c.name === 'amount' && c.type === 'INTEGER')) {
       created_at TEXT DEFAULT (datetime('now')),
       stats      TEXT DEFAULT ''
     );
-    INSERT INTO wager_records SELECT id,date,challenger,challenged,CAST(amount AS TEXT),winner,status,paid,season,notes,created_at,COALESCE(stats,'') FROM _wager_records_old;
+    INSERT INTO wager_records SELECT id,date,challenger,challenged,CAST(amount AS TEXT),winner,status,paid,season,notes,created_at,'' FROM _wager_records_old;
     DROP TABLE _wager_records_old;
     COMMIT;
   `);
@@ -294,7 +294,7 @@ if (warCols.find(c => c.name === 'wager' && c.type === 'INTEGER')) {
       elo_org2   INTEGER DEFAULT NULL,
       stats      TEXT DEFAULT ''
     );
-    INSERT INTO war_logs SELECT id,date,org1,org2,score1,score2,winner,CAST(wager AS TEXT),region,season,notes,created_at,elo_org1,elo_org2,COALESCE(stats,'') FROM _war_logs_old;
+    INSERT INTO war_logs SELECT id,date,org1,org2,score1,score2,winner,CAST(wager AS TEXT),region,season,notes,created_at,elo_org1,elo_org2,'' FROM _war_logs_old;
     DROP TABLE _war_logs_old;
     COMMIT;
   `);
