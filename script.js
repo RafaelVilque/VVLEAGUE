@@ -1118,7 +1118,6 @@ function openLogForm(type, existing) {
         <div class="admin-field"><label class="admin-label">NOTES</label><input id="lf_notes" class="admin-input" value="${e.notes||''}"></div>
       </div>`;
   } else {
-    const winOptW = `<option value="">— NONE —</option>${orgsData.map(o=>`<option value="${o.tag}" ${e.winner===o.tag?'selected':''}>${o.tag} — ${o.name}</option>`).join('')}`;
     formHtml = `
       <div class="admin-form-grid-2">
         <div class="admin-field"><label class="admin-label">DATE</label><input id="lf_date" type="date" class="admin-input" value="${e.date||''}"></div>
@@ -1126,7 +1125,7 @@ function openLogForm(type, existing) {
         <div class="admin-field"><label class="admin-label">CHALLENGER</label><input id="lf_challenger" class="admin-input" value="${(e.challenger||'').replace(/"/g,'&quot;')}" placeholder="Player or org name"></div>
         <div class="admin-field"><label class="admin-label">CHALLENGED</label><input id="lf_challenged" class="admin-input" value="${(e.challenged||'').replace(/"/g,'&quot;')}" placeholder="Player or org name"></div>
         <div class="admin-field"><label class="admin-label">AMOUNT</label><input id="lf_amount" class="admin-input" value="${e.amount||''}" placeholder="ex: $500, items, custom..."></div>
-        <div class="admin-field"><label class="admin-label">WINNER</label><select id="lf_winner" class="admin-select">${winOptW}</select></div>
+        <div class="admin-field"><label class="admin-label">WINNER</label><input id="lf_winner" class="admin-input" value="${(e.winner||'').replace(/"/g,'&quot;')}" placeholder="Player or org name"></div>
         <div class="admin-field"><label class="admin-label">STATUS</label><select id="lf_status" class="admin-select"><option value="pending" ${e.status==='pending'||!e.status?'selected':''}>PENDING</option><option value="settled" ${e.status==='settled'?'selected':''}>SETTLED</option><option value="cancelled" ${e.status==='cancelled'?'selected':''}>CANCELLED</option></select></div>
         <div class="admin-field"><label class="admin-label">NOTES</label><input id="lf_notes" class="admin-input" value="${e.notes||''}"></div>
       </div>
@@ -1249,6 +1248,7 @@ function openOrgForm(existing) {
     <div class="admin-form-grid-2" style="margin-bottom:.4rem;">
       <div class="admin-field"><input id="of_mem_name" class="admin-input" placeholder="Player name"></div>
       <div class="admin-field"><select id="of_mem_role" class="admin-select"><option>Player</option><option>Leader</option><option>Sub</option><option>Coach</option></select></div>
+      <div class="admin-field" style="grid-column:span 2;"><input id="of_mem_discord" class="admin-input" placeholder="Discord ID (optional, e.g. 123456789012345678)"></div>
     </div>
     <button class="admin-cancel-btn" style="margin-bottom:.8rem;width:100%;" onclick="addMember(${e.id})">+ ADD MEMBER</button>` : '';
 
@@ -1287,7 +1287,8 @@ async function saveOrgForm(id) {
 async function addMember(orgId) {
   const name = g('of_mem_name').trim();
   if (!name) return;
-  await apiPost('/orgs/'+orgId+'/members', { name, role: g('of_mem_role') });
+  const discord_id = g('of_mem_discord').trim();
+  await apiPost('/orgs/'+orgId+'/members', { name, role: g('of_mem_role'), discord_id: discord_id || undefined });
   await loadOrgs();
   const fresh = orgsData.find(o => o.id === orgId);
   if (fresh) openOrgForm(fresh);
