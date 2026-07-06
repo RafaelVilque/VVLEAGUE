@@ -10,6 +10,7 @@ const PORT = process.env.PORT || 3000;
 const JWT_SECRET      = process.env.JWT_SECRET      || 'vvl-change-me';
 const ADMIN_USER_HASH = process.env.ADMIN_USER_HASH || '';
 const ADMIN_PASS_HASH = process.env.ADMIN_PASS_HASH || '';
+const BOT_API_KEY     = process.env.BOT_API_KEY     || '';
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname)));
@@ -303,6 +304,10 @@ if (warCols.find(c => c.name === 'wager' && c.type === 'INTEGER')) {
 // Migrate: add stats to war_logs and wager_records (safe after recreation above)
 try { db.exec('ALTER TABLE war_logs ADD COLUMN stats TEXT DEFAULT ""'); } catch(e) {}
 try { db.exec('ALTER TABLE wager_records ADD COLUMN stats TEXT DEFAULT ""'); } catch(e) {}
+// Migrate: bot integration columns
+try { db.exec("ALTER TABLE org_members ADD COLUMN discord_id TEXT DEFAULT ''"); } catch(e) {}
+try { db.exec("ALTER TABLE orgs ADD COLUMN discord_role_id TEXT DEFAULT ''"); } catch(e) {}
+try { db.exec("ALTER TABLE orgs ADD COLUMN signing_open INTEGER DEFAULT 1"); } catch(e) {}
 
 // Admin users table (multi-login with permissions)
 db.exec(`
@@ -334,6 +339,12 @@ function requireAdmin(req, res, next) {
   } catch (e) {
     return res.status(401).json({ error: 'Token invalid or expired' });
   }
+}
+
+function requireBotAuth(req, res, next) {
+  if (!BOT_API_KEY) return res.status(503).json({ error: 'Bot API not configured' });
+  if (req.headers['x-bot-key'] !== BOT_API_KEY) return res.status(401).json({ error: 'Invalid bot key' });
+  next();
 }
 
 function requirePerm(perm) {
@@ -697,9 +708,9 @@ app.delete('/api/orgs/:id', requireAdmin, requirePerm('orgs_delete'), (req, res)
 });
 
 app.post('/api/orgs/:id/members', requireAdmin, requirePerm('orgs'), (req, res) => {
-  const { name, role } = req.body;
+  const { name, role, discord_id } = req.body;
   if (!name) return res.status(400).json({ error: 'name required' });
-  const r = db.prepare('INSERT INTO org_members (org_id,name,role) VALUES (?,?,?)').run(req.params.id, name, role||'Player');
+  const r = db.prepare('INSERT INTO org_members (org_id,name,role,discord_id) VALUES (?,?,?,?)').run(req.params.id, name, role||'Player', discord_id||'');
   res.json({ id: r.lastInsertRowid });
 });
 
@@ -730,6 +741,73 @@ app.put('/api/players/:id', requireAdmin, requirePerm('orgs'), (req, res) => {
 
 app.delete('/api/players/:id', requireAdmin, requirePerm('orgs_delete'), (req, res) => {
   db.prepare('DELETE FROM players WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+// ============================================================
+// ============================================================
+// BOT API
+// ============================================================
+app.get('/api/bot/orgs', requireBotAuth, (req, res) => {
+  const { q } = req.query;
+  let orgs = db.prepare('SELECT * FROM orgs ORDER BY name').all().map(orgWithStats);
+  if (q) { const ql = q.toLowerCase(); orgs = orgs.filter(o => o.name.toLowerCase().includes(ql) || o.tag.toLowerCase().includes(ql)); }
+  res.json(orgs);
+});
+
+app.get('/api/bot/players', requireBotAuth, (req, res) => {
+  const { q } = req.query;
+  let players = db.prepare('SELECT * FROM players ORDER BY elo DESC').all();
+  if (q) { const ql = q.toLowerCase(); players = players.filter(p => p.name.toLowerCase().includes(ql)); }
+  res.json(players);
+});
+
+app.get('/api/bot/member/:discord_id', requireBotAuth, (req, res) => {
+  const m = db.prepare('SELECT m.*, o.id as org_id, o.tag, o.name as org_name, o.discord_role_id, o.signing_open, o.region FROM org_members m JOIN orgs o ON o.id = m.org_id WHERE m.discord_id = ?').get(req.params.discord_id);
+  if (!m) return res.status(404).json({ error: 'Not found' });
+  res.json(m);
+});
+
+app.post('/api/bot/sign', requireBotAuth, (req, res) => {
+  const { org_id, discord_id, name, role } = req.body;
+  if (!org_id || !discord_id || !name) return res.status(400).json({ error: 'org_id, discord_id, name required' });
+  const existing = db.prepare('SELECT id FROM org_members WHERE discord_id = ?').get(discord_id);
+  if (existing) return res.status(409).json({ error: 'Player already in a guild' });
+  const r = db.prepare('INSERT INTO org_members (org_id,name,role,discord_id) VALUES (?,?,?,?)').run(org_id, name, role||'Player', discord_id);
+  res.json({ id: r.lastInsertRowid });
+});
+
+app.post('/api/bot/release', requireBotAuth, (req, res) => {
+  const { discord_id } = req.body;
+  if (!discord_id) return res.status(400).json({ error: 'discord_id required' });
+  const r = db.prepare('DELETE FROM org_members WHERE discord_id = ?').run(discord_id);
+  res.json({ ok: true, removed: r.changes });
+});
+
+app.post('/api/bot/orgs', requireBotAuth, (req, res) => {
+  const { tag, name, region, logo_url } = req.body;
+  if (!tag || !name) return res.status(400).json({ error: 'tag and name required' });
+  try {
+    const r = db.prepare('INSERT INTO orgs (tag,name,status,founded,region,icon,mvp,logo_url) VALUES (?,?,?,?,?,?,?,?)').run(tag.toUpperCase(), name, 'active', 'S3', region||'NA', '', '', logo_url||'');
+    res.json({ id: r.lastInsertRowid });
+  } catch(e) { res.status(400).json({ error: 'Tag already exists' }); }
+});
+
+app.delete('/api/bot/orgs/:tag', requireBotAuth, (req, res) => {
+  const o = db.prepare('SELECT * FROM orgs WHERE tag = ?').get(req.params.tag.toUpperCase());
+  if (!o) return res.status(404).json({ error: 'Not found' });
+  db.prepare('DELETE FROM org_members WHERE org_id = ?').run(o.id);
+  db.prepare('DELETE FROM orgs WHERE id = ?').run(o.id);
+  res.json({ ok: true });
+});
+
+app.put('/api/bot/orgs/:tag/signing', requireBotAuth, (req, res) => {
+  db.prepare('UPDATE orgs SET signing_open = ? WHERE tag = ?').run(req.body.open ? 1 : 0, req.params.tag.toUpperCase());
+  res.json({ ok: true });
+});
+
+app.put('/api/bot/orgs/:tag/role', requireBotAuth, (req, res) => {
+  db.prepare('UPDATE orgs SET discord_role_id = ? WHERE tag = ?').run(req.body.discord_role_id||'', req.params.tag.toUpperCase());
   res.json({ ok: true });
 });
 

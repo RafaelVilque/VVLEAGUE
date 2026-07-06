@@ -1182,3 +1182,8 @@ body::after {
   max-width: 720px !important;
   width: 96vw !important;
 }
+
+
+/* ====== DISCORD FAB ====== */
+.discord-fab { position:fixed; bottom:1.5rem; right:1.5rem; z-index:9000; display:flex; align-items:center; gap:.5rem; background:#5865F2; color:#fff; font-family:'Rajdhani',sans-serif; font-weight:700; font-size:.85rem; letter-spacing:.12em; text-transform:uppercase; text-decoration:none; padding:.55rem 1rem .55rem .8rem; border-radius:2rem; box-shadow:0 4px 20px rgba(88,101,242,.45); transition:background .15s,box-shadow .15s,transform .15s; }
+.discord-fab:hover { background:#4752c4; box-shadow:0 6px 28px rgba(88,101,242,.65); transform:translateY(-2px); }
