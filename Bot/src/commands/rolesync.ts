@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, ChatInputCommandInteraction } from 'discord.js';
+﻿import { SlashCommandBuilder, ChatInputCommandInteraction } from 'discord.js';
 import { getAllOrgs } from '../siteapi.js';
 import { getSetting } from '../database.js';
 
@@ -7,17 +7,16 @@ export const data = new SlashCommandBuilder()
   .setDescription('Sync guild roles to all members based on site data (staff only)');
 
 export async function execute(interaction: ChatInputCommandInteraction, db: any): Promise<void> {
-  await interaction.deferReply({ ephemeral: true });
 
   const staffRoleId = getSetting(db, 'staff_role_id');
   if (staffRoleId && interaction.guild) {
     const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
     if (!member?.roles.cache.has(staffRoleId)) {
-      await interaction.editReply('❌ You do not have permission to use this command.'); return;
+      await interaction.editReply('âŒ You do not have permission to use this command.'); return;
     }
   }
 
-  if (!interaction.guild) { await interaction.editReply('❌ This command must be used in a server.'); return; }
+  if (!interaction.guild) { await interaction.editReply('âŒ This command must be used in a server.'); return; }
 
   const orgs = await getAllOrgs();
   let synced = 0, errors = 0;
@@ -33,5 +32,5 @@ export async function execute(interaction: ChatInputCommandInteraction, db: any)
     }
   }
 
-  await interaction.editReply(`✅ Role sync complete. **${synced}** members synced, **${errors}** errors.`);
+  await interaction.editReply(`âœ… Role sync complete. **${synced}** members synced, **${errors}** errors.`);
 }

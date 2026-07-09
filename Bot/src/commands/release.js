@@ -5,15 +5,14 @@ export const data = new SlashCommandBuilder()
     .setName('release')
     .setDescription('Release yourself from your current guild');
 export async function execute(interaction, db) {
-    await interaction.deferReply({ ephemeral: true });
     const memberData = await getMemberByDiscordId(interaction.user.id);
     if (!memberData) {
-        await interaction.editReply('❌ You are not registered in any guild on the site.');
+        await interaction.editReply('âŒ You are not registered in any guild on the site.');
         return;
     }
     const result = await releaseMember(interaction.user.id);
     if (!result.removed) {
-        await interaction.editReply('❌ Could not remove you from your guild.');
+        await interaction.editReply('âŒ Could not remove you from your guild.');
         return;
     }
     // Set cooldown
@@ -26,6 +25,6 @@ export async function execute(interaction, db) {
         }
         catch { /* ignore role removal errors */ }
     }
-    await interaction.editReply(`✅ You have been released from **${memberData.org_name}** [${memberData.tag}].`);
+    await interaction.editReply(`âœ… You have been released from **${memberData.org_name}** [${memberData.tag}].`);
 }
 //# sourceMappingURL=release.js.map

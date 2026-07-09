@@ -5,7 +5,6 @@ export const data = new SlashCommandBuilder()
     .setDescription('Search for a player on the leaderboard')
     .addStringOption(o => o.setName('query').setDescription('Player name').setRequired(true));
 export async function execute(interaction) {
-    await interaction.deferReply({ ephemeral: true });
     const query = interaction.options.getString('query', true);
     try {
         const players = await searchPlayers(query);
@@ -14,7 +13,7 @@ export async function execute(interaction) {
             return;
         }
         const p = players[0];
-        const wr = (p.wins + p.losses) > 0 ? `${((p.wins / (p.wins + p.losses)) * 100).toFixed(0)}%` : '—';
+        const wr = (p.wins + p.losses) > 0 ? `${((p.wins / (p.wins + p.losses)) * 100).toFixed(0)}%` : 'â€”';
         const embed = new EmbedBuilder()
             .setTitle(p.name)
             .setColor(0x5BADFF)
@@ -22,7 +21,7 @@ export async function execute(interaction) {
         await interaction.editReply({ embeds: [embed] });
     }
     catch (e) {
-        await interaction.editReply(`❌ Error: ${e.message}`);
+        await interaction.editReply(`âŒ Error: ${e.message}`);
     }
 }
 //# sourceMappingURL=searchplayer.js.map

@@ -1,12 +1,13 @@
 import { SlashCommandBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, } from 'discord.js';
-const ALLOWED_GUILD_CREATOR_ROLE_IDS = [
-    '1470554645364478016', // Founder
-    '1470554652264108204', // Head Moderator
-    '1470554648568926219', // Developer
+import { getSetting } from '../database.js';
+const ALLOWED_GUILD_DELETE_ROLE_IDS_DEFAULT = [
+    '1470554645364478016',
+    '1470554652264108204',
+    '1470554648568926219',
 ];
-const GUILD_LEADER_ROLE_ID = '1470554671944040605';
-const GUILD_CO_LEADER_ROLE_ID = '1470554673038496018';
-const MANAGER_GUILD_ROLE_ID = '1470554674435326146';
+const GUILD_LEADER_ROLE_ID_DEFAULT = '1470554671944040605';
+const GUILD_CO_LEADER_ROLE_ID_DEFAULT = '1470554673038496018';
+const MANAGER_GUILD_ROLE_ID_DEFAULT = '1470554674435326146';
 export const data = new SlashCommandBuilder()
     .setName('guilddelete')
     .setDescription('Deletes a guild from the system');
@@ -20,10 +21,14 @@ export async function execute(interaction, db) {
             return;
         }
         const member = await interaction.guild?.members.fetch(interaction.user.id).catch(() => null);
-        const canManageGuild = !!member && ALLOWED_GUILD_CREATOR_ROLE_IDS.some(roleId => member.roles.cache.has(roleId));
+        const isAdmin = !!member?.permissions.has('Administrator');
+        const configuredDeleteRole = getSetting(db, `${guildId}_guild_delete_role_id`);
+        const canManageGuild = isAdmin || (!!member && (configuredDeleteRole
+            ? member.roles.cache.has(configuredDeleteRole)
+            : ALLOWED_GUILD_DELETE_ROLE_IDS_DEFAULT.some(roleId => member.roles.cache.has(roleId))));
         if (!canManageGuild) {
             await interaction.editReply({
-                content: '❌ Only Founder, Head Moderator, and Developer can use this command.',
+                content: '❌ Você não tem permissão. Configure o cargo com `/setup guild_delete_role`.',
             });
             return;
         }
@@ -179,12 +184,15 @@ export async function execute(interaction, db) {
                             try {
                                 if (!interaction.guild)
                                     return;
-                                const leaderRole = interaction.guild.roles.cache.get(GUILD_LEADER_ROLE_ID)
-                                    || (await interaction.guild.roles.fetch(GUILD_LEADER_ROLE_ID).catch(() => null));
-                                const coLeaderRole = interaction.guild.roles.cache.get(GUILD_CO_LEADER_ROLE_ID)
-                                    || (await interaction.guild.roles.fetch(GUILD_CO_LEADER_ROLE_ID).catch(() => null));
-                                const managerRole = interaction.guild.roles.cache.get(MANAGER_GUILD_ROLE_ID)
-                                    || (await interaction.guild.roles.fetch(MANAGER_GUILD_ROLE_ID).catch(() => null));
+                                const leaderRoleId = getSetting(db, `${guildId}_guild_leader_role_id`) || GUILD_LEADER_ROLE_ID_DEFAULT;
+                                const coLeaderRoleId = getSetting(db, `${guildId}_guild_co_leader_role_id`) || GUILD_CO_LEADER_ROLE_ID_DEFAULT;
+                                const managerRoleId = getSetting(db, `${guildId}_guild_manager_role_id`) || MANAGER_GUILD_ROLE_ID_DEFAULT;
+                                const leaderRole = interaction.guild.roles.cache.get(leaderRoleId)
+                                    || (await interaction.guild.roles.fetch(leaderRoleId).catch(() => null));
+                                const coLeaderRole = interaction.guild.roles.cache.get(coLeaderRoleId)
+                                    || (await interaction.guild.roles.fetch(coLeaderRoleId).catch(() => null));
+                                const managerRole = interaction.guild.roles.cache.get(managerRoleId)
+                                    || (await interaction.guild.roles.fetch(managerRoleId).catch(() => null));
                                 const leaderMember = await interaction.guild.members.fetch(leaderToCheck).catch(() => null);
                                 if (leaderMember && leaderRole)
                                     await leaderMember.roles.remove(leaderRole).catch(() => { });

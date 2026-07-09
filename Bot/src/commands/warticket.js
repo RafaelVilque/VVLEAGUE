@@ -1,6 +1,7 @@
 import { SlashCommandBuilder, ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags, } from 'discord.js';
 const FOUNDER_ROLE_ID = '1470554645364478016';
 const WAR_TICKET_PANEL_CHANNEL_ID = '1473103963112083466';
+import { getSetting } from '../database.js';
 export const data = new SlashCommandBuilder()
     .setName('warticket')
     .setDescription('Publishes the War Ticket panel in the configured channel');
@@ -13,14 +14,18 @@ export async function execute(interaction, db) {
             return;
         }
         const actorMember = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
-        const isFounder = !!actorMember && actorMember.roles.cache.has(FOUNDER_ROLE_ID);
-        if (!isFounder) {
+        const configuredRoleId = getSetting(db, `${interaction.guildId}_war_role_id`);
+        const allowedRoleId = configuredRoleId || FOUNDER_ROLE_ID;
+        const hasPermission = !!actorMember && (actorMember.roles.cache.has(allowedRoleId) ||
+            actorMember.permissions.has('Administrator'));
+        if (!hasPermission) {
             await interaction.editReply({
-                content: '❌ Only the Founder can use this command.',
+                content: '❌ You do not have permission to use this command.',
             });
             return;
         }
-        const channel = await interaction.client.channels.fetch(WAR_TICKET_PANEL_CHANNEL_ID).catch(() => null);
+        const channelId = getSetting(db, `${interaction.guildId}_war_channel_id`) || WAR_TICKET_PANEL_CHANNEL_ID;
+        const channel = await interaction.client.channels.fetch(channelId).catch(() => null);
         if (!channel || !channel.isTextBased() || !('send' in channel)) {
             await interaction.editReply({
                 content: '❌ War Ticket panel channel was not found or is not a text channel.',

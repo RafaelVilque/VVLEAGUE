@@ -1,6 +1,6 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, ContainerBuilder, EmbedBuilder, ModalBuilder, MessageFlags, OverwriteType, PermissionFlagsBits, SeparatorBuilder, SeparatorSpacingSize, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, TextInputBuilder, TextInputStyle, TextDisplayBuilder, UserSelectMenuBuilder, } from 'discord.js';
 import { loadCommands } from './commands.js';
-import { addMemberToRole, addGuildLoss, addGuildWin, acceptWar, canAddUserToRole, createWar, createInvite, dodgeWar, finishWar, getGuildById, getMembersByRole, getPendingInviteForTarget, getRoleLabel, isUserInRole, refreshGuildPanel, removeMemberFromRole, setInviteStatus, validateInviteForAction, getWarById, createWager, getWagerById, recordWagerAcceptance, markWagerAccepted, dodgeWager, closeWager, } from './database.js';
+import { addMemberToRole, addGuildLoss, addGuildWin, acceptWar, canAddUserToRole, createWar, createInvite, dodgeWar, finishWar, getGuildById, getMembersByRole, getPendingInviteForTarget, getRoleLabel, isUserInRole, refreshGuildPanel, removeMemberFromRole, setInviteStatus, validateInviteForAction, getWarById, createWager, getWagerById, recordWagerAcceptance, markWagerAccepted, dodgeWager, closeWager, getSetting, applyGuildElo, applyPlayerElo, } from './database.js';
 const ADD_ACTION_MAP = {
     ADD_CO_LEADER: 'CO_LEADER',
     ADD_MANAGER: 'MANAGER',
@@ -93,9 +93,10 @@ async function createWarTicketChannel(interaction, db, guildA, guildB) {
     const discordGuild = interaction.guild;
     if (!discordGuild)
         return null;
-    const warCategory = await interaction.client.channels.fetch(WAR_TICKETS_CATEGORY_ID).catch(() => null);
+    const warCategoryId = getSetting(db, `${interaction.guildId}_war_category_id`) || WAR_TICKETS_CATEGORY_ID;
+    const warCategory = await interaction.client.channels.fetch(warCategoryId).catch(() => null);
     if (!warCategory || warCategory.type !== ChannelType.GuildCategory) {
-        console.error(`War category ${WAR_TICKETS_CATEGORY_ID} not found or invalid.`);
+        console.error(`War category ${warCategoryId} not found or invalid.`);
         return null;
     }
     const memberIds = new Set([
@@ -109,32 +110,16 @@ async function createWarTicketChannel(interaction, db, guildA, guildB) {
             deny: [PermissionFlagsBits.ViewChannel],
         },
     ];
-    const hosterRole = discordGuild.roles.cache.get(WAR_ROLE_IDS.HOSTER)
-        || (await discordGuild.roles.fetch(WAR_ROLE_IDS.HOSTER).catch(() => null));
-    if (hosterRole) {
-        permissionOverwrites.push({
-            id: hosterRole.id,
-            type: OverwriteType.Role,
-            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory],
-        });
-    }
-    const juniorHosterRole = discordGuild.roles.cache.get(WAR_ROLE_IDS.JUNIOR_HOSTER)
-        || (await discordGuild.roles.fetch(WAR_ROLE_IDS.JUNIOR_HOSTER).catch(() => null));
-    if (juniorHosterRole) {
-        permissionOverwrites.push({
-            id: juniorHosterRole.id,
-            type: OverwriteType.Role,
-            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory],
-        });
-    }
-    const eventHosterRole = discordGuild.roles.cache.get(WAR_ROLE_IDS.EVENT_HOSTER)
-        || (await discordGuild.roles.fetch(WAR_ROLE_IDS.EVENT_HOSTER).catch(() => null));
-    if (eventHosterRole) {
-        permissionOverwrites.push({
-            id: eventHosterRole.id,
-            type: OverwriteType.Role,
-            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory],
-        });
+    for (const hosterRoleId of getHosterRoleIds(db, interaction.guildId)) {
+        const hosterRole = discordGuild.roles.cache.get(hosterRoleId)
+            || (await discordGuild.roles.fetch(hosterRoleId).catch(() => null));
+        if (hosterRole) {
+            permissionOverwrites.push({
+                id: hosterRole.id,
+                type: OverwriteType.Role,
+                allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory],
+            });
+        }
     }
     for (const memberId of memberIds) {
         const member = await discordGuild.members.fetch(memberId).catch(() => null);
@@ -151,7 +136,7 @@ async function createWarTicketChannel(interaction, db, guildA, guildB) {
         .create({
         name: channelName,
         type: ChannelType.GuildText,
-        parent: WAR_TICKETS_CATEGORY_ID,
+        parent: warCategoryId,
         permissionOverwrites,
     })
         .catch((error) => {
@@ -191,11 +176,13 @@ async function createWarTicketChannel(interaction, db, guildA, guildB) {
     });
     return channel;
 }
-function getDiscordRoleIdForRoleType(roleType) {
-    if (roleType === 'CO_LEADER')
-        return FIXED_ROLE_IDS.GUILD_CO_LEADER;
-    if (roleType === 'MANAGER')
-        return FIXED_ROLE_IDS.MANAGER_GUILD;
+function getDiscordRoleIdForRoleType(roleType, db, discordGuildId) {
+    if (roleType === 'CO_LEADER') {
+        return (db && discordGuildId ? getSetting(db, `${discordGuildId}_guild_co_leader_role_id`) : null) || FIXED_ROLE_IDS.GUILD_CO_LEADER;
+    }
+    if (roleType === 'MANAGER') {
+        return (db && discordGuildId ? getSetting(db, `${discordGuildId}_guild_manager_role_id`) : null) || FIXED_ROLE_IDS.MANAGER_GUILD;
+    }
     return null;
 }
 function getDiscordGuildIdFromInternalGuildId(guildId) {
@@ -245,7 +232,7 @@ async function maybeRemoveDiscordRoleByType(interaction, db, targetUserId, roleT
     const guild = interaction.guild;
     if (!guild)
         return;
-    const roleId = getDiscordRoleIdForRoleType(roleType);
+    const roleId = getDiscordRoleIdForRoleType(roleType, db, interaction.guildId ?? undefined);
     if (!roleId)
         return;
     if (shouldKeepRoleForUser(db, targetUserId, roleType))
@@ -346,12 +333,19 @@ function formatWagerTeam(teamIds) {
 function isValidClipLink(value) {
     return /^https?:\/\/\S+$/i.test(value);
 }
-function canMemberFinalizeTicket(member) {
+function getHosterRoleIds(db, guildId) {
+    if (db && guildId) {
+        const configured = getSetting(db, `${guildId}_hoster_role_id`);
+        if (configured)
+            return [configured];
+    }
+    return [WAR_ROLE_IDS.HOSTER, WAR_ROLE_IDS.JUNIOR_HOSTER, WAR_ROLE_IDS.EVENT_HOSTER];
+}
+function canMemberFinalizeTicket(member, db, guildId) {
     if (!member)
         return false;
-    return (member.roles.cache.has(WAR_ROLE_IDS.HOSTER)
-        || member.roles.cache.has(WAR_ROLE_IDS.JUNIOR_HOSTER)
-        || member.roles.cache.has(WAR_ROLE_IDS.EVENT_HOSTER));
+    const hosterIds = getHosterRoleIds(db, guildId);
+    return hosterIds.some(id => member.roles.cache.has(id));
 }
 async function finalizeWarAndLog(interaction, client, db, war, winnerGuildId, winnerScore, loserScore, clipsLink, roundDowns = null, mvpValue = null, roundSummary = null) {
     const loserGuildId = winnerGuildId === war.openerGuildId ? war.opponentGuildId : war.openerGuildId;
@@ -362,7 +356,8 @@ async function finalizeWarAndLog(interaction, client, db, war, winnerGuildId, wi
     await refreshGuildPanel(client, db, loserGuildId).catch(() => { });
     const winnerGuild = getGuildById(db, winnerGuildId);
     const loserGuild = getGuildById(db, loserGuildId);
-    const warLogsChannel = await interaction.client.channels.fetch(WAR_LOGS_CHANNEL_ID).catch(() => null);
+    const warLogId = getSetting(db, `${interaction.guildId}_war_log_channel_id`) || WAR_LOGS_CHANNEL_ID;
+    const warLogsChannel = await interaction.client.channels.fetch(warLogId).catch(() => null);
     if (warLogsChannel && warLogsChannel.isTextBased() && 'send' in warLogsChannel) {
         const resultContainer = buildWarLogsContainer(winnerGuild?.name || 'Guild A', loserGuild?.name || 'Guild B', winnerScore, loserScore, clipsLink, roundDowns, mvpValue, roundSummary);
         await warLogsChannel.send({
@@ -385,14 +380,17 @@ function getGuildActorRole(db, guildId, userId) {
         return 'MANAGER';
     return null;
 }
-function getGuildActorRoleFromDiscordRoles(member) {
+function getGuildActorRoleFromDiscordRoles(member, db, discordGuildId) {
     if (!member)
         return null;
-    if (member.roles.cache.has(WAR_ROLE_IDS.GUILD_LEADER) || member.roles.cache.has(FIXED_ROLE_IDS.GUILD_LEADER))
+    const leaderRoleId = (db && discordGuildId ? getSetting(db, `${discordGuildId}_guild_leader_role_id`) : null) || FIXED_ROLE_IDS.GUILD_LEADER;
+    const coLeaderRoleId = (db && discordGuildId ? getSetting(db, `${discordGuildId}_guild_co_leader_role_id`) : null) || FIXED_ROLE_IDS.GUILD_CO_LEADER;
+    const managerRoleId = (db && discordGuildId ? getSetting(db, `${discordGuildId}_guild_manager_role_id`) : null) || FIXED_ROLE_IDS.MANAGER_GUILD;
+    if (member.roles.cache.has(WAR_ROLE_IDS.GUILD_LEADER) || member.roles.cache.has(leaderRoleId))
         return 'LEADER';
-    if (member.roles.cache.has(WAR_ROLE_IDS.GUILD_CO_LEADER) || member.roles.cache.has(FIXED_ROLE_IDS.GUILD_CO_LEADER))
+    if (member.roles.cache.has(WAR_ROLE_IDS.GUILD_CO_LEADER) || member.roles.cache.has(coLeaderRoleId))
         return 'CO_LEADER';
-    if (member.roles.cache.has(WAR_ROLE_IDS.MANAGER_GUILD) || member.roles.cache.has(FIXED_ROLE_IDS.MANAGER_GUILD))
+    if (member.roles.cache.has(WAR_ROLE_IDS.MANAGER_GUILD) || member.roles.cache.has(managerRoleId))
         return 'MANAGER';
     return null;
 }
@@ -401,10 +399,13 @@ async function getGuildActorRoleWithPanelAdmin(interaction, db, guildId, userId)
     if (actorRole)
         return actorRole;
     const member = await interaction.guild?.members.fetch(userId).catch(() => null);
-    const outerRole = getGuildActorRoleFromDiscordRoles(member);
+    const outerRole = getGuildActorRoleFromDiscordRoles(member, db, interaction.guildId ?? undefined);
     if (outerRole)
         return outerRole;
-    const isPanelAdmin = !!member && PANEL_ADMIN_ROLE_IDS.some(roleId => member.roles.cache.has(roleId));
+    const panelAdminRoleId = getSetting(db, `${interaction.guildId}_staff_role_id`);
+    const isPanelAdmin = !!member && (panelAdminRoleId
+        ? member.roles.cache.has(panelAdminRoleId)
+        : PANEL_ADMIN_ROLE_IDS.some(roleId => member.roles.cache.has(roleId)));
     if (isPanelAdmin)
         return 'LEADER';
     return null;
@@ -457,7 +458,7 @@ async function maybeRemoveGuildLeaderDiscordRole(interaction, db, targetUserId) 
         return;
     if (shouldKeepGuildLeaderRole(db, targetUserId))
         return;
-    const roleId = FIXED_ROLE_IDS.GUILD_LEADER;
+    const roleId = getSetting(db, `${interaction.guildId}_guild_leader_role_id`) || FIXED_ROLE_IDS.GUILD_LEADER;
     const role = guild.roles.cache.get(roleId) || (await guild.roles.fetch(roleId).catch(() => null));
     if (!role)
         return;
@@ -475,7 +476,10 @@ async function canUseOwnershipTransfer(interaction, db, guildId, userId) {
     if (guild.leaderId === userId)
         return true;
     const member = await interaction.guild?.members.fetch(userId).catch(() => null);
-    return !!member && PANEL_ADMIN_ROLE_IDS.some(roleId => member.roles.cache.has(roleId));
+    const panelAdminRoleId2 = getSetting(db, `${interaction.guildId}_staff_role_id`);
+    return !!member && (panelAdminRoleId2
+        ? member.roles.cache.has(panelAdminRoleId2)
+        : PANEL_ADMIN_ROLE_IDS.some(roleId => member.roles.cache.has(roleId)));
 }
 async function replyPermissionError(interaction, message = '❌ You do not have permission to use this panel action.') {
     if (interaction.deferred || interaction.replied) {
@@ -660,43 +664,43 @@ export async function handleInteractions(interaction, client, db, commands) {
     try {
         // Defer reply only for chat input commands
         if (interaction.isChatInputCommand()) {
-            if (interaction && typeof interaction.deferReply === 'function' && !interaction.replied && !interaction.deferred) {
+            if (typeof interaction.deferReply === 'function' && !interaction.replied && !interaction.deferred) {
                 try {
-                    await interaction.deferReply({ flags: 64 }); // ephemeral
+                    await interaction.deferReply({ flags: 64 });
                 }
                 catch (e) {
-                    console.warn('Failed to defer reply:', e);
-                    const alreadyAcknowledged = e?.code === 40060;
-                    if (alreadyAcknowledged) {
+                    if (e?.code === 40060)
                         return;
-                    }
+                    throw e;
                 }
             }
         }
         // For components (buttons/select menus), let the handler manage it
         if (interaction.isChatInputCommand()) {
+            if (!commands) {
+                console.error('[handleInteractions] commands Map is undefined — bot still loading');
+                await interaction.editReply({ content: '⚠️ O bot ainda está inicializando. Tente novamente em instantes.' });
+                return;
+            }
+            console.log(`[CMD] /${interaction.commandName} | map:${commands.size} | found:${commands.has(interaction.commandName)}`);
             const command = commands.get(interaction.commandName);
             if (!command) {
+                console.error(`Command not found: ${interaction.commandName}`);
+                console.error('Available commands:', Array.from(commands.keys()).sort().join(', '));
+                // Safe auto-reload: only clear+update the map if the reload actually has the command.
                 try {
-                    console.error(`Command not found: ${interaction.commandName}`);
-                    console.error('Available commands:', Array.from(commands.keys()));
-                }
-                catch (e) {
-                    console.error('Failed to log available commands:', e);
-                }
-                // Try reloading commands from disk (auto-reload).
-                try {
-                    console.log('Trying to reload commands...');
                     const newCommands = await loadCommands();
-                    // update map by reference
-                    commands.clear();
-                    for (const [k, v] of newCommands.entries())
-                        commands.set(k, v);
-                    console.log('Commands reloaded:', Array.from(commands.keys()));
-                    const retry = commands.get(interaction.commandName);
+                    const retry = newCommands.get(interaction.commandName);
                     if (retry) {
+                        commands.clear();
+                        for (const [k, v] of newCommands.entries())
+                            commands.set(k, v);
                         await retry.execute(interaction, db);
                         return;
+                    }
+                    else {
+                        console.error(`Reload also could not find: ${interaction.commandName}`);
+                        console.error('Reloaded set:', Array.from(newCommands.keys()).sort().join(', '));
                     }
                 }
                 catch (reloadErr) {
@@ -1084,10 +1088,22 @@ export async function handleInteractions(interaction, client, db, commands) {
                 await interaction.editReply({
                     components: [acceptedContainer],
                 });
-                await interaction.channel?.send({
-                    content: `<@&${WAR_ROLE_IDS.HOSTER}> <@&${WAR_ROLE_IDS.JUNIOR_HOSTER}> <@&${WAR_ROLE_IDS.EVENT_HOSTER}> war accepted. Please proceed with hosting.`,
-                    allowedMentions: { roles: [WAR_ROLE_IDS.HOSTER, WAR_ROLE_IDS.JUNIOR_HOSTER, WAR_ROLE_IDS.EVENT_HOSTER] },
-                });
+                {
+                    const warMentionSetting = getSetting(db, `${interaction.guildId}_war_mention_roles`);
+                    const warMentionRoles = warMentionSetting
+                        ? warMentionSetting.split(',').filter(Boolean)
+                        : (() => {
+                            const hosterRoleId = getSetting(db, `${interaction.guildId}_hoster_role_id`);
+                            return hosterRoleId
+                                ? [hosterRoleId]
+                                : [WAR_ROLE_IDS.HOSTER, WAR_ROLE_IDS.JUNIOR_HOSTER, WAR_ROLE_IDS.EVENT_HOSTER];
+                        })();
+                    const mentionContent = warMentionRoles.map(r => `<@&${r}>`).join(' ');
+                    await interaction.channel?.send({
+                        content: `${mentionContent} war accepted. Please proceed with hosting.`,
+                        allowedMentions: { roles: warMentionRoles },
+                    });
+                }
                 const finalizeRow = new ActionRowBuilder().addComponents(new ButtonBuilder()
                     .setCustomId(`wt_open_finalize|${war.id}`)
                     .setLabel('Finalize War')
@@ -1096,7 +1112,7 @@ export async function handleInteractions(interaction, client, db, commands) {
                     .setAccentColor(0x2a8900)
                     .addTextDisplayComponents(new TextDisplayBuilder().setContent('# <:deepwoken:1470975025988501515> Finalize War'))
                     .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true))
-                    .addTextDisplayComponents(new TextDisplayBuilder().setContent('ℹ️ Only Hoster, Junior Hoster, or Event Hoster can finalize the war.\n\nUse the button below to start finalization and choose the winning guild.'))
+                    .addTextDisplayComponents(new TextDisplayBuilder().setContent('ℹ️ The Hoster team can finalize the war.\n\nUse the button below to start finalization and choose the winning guild.'))
                     .addActionRowComponents(finalizeRow);
                 await interaction.channel?.send({
                     flags: MessageFlags.IsComponentsV2,
@@ -1117,9 +1133,7 @@ export async function handleInteractions(interaction, client, db, commands) {
                     return;
                 }
                 const member = await interaction.guild?.members.fetch(interaction.user.id).catch(() => null);
-                const isHosterTeam = !!member && (member.roles.cache.has(WAR_ROLE_IDS.HOSTER)
-                    || member.roles.cache.has(WAR_ROLE_IDS.JUNIOR_HOSTER)
-                    || member.roles.cache.has(WAR_ROLE_IDS.EVENT_HOSTER));
+                const isHosterTeam = canMemberFinalizeTicket(member, db, interaction.guildId);
                 // Check if user is leader or co-leader of either guild
                 const openerGuild = getGuildById(db, war.openerGuildId);
                 const opponentGuild = getGuildById(db, war.opponentGuildId);
@@ -1134,40 +1148,56 @@ export async function handleInteractions(interaction, client, db, commands) {
                 }
                 dodgeWar(db, war.id);
                 const dodgeSummary = `⚠️ <@${interaction.user.id}> used Dodge and closed the war ticket (${openerGuild?.name || 'Unknown'} vs ${opponentGuild?.name || 'Unknown'}).`;
-                const warDodgeLogsChannel = await interaction.client.channels.fetch(WAR_DODGE_LOGS_CHANNEL_ID).catch(() => null);
+                const warDodgeId = getSetting(db, `${interaction.guildId}_war_dodge_channel_id`) || WAR_DODGE_LOGS_CHANNEL_ID;
+                const warDodgeLogsChannel = await interaction.client.channels.fetch(warDodgeId).catch(() => null);
                 if (warDodgeLogsChannel && warDodgeLogsChannel.isTextBased() && 'send' in warDodgeLogsChannel) {
                     await warDodgeLogsChannel.send({
                         content: dodgeSummary,
                     });
                 }
                 await interaction.editReply({
-                    content: `${dodgeSummary} Closing ticket...`,
+                    content: `${dodgeSummary}\n\n⏳ Canal será deletado em 5 segundos...`,
                     embeds: [],
                     components: [],
                     allowedMentions: { users: [interaction.user.id] },
                 });
-                const deleteChannel = async (channel, reason) => {
-                    if (!channel || !('delete' in channel))
-                        return false;
-                    try {
-                        await channel.delete(reason);
-                        return true;
-                    }
-                    catch (error) {
-                        console.error('Failed to auto-close war ticket after dodge:', error);
-                        return false;
-                    }
-                };
-                let deleted = false;
-                if (interaction.channel) {
-                    deleted = await deleteChannel(interaction.channel, 'War ticket closed after dodge');
+                await new Promise(resolve => setTimeout(resolve, 5000));
+                const channelToDelete = interaction.channel
+                    ?? (war.channelId ? (interaction.guild?.channels.cache.get(war.channelId) ?? await interaction.guild?.channels.fetch(war.channelId).catch(() => null)) : null);
+                if (channelToDelete && 'delete' in channelToDelete) {
+                    await channelToDelete.delete('War ticket closed after dodge').catch((err) => {
+                        console.error('Failed to delete war ticket channel after dodge:', err);
+                    });
                 }
-                if (!deleted && war.channelId) {
-                    const warChannel = await interaction.client.channels.fetch(war.channelId).catch(() => null);
-                    if (warChannel) {
-                        await deleteChannel(warChannel, 'War ticket closed after dodge (fallback)');
-                    }
+                else {
+                    console.warn('Could not find channel to delete after war dodge:', war.channelId);
                 }
+                return;
+            }
+            if (customId.startsWith('wt_elo_btn|')) {
+                const [, winnerGuildId, loserGuildId, warIdRaw] = parseCustomId(customId);
+                const member = await interaction.guild?.members.fetch(interaction.user.id).catch(() => null);
+                if (!canMemberFinalizeTicket(member, db, interaction.guildId)) {
+                    await interaction.reply({ content: '❌ Sem permissão para aplicar ELO.', flags: MessageFlags.Ephemeral });
+                    return;
+                }
+                const eloModal = new ModalBuilder()
+                    .setCustomId(`wt_elo_standalone_modal|${winnerGuildId}|${loserGuildId}|${warIdRaw || ''}`)
+                    .setTitle('Aplicar Pontos de ELO')
+                    .addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder()
+                    .setCustomId('winner_elo_gain')
+                    .setLabel('Pontos ganhos pelo ganhador')
+                    .setStyle(TextInputStyle.Short)
+                    .setPlaceholder('ex: 25')
+                    .setRequired(true)
+                    .setMaxLength(6)), new ActionRowBuilder().addComponents(new TextInputBuilder()
+                    .setCustomId('loser_elo_loss')
+                    .setLabel('Pontos removidos do perdedor')
+                    .setStyle(TextInputStyle.Short)
+                    .setPlaceholder('ex: 20')
+                    .setRequired(true)
+                    .setMaxLength(6)));
+                await interaction.showModal(eloModal);
                 return;
             }
             if (customId.startsWith('wt_open_finalize|')) {
@@ -1182,10 +1212,10 @@ export async function handleInteractions(interaction, client, db, commands) {
                     return;
                 }
                 const member = await interaction.guild?.members.fetch(interaction.user.id).catch(() => null);
-                const canFinalize = canMemberFinalizeTicket(member);
+                const canFinalize = canMemberFinalizeTicket(member, db, interaction.guildId);
                 if (!canFinalize) {
                     await interaction.reply({
-                        content: '❌ Only Hoster, Junior Hoster, or Event Hoster can finalize this war.',
+                        content: '❌ You do not have permission to finalize this war. Configure the role with `/setup hoster_role`.',
                         flags: MessageFlags.Ephemeral,
                     });
                     return;
@@ -1290,7 +1320,7 @@ export async function handleInteractions(interaction, client, db, commands) {
                 const participantIds = buildWagerParticipantIds(wager);
                 const channel = interaction.channel;
                 if (channel && 'permissionOverwrites' in channel) {
-                    await unlockWagerTicketChat(interaction, channel, participantIds);
+                    await unlockWagerTicketChat(interaction, channel, participantIds, db);
                 }
                 const acceptDisabledRow = new ActionRowBuilder().addComponents(new ButtonBuilder()
                     .setCustomId(`wg_accept|${wager.id}`)
@@ -1322,10 +1352,10 @@ export async function handleInteractions(interaction, client, db, commands) {
                     return;
                 }
                 const member = await interaction.guild?.members.fetch(interaction.user.id).catch(() => null);
-                const canFinalize = canMemberFinalizeTicket(member);
+                const canFinalize = canMemberFinalizeTicket(member, db, interaction.guildId);
                 if (!canFinalize) {
                     await interaction.reply({
-                        content: '❌ Only Hoster, Junior Hoster, or Event Hoster can finalize this wager.',
+                        content: '❌ You do not have permission to finalize this wager. Configure the role with `/setup hoster_role`.',
                         flags: MessageFlags.Ephemeral,
                     });
                     return;
@@ -1363,9 +1393,7 @@ export async function handleInteractions(interaction, client, db, commands) {
                     return;
                 }
                 const member = await interaction.guild?.members.fetch(interaction.user.id).catch(() => null);
-                const isHosterTeam = !!member && (member.roles.cache.has(WAR_ROLE_IDS.HOSTER)
-                    || member.roles.cache.has(WAR_ROLE_IDS.JUNIOR_HOSTER)
-                    || member.roles.cache.has(WAR_ROLE_IDS.EVENT_HOSTER));
+                const isHosterTeam = canMemberFinalizeTicket(member, db, interaction.guildId);
                 const isWagerOpener = wager.challenger1Id === interaction.user.id;
                 const isChallenged = wager.challenged1Id === interaction.user.id || wager.challenged2Id === interaction.user.id;
                 if (!isWagerOpener && !isChallenged && !isHosterTeam) {
@@ -1381,7 +1409,8 @@ export async function handleInteractions(interaction, client, db, commands) {
                 const teamA = formatWagerTeam([wager.challenger1Id, wager.challenger2Id]);
                 const teamB = formatWagerTeam([wager.challenged1Id, wager.challenged2Id]);
                 const dodgeSummary = `# WAGER DODGE\n<@${interaction.user.id}> used Dodge and closed the wager ticket (${teamA} vs ${teamB}).`;
-                const wagerDodgeLogsChannel = await interaction.client.channels.fetch(WAGER_DODGE_LOGS_CHANNEL_ID).catch(() => null);
+                const wagerDodgeId = getSetting(db, `${interaction.guildId}_wager_dodge_channel_id`) || WAGER_DODGE_LOGS_CHANNEL_ID;
+                const wagerDodgeLogsChannel = await interaction.client.channels.fetch(wagerDodgeId).catch(() => null);
                 if (wagerDodgeLogsChannel && wagerDodgeLogsChannel.isTextBased() && 'send' in wagerDodgeLogsChannel) {
                     await wagerDodgeLogsChannel.send({
                         content: dodgeSummary,
@@ -1394,9 +1423,13 @@ export async function handleInteractions(interaction, client, db, commands) {
                     components: [],
                     allowedMentions: { users: mentionUsers },
                 });
-                await new Promise(resolve => setTimeout(resolve, 3000));
-                if (interaction.channel && 'delete' in interaction.channel) {
-                    await interaction.channel.delete('Wager ticket closed after dodge').catch(() => null);
+                await new Promise(resolve => setTimeout(resolve, 5000));
+                const wagerChannelToDelete = interaction.channel
+                    ?? (wager.channelId ? (interaction.guild?.channels.cache.get(wager.channelId) ?? await interaction.guild?.channels.fetch(wager.channelId).catch(() => null)) : null);
+                if (wagerChannelToDelete && 'delete' in wagerChannelToDelete) {
+                    await wagerChannelToDelete.delete('Wager ticket closed after dodge').catch((err) => {
+                        console.error('Failed to delete wager ticket channel after dodge:', err);
+                    });
                 }
                 return;
             }
@@ -1413,7 +1446,7 @@ export async function handleInteractions(interaction, client, db, commands) {
                     return;
                 }
                 const member = await interaction.guild?.members.fetch(interaction.user.id).catch(() => null);
-                const canClose = !!member && member.roles.cache.has(WAR_ROLE_IDS.HOSTER);
+                const canClose = canMemberFinalizeTicket(member, db, interaction.guildId);
                 if (!canClose) {
                     await interaction.followUp({
                         content: '❌ Only Hoster can close this ticket.',
@@ -1452,24 +1485,31 @@ export async function handleInteractions(interaction, client, db, commands) {
                     return;
                 }
                 const member = await interaction.guild?.members.fetch(interaction.user.id).catch(() => null);
-                const canFinalize = canMemberFinalizeTicket(member);
+                const canFinalize = canMemberFinalizeTicket(member, db, interaction.guildId);
                 if (!canFinalize) {
                     await interaction.reply({
-                        content: '❌ Only Hoster, Junior Hoster, or Event Hoster can finalize this war.',
+                        content: '❌ You do not have permission to finalize this war. Configure the role with `/setup hoster_role`.',
                         flags: MessageFlags.Ephemeral,
                     });
                     return;
                 }
-                await interaction.deferUpdate();
-                const { winnerScore, loserScore } = parsedScore;
-                const { winnerGuild } = await finalizeWarAndLog(interaction, client, db, war, winnerGuildId, winnerScore, loserScore, null);
-                await interaction.followUp({
-                    content: `✅ War finalized. Winner: **${winnerGuild?.name || 'Unknown'}** | Score: **${winnerScore}-${loserScore}**. Closing ticket...`,
-                    flags: MessageFlags.Ephemeral,
-                });
-                if (interaction.channel && 'delete' in interaction.channel) {
-                    await interaction.channel.delete('War finished and recorded').catch(() => null);
-                }
+                const eloModal = new ModalBuilder()
+                    .setCustomId(`wt_elo_modal|${war.id}|${winnerGuildId}|${scoreValue}`)
+                    .setTitle('Definir Pontos de ELO')
+                    .addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder()
+                    .setCustomId('winner_elo_gain')
+                    .setLabel('Pontos ganhos pelo ganhador')
+                    .setStyle(TextInputStyle.Short)
+                    .setPlaceholder('ex: 25')
+                    .setRequired(true)
+                    .setMaxLength(6)), new ActionRowBuilder().addComponents(new TextInputBuilder()
+                    .setCustomId('loser_elo_loss')
+                    .setLabel('Pontos removidos do perdedor')
+                    .setStyle(TextInputStyle.Short)
+                    .setPlaceholder('ex: 20')
+                    .setRequired(true)
+                    .setMaxLength(6)));
+                await interaction.showModal(eloModal);
                 return;
             }
             if (customId.startsWith('wt_finalize_with_link|')) {
@@ -1485,10 +1525,10 @@ export async function handleInteractions(interaction, client, db, commands) {
                     return;
                 }
                 const member = await interaction.guild?.members.fetch(interaction.user.id).catch(() => null);
-                const canFinalize = canMemberFinalizeTicket(member);
+                const canFinalize = canMemberFinalizeTicket(member, db, interaction.guildId);
                 if (!canFinalize) {
                     await interaction.reply({
-                        content: '❌ Only Hoster, Junior Hoster, or Event Hoster can finalize this war.',
+                        content: '❌ You do not have permission to finalize this war. Configure the role with `/setup hoster_role`.',
                         flags: MessageFlags.Ephemeral,
                     });
                     return;
@@ -1502,8 +1542,20 @@ export async function handleInteractions(interaction, client, db, commands) {
                     .setMaxLength(400);
                 const modal = new ModalBuilder()
                     .setCustomId(`wt_finalize_link_modal|${war.id}|${winnerGuildId}|${scoreValue}`)
-                    .setTitle('Send War Clips Link')
-                    .addComponents(new ActionRowBuilder().addComponents(linkInput));
+                    .setTitle('Finalizar War (Link + ELO)')
+                    .addComponents(new ActionRowBuilder().addComponents(linkInput), new ActionRowBuilder().addComponents(new TextInputBuilder()
+                    .setCustomId('winner_elo_gain')
+                    .setLabel('Pontos ganhos pelo ganhador')
+                    .setStyle(TextInputStyle.Short)
+                    .setPlaceholder('ex: 25')
+                    .setRequired(true)
+                    .setMaxLength(6)), new ActionRowBuilder().addComponents(new TextInputBuilder()
+                    .setCustomId('loser_elo_loss')
+                    .setLabel('Pontos removidos do perdedor')
+                    .setStyle(TextInputStyle.Short)
+                    .setPlaceholder('ex: 20')
+                    .setRequired(true)
+                    .setMaxLength(6)));
                 await interaction.showModal(modal);
                 return;
             }
@@ -1520,10 +1572,10 @@ export async function handleInteractions(interaction, client, db, commands) {
                     return;
                 }
                 const member = await interaction.guild?.members.fetch(interaction.user.id).catch(() => null);
-                const canFinalize = canMemberFinalizeTicket(member);
+                const canFinalize = canMemberFinalizeTicket(member, db, interaction.guildId);
                 if (!canFinalize) {
                     await interaction.reply({
-                        content: '❌ Only Hoster, Junior Hoster, or Event Hoster can finalize this war.',
+                        content: '❌ You do not have permission to finalize this war. Configure the role with `/setup hoster_role`.',
                         flags: MessageFlags.Ephemeral,
                     });
                     return;
@@ -1931,18 +1983,27 @@ export async function handleInteractions(interaction, client, db, commands) {
                     return;
                 }
                 const inviteRoleType = invite.roleType;
-                const discordRoleId = getDiscordRoleIdForRoleType(inviteRoleType);
+                const configuredRoleId = interaction.guildId
+                    ? (inviteRoleType === 'CO_LEADER' ? getSetting(db, `${interaction.guildId}_guild_co_leader_role_id`) : null)
+                        ?? (inviteRoleType === 'MANAGER' ? getSetting(db, `${interaction.guildId}_guild_manager_role_id`) : null)
+                    : null;
+                const discordRoleId = getDiscordRoleIdForRoleType(inviteRoleType, db, interaction.guildId ?? undefined);
                 if (discordRoleId) {
                     const discordGuildId = getDiscordGuildIdFromInternalGuildId(invite.guildId);
                     const roleAssigned = await assignDiscordRoleById(client, discordGuildId, invite.targetUserId, discordRoleId);
                     if (!roleAssigned) {
-                        removeMemberFromRole(db, invite.guildId, invite.targetUserId, inviteRoleType);
-                        setInviteStatus(db, inviteId, 'DECLINED');
-                        await interaction.update({
-                            content: '❌ Unable to accept invitation: failed to assign Discord role. Contact an admin.',
-                            components: [],
-                        });
-                        return;
+                        if (configuredRoleId) {
+                            // Role was explicitly configured but failed — block acceptance
+                            removeMemberFromRole(db, invite.guildId, invite.targetUserId, inviteRoleType);
+                            setInviteStatus(db, inviteId, 'DECLINED');
+                            await interaction.update({
+                                content: '❌ Unable to accept invitation: failed to assign Discord role. Contact an admin.',
+                                components: [],
+                            });
+                            return;
+                        }
+                        // No role configured — Discord role is optional, continue anyway
+                        console.warn(`Discord role ${discordRoleId} not found for invite ${inviteId}; continuing without it.`);
                     }
                 }
                 setInviteStatus(db, inviteId, 'ACCEPTED');
@@ -2038,7 +2099,8 @@ export async function handleInteractions(interaction, client, db, commands) {
                 db.prepare('UPDATE Guilds SET leaderId = ?, coLeaderId = CASE WHEN coLeaderId = ? THEN NULL ELSE coLeaderId END WHERE id = ?')
                     .run(targetUserId, targetUserId, guildId);
                 const discordGuildId = getDiscordGuildIdFromInternalGuildId(guildId);
-                const assigned = await assignDiscordRoleById(client, discordGuildId, targetUserId, FIXED_ROLE_IDS.GUILD_LEADER);
+                const leaderRoleId = getSetting(db, `${interaction.guildId}_guild_leader_role_id`) || FIXED_ROLE_IDS.GUILD_LEADER;
+                const assigned = await assignDiscordRoleById(client, discordGuildId, targetUserId, leaderRoleId);
                 if (!assigned) {
                     db.prepare('UPDATE Guilds SET leaderId = ?, coLeaderId = ? WHERE id = ?')
                         .run(previousLeaderId, previousCoLeaderId, guildId);
@@ -2082,7 +2144,8 @@ export async function handleInteractions(interaction, client, db, commands) {
                     db.prepare('UPDATE Guilds SET leaderId = ?, coLeaderId = NULL WHERE id = ?')
                         .run(guild.coLeaderId, guildId);
                     await maybeRemoveGuildLeaderDiscordRole(interaction, db, userId);
-                    await assignDiscordRoleById(client, getDiscordGuildIdFromInternalGuildId(guildId), guild.coLeaderId, FIXED_ROLE_IDS.GUILD_LEADER).catch(() => null);
+                    const leaderRoleId2 = getSetting(db, `${interaction.guildId}_guild_leader_role_id`) || FIXED_ROLE_IDS.GUILD_LEADER;
+                    await assignDiscordRoleById(client, getDiscordGuildIdFromInternalGuildId(guildId), guild.coLeaderId, leaderRoleId2).catch(() => null);
                     // co-leader role remains as null; if coLeader role should be removed, we skip for simplicity
                     await refreshGuildPanel(client, db, guildId).catch(() => { });
                     await interaction.followUp({
@@ -2310,10 +2373,10 @@ export async function handleInteractions(interaction, client, db, commands) {
                     return;
                 }
                 const member = await interaction.guild?.members.fetch(interaction.user.id).catch(() => null);
-                const canFinalize = canMemberFinalizeTicket(member);
+                const canFinalize = canMemberFinalizeTicket(member, db, interaction.guildId);
                 if (!canFinalize) {
                     await interaction.update({
-                        content: '❌ Only Hoster, Junior Hoster, or Event Hoster can finalize this war.',
+                        content: '❌ You do not have permission to finalize this war. Configure the role with `/setup hoster_role`.',
                         components: [],
                         embeds: [],
                     });
@@ -2378,10 +2441,10 @@ export async function handleInteractions(interaction, client, db, commands) {
                     return;
                 }
                 const member = await interaction.guild?.members.fetch(interaction.user.id).catch(() => null);
-                const canFinalize = canMemberFinalizeTicket(member);
+                const canFinalize = canMemberFinalizeTicket(member, db, interaction.guildId);
                 if (!canFinalize) {
                     await interaction.update({
-                        content: '❌ Only Hoster, Junior Hoster, or Event Hoster can finalize this war.',
+                        content: '❌ You do not have permission to finalize this war. Configure the role with `/setup hoster_role`.',
                         components: [],
                         embeds: [],
                     });
@@ -2427,10 +2490,10 @@ export async function handleInteractions(interaction, client, db, commands) {
                     return;
                 }
                 const member = await interaction.guild?.members.fetch(interaction.user.id).catch(() => null);
-                const canFinalize = canMemberFinalizeTicket(member);
+                const canFinalize = canMemberFinalizeTicket(member, db, interaction.guildId);
                 if (!canFinalize) {
                     await interaction.update({
-                        content: '❌ Only Hoster, Junior Hoster, or Event Hoster can finalize this wager.',
+                        content: '❌ You do not have permission to finalize this wager. Configure the role with `/setup hoster_role`.',
                         components: [],
                         embeds: [],
                     });
@@ -2445,8 +2508,20 @@ export async function handleInteractions(interaction, client, db, commands) {
                     .setMaxLength(400);
                 const modal = new ModalBuilder()
                     .setCustomId(`wg_finalize_clip_modal|${wager.id}|${winnerSide}`)
-                    .setTitle('Finalize Wager')
-                    .addComponents(new ActionRowBuilder().addComponents(clipsInput));
+                    .setTitle('Finalizar Wager')
+                    .addComponents(new ActionRowBuilder().addComponents(clipsInput), new ActionRowBuilder().addComponents(new TextInputBuilder()
+                    .setCustomId('winner_elo_gain')
+                    .setLabel('Pontos ELO ganhos pelo ganhador')
+                    .setStyle(TextInputStyle.Short)
+                    .setPlaceholder('ex: 25')
+                    .setRequired(true)
+                    .setMaxLength(6)), new ActionRowBuilder().addComponents(new TextInputBuilder()
+                    .setCustomId('loser_elo_loss')
+                    .setLabel('Pontos ELO removidos do perdedor')
+                    .setStyle(TextInputStyle.Short)
+                    .setPlaceholder('ex: 20')
+                    .setRequired(true)
+                    .setMaxLength(6)));
                 await interaction.showModal(modal);
                 return;
             }
@@ -2678,7 +2753,7 @@ export async function handleInteractions(interaction, client, db, commands) {
                 const challengerName = challengerMember?.displayName || interaction.user.username;
                 const challengedName = challengedMember.displayName || challengedId;
                 const ticketName = `${challengerName} vs ${challengedName}`;
-                const ticketChannel = await createWagerTicketChannel(interaction, ticketName, [challengerId, challengedId]);
+                const ticketChannel = await createWagerTicketChannel(interaction, ticketName, [challengerId, challengedId], db);
                 if (!ticketChannel) {
                     await interaction.editReply({
                         content: '❌ Failed to create wager ticket channel. Check bot permissions and category setup.',
@@ -2776,7 +2851,7 @@ export async function handleInteractions(interaction, client, db, commands) {
                     return;
                 }
                 const ticketName = `${members[0]?.displayName || challenger1Id}-${members[1]?.displayName || challenger2Id} vs ${members[2]?.displayName || challenged1Id}-${members[3]?.displayName || challenged2Id}`;
-                const ticketChannel = await createWagerTicketChannel(interaction, ticketName, [challenger1Id, challenger2Id, challenged1Id, challenged2Id]);
+                const ticketChannel = await createWagerTicketChannel(interaction, ticketName, [challenger1Id, challenger2Id, challenged1Id, challenged2Id], db);
                 if (!ticketChannel) {
                     await interaction.editReply({
                         content: '❌ Failed to create wager ticket channel. Check bot permissions and category setup.',
@@ -2919,6 +2994,8 @@ export async function handleInteractions(interaction, client, db, commands) {
                 const wagerId = Number(wagerIdRaw);
                 const wager = getWagerById(db, wagerId);
                 const clipsLink = interaction.fields.getTextInputValue('wager_clips_link')?.trim();
+                const winnerEloGainRaw = interaction.fields.getTextInputValue('winner_elo_gain')?.trim();
+                const loserEloLossRaw = interaction.fields.getTextInputValue('loser_elo_loss')?.trim();
                 if (!wager || wager.status !== 'ACCEPTED') {
                     await interaction.editReply({
                         content: '❌ This wager is not available for finalization.',
@@ -2932,10 +3009,10 @@ export async function handleInteractions(interaction, client, db, commands) {
                     return;
                 }
                 const member = await interaction.guild?.members.fetch(interaction.user.id).catch(() => null);
-                const canFinalize = canMemberFinalizeTicket(member);
+                const canFinalize = canMemberFinalizeTicket(member, db, interaction.guildId);
                 if (!canFinalize) {
                     await interaction.editReply({
-                        content: '❌ Only Hoster, Junior Hoster, or Event Hoster can finalize this wager.',
+                        content: '❌ You do not have permission to finalize this wager. Configure the role with `/setup hoster_role`.',
                     });
                     return;
                 }
@@ -2945,21 +3022,35 @@ export async function handleInteractions(interaction, client, db, commands) {
                     });
                     return;
                 }
+                const winnerEloGain = parseInt(winnerEloGainRaw || '', 10);
+                const loserEloLoss = parseInt(loserEloLossRaw || '', 10);
+                if (isNaN(winnerEloGain) || winnerEloGain < 0 || isNaN(loserEloLoss) || loserEloLoss < 0) {
+                    await interaction.editReply({ content: '❌ Pontos de ELO inválidos. Use números inteiros positivos.' });
+                    return;
+                }
                 closeWager(db, wager.id);
                 const teamA = formatWagerTeam([wager.challenger1Id, wager.challenger2Id]);
                 const teamB = formatWagerTeam([wager.challenged1Id, wager.challenged2Id]);
                 const winnerTeam = winnerSide === 'CHALLENGER' ? teamA : teamB;
-                const wagerLogsChannel = await interaction.client.channels.fetch(WAGER_LOGS_CHANNEL_ID).catch(() => null);
+                const winnerIds = winnerSide === 'CHALLENGER'
+                    ? [wager.challenger1Id, wager.challenger2Id].filter(Boolean)
+                    : [wager.challenged1Id, wager.challenged2Id].filter(Boolean);
+                const loserIds = winnerSide === 'CHALLENGER'
+                    ? [wager.challenged1Id, wager.challenged2Id].filter(Boolean)
+                    : [wager.challenger1Id, wager.challenger2Id].filter(Boolean);
+                applyPlayerElo(db, winnerIds, winnerEloGain, loserIds, loserEloLoss, wager.id);
+                const wagerLogId = getSetting(db, `${interaction.guildId}_wager_log_channel_id`) || WAGER_LOGS_CHANNEL_ID;
+                const wagerLogsChannel = await interaction.client.channels.fetch(wagerLogId).catch(() => null);
                 if (wagerLogsChannel && wagerLogsChannel.isTextBased() && 'send' in wagerLogsChannel) {
                     await wagerLogsChannel.send({
                         flags: MessageFlags.IsComponentsV2,
                         components: [
-                            buildWagerLogsContainer(`WAGER FINALIZED (${wager.type})`, teamA, teamB, `\nWinner: ${winnerTeam}\nClips: ${clipsLink}\nClosed by: <@${interaction.user.id}>`, '## WAGER CLOSED'),
+                            buildWagerLogsContainer(`WAGER FINALIZED (${wager.type})`, teamA, teamB, `\nWinner: ${winnerTeam}\nClips: ${clipsLink}\nELO: +${winnerEloGain} / -${loserEloLoss}\nClosed by: <@${interaction.user.id}>`, '## WAGER CLOSED'),
                         ],
                     });
                 }
                 await interaction.followUp({
-                    content: `✅ Wager finalized. Winner: ${winnerTeam} | Clips: ${clipsLink}. Closing ticket...`,
+                    content: `✅ Wager finalizado. Ganhador: ${winnerTeam} | Clips: ${clipsLink}\n📊 ELO: +${winnerEloGain} / -${loserEloLoss}. Fechando ticket...`,
                     flags: MessageFlags.Ephemeral,
                 });
                 if (interaction.channel && 'delete' in interaction.channel) {
@@ -2986,10 +3077,10 @@ export async function handleInteractions(interaction, client, db, commands) {
                     return;
                 }
                 const member = await interaction.guild?.members.fetch(interaction.user.id).catch(() => null);
-                const canFinalize = canMemberFinalizeTicket(member);
+                const canFinalize = canMemberFinalizeTicket(member, db, interaction.guildId);
                 if (!canFinalize) {
                     await interaction.editReply({
-                        content: '❌ Only Hoster, Junior Hoster, or Event Hoster can finalize this war.',
+                        content: '❌ You do not have permission to finalize this war. Configure the role with `/setup hoster_role`.',
                     });
                     return;
                 }
@@ -3043,11 +3134,17 @@ export async function handleInteractions(interaction, client, db, commands) {
                 }
                 // Combine all clip links into a single string for storage
                 const clipsCombined = clipLinks.length > 0 ? clipLinks.join('\n') : null;
+                const loserGuildId = winnerGuildId === war.openerGuildId ? war.opponentGuildId : war.openerGuildId;
                 const { winnerGuild } = await finalizeWarAndLog(interaction, client, db, war, winnerGuildId, winnerScore, loserScore, clipsCombined, roundDowns, mvpRaw, roundSummary);
                 const clipsText = clipLinks.length > 0 ? ` | Clips: ${clipLinks.length} link(s) provided` : '';
+                const eloRow = new ActionRowBuilder().addComponents(new ButtonBuilder()
+                    .setCustomId(`wt_elo_btn|${winnerGuildId}|${loserGuildId}|${war.id}`)
+                    .setLabel('Aplicar ELO')
+                    .setStyle(ButtonStyle.Primary));
                 await interaction.editReply({
-                    content: `✅ War finalized with details. Winner: **${winnerGuild?.name || 'Unknown'}** | ` +
-                        `Score: **${winnerScore}-${loserScore}**${clipsText}. Closing ticket...`,
+                    content: `✅ War finalizada. Ganhador: **${winnerGuild?.name || 'Unknown'}** | ` +
+                        `Score: **${winnerScore}-${loserScore}**${clipsText}.\nClique em **Aplicar ELO** para definir os pontos.`,
+                    components: [eloRow],
                 });
                 if (interaction.channel && 'delete' in interaction.channel) {
                     await interaction.channel.delete('War finished and recorded').catch(() => null);
@@ -3061,6 +3158,8 @@ export async function handleInteractions(interaction, client, db, commands) {
                 const war = getWarById(db, warId);
                 const parsedScore = parseWarScore(scoreValue || '');
                 const clipsLinkRaw = interaction.fields.getTextInputValue('clips_link')?.trim();
+                const winnerEloGainRaw = interaction.fields.getTextInputValue('winner_elo_gain')?.trim();
+                const loserEloLossRaw = interaction.fields.getTextInputValue('loser_elo_loss')?.trim();
                 if (!war || !winnerGuildId || !parsedScore || !['PENDING', 'ACCEPTED'].includes(war.status)) {
                     await interaction.editReply({
                         content: '❌ This war is not available for finalization.',
@@ -3074,10 +3173,10 @@ export async function handleInteractions(interaction, client, db, commands) {
                     return;
                 }
                 const member = await interaction.guild?.members.fetch(interaction.user.id).catch(() => null);
-                const canFinalize = canMemberFinalizeTicket(member);
+                const canFinalize = canMemberFinalizeTicket(member, db, interaction.guildId);
                 if (!canFinalize) {
                     await interaction.editReply({
-                        content: '❌ Only Hoster, Junior Hoster, or Event Hoster can finalize this war.',
+                        content: '❌ You do not have permission to finalize this war. Configure the role with `/setup hoster_role`.',
                     });
                     return;
                 }
@@ -3087,14 +3186,87 @@ export async function handleInteractions(interaction, client, db, commands) {
                     });
                     return;
                 }
+                const winnerEloGain = parseInt(winnerEloGainRaw || '', 10);
+                const loserEloLoss = parseInt(loserEloLossRaw || '', 10);
+                if (isNaN(winnerEloGain) || winnerEloGain < 0 || isNaN(loserEloLoss) || loserEloLoss < 0) {
+                    await interaction.editReply({ content: '❌ Pontos de ELO inválidos. Use números inteiros positivos.' });
+                    return;
+                }
                 const { winnerScore, loserScore } = parsedScore;
+                const loserGuildId = winnerGuildId === war.openerGuildId ? war.opponentGuildId : war.openerGuildId;
                 const { winnerGuild } = await finalizeWarAndLog(interaction, client, db, war, winnerGuildId, winnerScore, loserScore, clipsLinkRaw);
+                applyGuildElo(db, winnerGuildId, winnerEloGain, loserGuildId, loserEloLoss, war.id);
+                await refreshGuildPanel(client, db, winnerGuildId).catch(() => { });
+                await refreshGuildPanel(client, db, loserGuildId).catch(() => { });
                 await interaction.editReply({
-                    content: `✅ War finalized. Winner: **${winnerGuild?.name || 'Unknown'}** | Score: **${winnerScore}-${loserScore}** | Clips: ${clipsLinkRaw}. Closing ticket...`,
+                    content: `✅ War finalizada. Ganhador: **${winnerGuild?.name || 'Unknown'}** | Score: **${winnerScore}-${loserScore}** | Clips: ${clipsLinkRaw}\n📊 ELO: +${winnerEloGain} / -${loserEloLoss}. Fechando ticket...`,
                 });
                 if (interaction.channel && 'delete' in interaction.channel) {
                     await interaction.channel.delete('War finished and recorded').catch(() => null);
                 }
+                return;
+            }
+            // ELO modal for "Finalize Without Link" path
+            if (customId.startsWith('wt_elo_modal|')) {
+                await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+                const [, warIdRaw, winnerGuildId, scoreValue] = parseCustomId(customId);
+                const warId = Number(warIdRaw);
+                const war = getWarById(db, warId);
+                const parsedScore = parseWarScore(scoreValue || '');
+                if (!war || !winnerGuildId || !parsedScore || !['PENDING', 'ACCEPTED'].includes(war.status)) {
+                    await interaction.editReply({ content: '❌ Esta war não está disponível para finalização.' });
+                    return;
+                }
+                if (![war.openerGuildId, war.opponentGuildId].includes(winnerGuildId)) {
+                    await interaction.editReply({ content: '❌ Ganhador inválido.' });
+                    return;
+                }
+                const member = await interaction.guild?.members.fetch(interaction.user.id).catch(() => null);
+                if (!canMemberFinalizeTicket(member, db, interaction.guildId)) {
+                    await interaction.editReply({ content: '❌ Sem permissão para finalizar. Configure com `/setup hoster_role`.' });
+                    return;
+                }
+                const winnerEloGain = parseInt(interaction.fields.getTextInputValue('winner_elo_gain')?.trim() || '', 10);
+                const loserEloLoss = parseInt(interaction.fields.getTextInputValue('loser_elo_loss')?.trim() || '', 10);
+                if (isNaN(winnerEloGain) || winnerEloGain < 0 || isNaN(loserEloLoss) || loserEloLoss < 0) {
+                    await interaction.editReply({ content: '❌ Pontos de ELO inválidos. Use números inteiros positivos.' });
+                    return;
+                }
+                const { winnerScore, loserScore } = parsedScore;
+                const loserGuildId = winnerGuildId === war.openerGuildId ? war.opponentGuildId : war.openerGuildId;
+                const { winnerGuild } = await finalizeWarAndLog(interaction, client, db, war, winnerGuildId, winnerScore, loserScore, null);
+                applyGuildElo(db, winnerGuildId, winnerEloGain, loserGuildId, loserEloLoss, war.id);
+                await refreshGuildPanel(client, db, winnerGuildId).catch(() => { });
+                await refreshGuildPanel(client, db, loserGuildId).catch(() => { });
+                await interaction.editReply({
+                    content: `✅ War finalizada. Ganhador: **${winnerGuild?.name || 'Unknown'}** | Score: **${winnerScore}-${loserScore}**\n📊 ELO: +${winnerEloGain} / -${loserEloLoss}. Fechando ticket...`,
+                });
+                if (interaction.channel && 'delete' in interaction.channel) {
+                    await interaction.channel.delete('War finished and recorded').catch(() => null);
+                }
+                return;
+            }
+            // Standalone ELO modal after "Finalize With Details" path
+            if (customId.startsWith('wt_elo_standalone_modal|')) {
+                await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+                const [, winnerGuildId, loserGuildId, warIdRaw] = parseCustomId(customId);
+                const warId = Number(warIdRaw);
+                if (!winnerGuildId || !loserGuildId) {
+                    await interaction.editReply({ content: '❌ Dados inválidos.' });
+                    return;
+                }
+                const winnerEloGain = parseInt(interaction.fields.getTextInputValue('winner_elo_gain')?.trim() || '', 10);
+                const loserEloLoss = parseInt(interaction.fields.getTextInputValue('loser_elo_loss')?.trim() || '', 10);
+                if (isNaN(winnerEloGain) || winnerEloGain < 0 || isNaN(loserEloLoss) || loserEloLoss < 0) {
+                    await interaction.editReply({ content: '❌ Pontos de ELO inválidos. Use números inteiros positivos.' });
+                    return;
+                }
+                applyGuildElo(db, winnerGuildId, winnerEloGain, loserGuildId, loserEloLoss, isNaN(warId) ? undefined : warId);
+                await refreshGuildPanel(client, db, winnerGuildId).catch(() => { });
+                await refreshGuildPanel(client, db, loserGuildId).catch(() => { });
+                await interaction.editReply({
+                    content: `✅ ELO aplicado! Ganhador: +${winnerEloGain} | Perdedor: -${loserEloLoss}`,
+                });
                 return;
             }
         }
@@ -3180,13 +3352,14 @@ function buildWagerParticipantIds(wager) {
     return [wager.challenger1Id, wager.challenger2Id, wager.challenged1Id, wager.challenged2Id]
         .filter((value) => !!value);
 }
-async function createWagerTicketChannel(interaction, channelName, participantIds) {
+async function createWagerTicketChannel(interaction, channelName, participantIds, db) {
     const discordGuild = interaction.guild;
     if (!discordGuild)
         return null;
-    const wagerCategory = await interaction.client.channels.fetch(WAGER_TICKETS_CATEGORY_ID).catch(() => null);
+    const categoryId = getSetting(db, `${interaction.guildId}_wager_category_id`) || WAGER_TICKETS_CATEGORY_ID;
+    const wagerCategory = await interaction.client.channels.fetch(categoryId).catch(() => null);
     if (!wagerCategory || wagerCategory.type !== ChannelType.GuildCategory) {
-        console.error(`Wager category ${WAGER_TICKETS_CATEGORY_ID} not found or invalid.`);
+        console.error(`Wager category ${categoryId} not found or invalid.`);
         return null;
     }
     const permissionOverwrites = [
@@ -3196,35 +3369,17 @@ async function createWagerTicketChannel(interaction, channelName, participantIds
             deny: [PermissionFlagsBits.ViewChannel],
         },
     ];
-    const hosterRole = discordGuild.roles.cache.get(WAR_ROLE_IDS.HOSTER)
-        || (await discordGuild.roles.fetch(WAR_ROLE_IDS.HOSTER).catch(() => null));
-    if (hosterRole) {
-        permissionOverwrites.push({
-            id: hosterRole.id,
-            type: OverwriteType.Role,
-            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory],
-            deny: [PermissionFlagsBits.SendMessages],
-        });
-    }
-    const juniorHosterRole = discordGuild.roles.cache.get(WAR_ROLE_IDS.JUNIOR_HOSTER)
-        || (await discordGuild.roles.fetch(WAR_ROLE_IDS.JUNIOR_HOSTER).catch(() => null));
-    if (juniorHosterRole) {
-        permissionOverwrites.push({
-            id: juniorHosterRole.id,
-            type: OverwriteType.Role,
-            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory],
-            deny: [PermissionFlagsBits.SendMessages],
-        });
-    }
-    const eventHosterRole = discordGuild.roles.cache.get(WAR_ROLE_IDS.EVENT_HOSTER)
-        || (await discordGuild.roles.fetch(WAR_ROLE_IDS.EVENT_HOSTER).catch(() => null));
-    if (eventHosterRole) {
-        permissionOverwrites.push({
-            id: eventHosterRole.id,
-            type: OverwriteType.Role,
-            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory],
-            deny: [PermissionFlagsBits.SendMessages],
-        });
+    for (const hosterRoleId of getHosterRoleIds(db, interaction.guildId)) {
+        const hosterRole = discordGuild.roles.cache.get(hosterRoleId)
+            || (await discordGuild.roles.fetch(hosterRoleId).catch(() => null));
+        if (hosterRole) {
+            permissionOverwrites.push({
+                id: hosterRole.id,
+                type: OverwriteType.Role,
+                allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory],
+                deny: [PermissionFlagsBits.SendMessages],
+            });
+        }
     }
     for (const memberId of participantIds) {
         const member = await discordGuild.members.fetch(memberId).catch(() => null);
@@ -3241,7 +3396,7 @@ async function createWagerTicketChannel(interaction, channelName, participantIds
         .create({
         name: sanitizeWagerChannelName(channelName),
         type: ChannelType.GuildText,
-        parent: WAGER_TICKETS_CATEGORY_ID,
+        parent: categoryId,
         permissionOverwrites,
     })
         .catch((error) => {
@@ -3250,7 +3405,7 @@ async function createWagerTicketChannel(interaction, channelName, participantIds
     });
     return channel;
 }
-async function unlockWagerTicketChat(interaction, channel, participantIds) {
+async function unlockWagerTicketChat(interaction, channel, participantIds, db) {
     for (const userId of participantIds) {
         await channel.permissionOverwrites
             .edit(userId, {
@@ -3260,30 +3415,22 @@ async function unlockWagerTicketChat(interaction, channel, participantIds) {
         })
             .catch(() => null);
     }
-    await channel.permissionOverwrites
-        .edit(WAR_ROLE_IDS.HOSTER, {
-        ViewChannel: true,
-        ReadMessageHistory: true,
-        SendMessages: true,
-    })
-        .catch(() => null);
-    await channel.permissionOverwrites
-        .edit(WAR_ROLE_IDS.JUNIOR_HOSTER, {
-        ViewChannel: true,
-        ReadMessageHistory: true,
-        SendMessages: true,
-    })
-        .catch(() => null);
-    await channel.permissionOverwrites
-        .edit(WAR_ROLE_IDS.EVENT_HOSTER, {
-        ViewChannel: true,
-        ReadMessageHistory: true,
-        SendMessages: true,
-    })
-        .catch(() => null);
+    for (const hosterRoleId of getHosterRoleIds(db, channel.guildId)) {
+        await channel.permissionOverwrites
+            .edit(hosterRoleId, {
+            ViewChannel: true,
+            ReadMessageHistory: true,
+            SendMessages: true,
+        })
+            .catch(() => null);
+    }
+    const mentionKey = `${channel.guildId}_wager_mention_roles`;
+    const mentionSetting = getSetting(db, mentionKey);
+    const mentionRoles = mentionSetting ? mentionSetting.split(',').filter(Boolean) : getHosterRoleIds(db, channel.guildId);
+    const mentionStr = mentionRoles.map((r) => `<@&${r}>`).join(' ');
     await channel.send({
-        content: `Wager accepted. <@&${WAR_ROLE_IDS.HOSTER}> <@&${WAR_ROLE_IDS.JUNIOR_HOSTER}> <@&${WAR_ROLE_IDS.EVENT_HOSTER}>`,
-        allowedMentions: { roles: [WAR_ROLE_IDS.HOSTER, WAR_ROLE_IDS.JUNIOR_HOSTER, WAR_ROLE_IDS.EVENT_HOSTER] },
+        content: `✅ Wager accepted. Chat unlocked. ${mentionStr}`,
+        allowedMentions: { roles: mentionRoles },
     }).catch(() => null);
 }
 //# sourceMappingURL=Interaction.js.map

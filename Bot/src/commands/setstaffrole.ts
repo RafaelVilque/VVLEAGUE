@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, ChatInputCommandInteraction } from 'discord.js';
+﻿import { SlashCommandBuilder, ChatInputCommandInteraction } from 'discord.js';
 import { setSetting } from '../database.js';
 
 export const data = new SlashCommandBuilder()
@@ -7,11 +7,10 @@ export const data = new SlashCommandBuilder()
   .addRoleOption(o => o.setName('role').setDescription('Staff role').setRequired(true));
 
 export async function execute(interaction: ChatInputCommandInteraction, db: any): Promise<void> {
-  await interaction.deferReply({ ephemeral: true });
   if (!interaction.memberPermissions?.has('Administrator')) {
-    await interaction.editReply('❌ Only administrators can set the staff role.'); return;
+    await interaction.editReply('âŒ Only administrators can set the staff role.'); return;
   }
   const role = interaction.options.getRole('role', true);
   setSetting(db, 'staff_role_id', role.id);
-  await interaction.editReply(`✅ Staff role set to <@&${role.id}>. Members with this role can approve signings.`);
+  await interaction.editReply(`âœ… Staff role set to <@&${role.id}>. Members with this role can approve signings.`);
 }

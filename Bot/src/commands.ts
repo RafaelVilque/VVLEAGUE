@@ -13,10 +13,13 @@ export async function registerCommands(token: string, clientId: string): Promise
 
   for (const file of commandFiles) {
     const filePath = join(commandsPath, file);
-    const command = await import(pathToFileURL(filePath).href);
-    
-    if (command.data && command.execute) {
-      commands.push(command.data.toJSON());
+    try {
+      const command = await import(pathToFileURL(filePath).href);
+      if (command.data && command.execute) {
+        commands.push(command.data.toJSON());
+      }
+    } catch (e) {
+      console.error(`Failed to register command ${file}:`, e);
     }
   }
 
@@ -25,29 +28,8 @@ export async function registerCommands(token: string, clientId: string): Promise
   try {
     console.log(`Registering ${commands.length} commands...`);
 
-    const ROOT_GUILD_ID = '1470552385750437940';
-    const guildId = ROOT_GUILD_ID || process.env.TEST_GUILD_ID || process.env.GUILD_ID;
-    if (guildId) {
-      // Clear global commands to avoid duplicate entries in the UI, then register guild commands
-      try {
-        await rest.put(Routes.applicationCommands(clientId), { body: [] });
-        console.log('✅ Global commands cleared');
-      } catch (e) {
-        console.warn('Failed to clear global commands (continuing):', e);
-      }
-
-      await rest.put(
-        Routes.applicationGuildCommands(clientId, guildId),
-        { body: commands }
-      );
-      console.log(`✅ Commands registered for guild ${guildId}`);
-    } else {
-      await rest.put(
-        Routes.applicationCommands(clientId),
-        { body: commands }
-      );
-      console.log('✅ Commands registered globally (may take up to 1 hour)');
-    }
+    await rest.put(Routes.applicationCommands(clientId), { body: commands });
+    console.log('✅ Commands registered globally');
   } catch (error) {
     console.error('❌ Error registering commands:', error);
   }
@@ -60,11 +42,16 @@ export async function loadCommands() {
 
   for (const file of commandFiles) {
     const filePath = join(commandsPath, file);
-    const command = await import(pathToFileURL(filePath).href);
-    
-    if (command.data && command.execute) {
-      commands.set(command.data.name, command);
-      console.log(`Loaded command: ${command.data.name} (from ${file})`);
+    try {
+      const command = await import(pathToFileURL(filePath).href);
+      if (command.data && command.execute) {
+        commands.set(command.data.name, command);
+        console.log(`Loaded command: ${command.data.name} (from ${file})`);
+      } else {
+        console.warn(`Skipped ${file}: missing data or execute export`);
+      }
+    } catch (e) {
+      console.error(`Failed to load command ${file}:`, e);
     }
   }
 

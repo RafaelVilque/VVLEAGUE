@@ -7,30 +7,29 @@ export const data = new SlashCommandBuilder()
     .addUserOption(o => o.setName('player').setDescription('The player to sign').setRequired(true))
     .addStringOption(o => o.setName('role').setDescription('Role on roster').addChoices({ name: 'Player', value: 'Player' }, { name: 'Sub', value: 'Sub' }, { name: 'Coach', value: 'Coach' }).setRequired(false));
 export async function execute(interaction, db) {
-    await interaction.deferReply({ ephemeral: true });
     // Check signing is globally open
     const signingClosed = getSetting(db, 'signing_closed') === '1';
     if (signingClosed) {
-        await interaction.editReply('❌ Signings are currently closed.');
+        await interaction.editReply('âŒ Signings are currently closed.');
         return;
     }
     // Check if leader has a guild on site
     const leaderData = await getMemberByDiscordId(interaction.user.id);
     if (!leaderData || leaderData.role?.toLowerCase() !== 'leader') {
-        await interaction.editReply('❌ You are not registered as a guild Leader on the site. An admin must add your Discord ID to your member entry with the role "Leader".');
+        await interaction.editReply('âŒ You are not registered as a guild Leader on the site. An admin must add your Discord ID to your member entry with the role "Leader".');
         return;
     }
     if (!leaderData.signing_open) {
-        await interaction.editReply('❌ Your guild has signings closed.');
+        await interaction.editReply('âŒ Your guild has signings closed.');
         return;
     }
     const target = interaction.options.getUser('player', true);
     if (target.id === interaction.user.id) {
-        await interaction.editReply('❌ You cannot sign yourself.');
+        await interaction.editReply('âŒ You cannot sign yourself.');
         return;
     }
     if (target.bot) {
-        await interaction.editReply('❌ You cannot sign a bot.');
+        await interaction.editReply('âŒ You cannot sign a bot.');
         return;
     }
     // Check cooldown
@@ -41,7 +40,7 @@ export async function execute(interaction, db) {
             const expiresAt = new Date(cd.getTime() + cooldownDays * 24 * 60 * 60 * 1000);
             if (expiresAt > new Date()) {
                 const remaining = Math.ceil((expiresAt.getTime() - Date.now()) / 86400000);
-                await interaction.editReply(`❌ That player is on a ${remaining}-day signing cooldown.`);
+                await interaction.editReply(`âŒ That player is on a ${remaining}-day signing cooldown.`);
                 return;
             }
         }
@@ -49,7 +48,7 @@ export async function execute(interaction, db) {
     // Check target not already in a guild
     const existing = await getMemberByDiscordId(target.id);
     if (existing) {
-        await interaction.editReply(`❌ ${target.username} is already in **${existing.org_name}** [${existing.tag}].`);
+        await interaction.editReply(`âŒ ${target.username} is already in **${existing.org_name}** [${existing.tag}].`);
         return;
     }
     const role = interaction.options.getString('role') || 'Player';
@@ -70,10 +69,10 @@ export async function execute(interaction, db) {
     try {
         const dm = await target.createDM();
         await dm.send({ embeds: [embed], components: [row] });
-        await interaction.editReply(`✅ Signing offer sent to **${target.username}**. Waiting for their response.`);
+        await interaction.editReply(`âœ… Signing offer sent to **${target.username}**. Waiting for their response.`);
     }
     catch {
-        await interaction.editReply(`❌ Could not DM ${target.username}. They may have DMs disabled.`);
+        await interaction.editReply(`âŒ Could not DM ${target.username}. They may have DMs disabled.`);
     }
 }
 //# sourceMappingURL=sign.js.map

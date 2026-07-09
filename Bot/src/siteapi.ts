@@ -5,19 +5,29 @@ const SITE_URL = (process.env.SITE_URL || 'https://vvleague.onrender.com').repla
 const BOT_API_KEY = process.env.BOT_API_KEY || '';
 
 async function botFetch(path: string, options: RequestInit = {}): Promise<any> {
-  const res = await fetch(`${SITE_URL}/api/bot${path}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      'x-bot-key': BOT_API_KEY,
-      ...(options.headers as Record<string, string> || {}),
-    },
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-    throw new Error(err.error || `HTTP ${res.status}`);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30000); // 30s timeout
+  try {
+    const res = await fetch(`${SITE_URL}/api/bot${path}`, {
+      ...options,
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        'x-bot-key': BOT_API_KEY,
+        ...(options.headers as Record<string, string> || {}),
+      },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+      throw new Error(err.error || `HTTP ${res.status}`);
+    }
+    return res.json();
+  } catch (e: any) {
+    if (e.name === 'AbortError') throw new Error('Site did not respond in time (is it online?)');
+    throw e;
+  } finally {
+    clearTimeout(timer);
   }
-  return res.json();
 }
 
 export async function searchOrgs(query: string): Promise<any[]> {
