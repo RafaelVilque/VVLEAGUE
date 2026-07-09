@@ -1,6 +1,7 @@
 import { SlashCommandBuilder, AttachmentBuilder, } from 'discord.js';
 import { Buffer } from 'node:buffer';
-const FOUNDER_ROLE_ID = '1470554645364478016';
+import { getSetting } from '../database.js';
+const FOUNDER_ROLE_ID_DEFAULT = '1470554645364478016';
 function tableExists(db, tableName) {
     const row = db
         .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?")
@@ -19,10 +20,12 @@ export async function execute(interaction, db) {
             return;
         }
         const actorMember = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
-        const canBackup = !!actorMember && actorMember.roles.cache.has(FOUNDER_ROLE_ID);
+        const isAdmin = !!actorMember?.permissions.has('Administrator');
+        const staffRoleId = getSetting(db, `${interaction.guildId}_staff_role_id`) || FOUNDER_ROLE_ID_DEFAULT;
+        const canBackup = isAdmin || (!!actorMember && actorMember.roles.cache.has(staffRoleId));
         if (!canBackup) {
             await interaction.editReply({
-                content: '❌ Only Founder can use this command.',
+                content: '❌ Você não tem permissão. Configure o cargo com `/setup staff_role`.',
             });
             return;
         }

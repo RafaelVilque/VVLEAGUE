@@ -1,10 +1,12 @@
 import { SlashCommandBuilder, EmbedBuilder, ChannelType, } from 'discord.js';
-const GUILD_LEADER_ROLE_ID = '1470554671944040605';
-const ALLOWED_GUILD_CREATOR_ROLE_IDS = [
+import { getSetting } from './database.js';
+const GUILD_LEADER_ROLE_ID_DEFAULT = '1470554671944040605';
+const ALLOWED_GUILD_CREATOR_ROLE_IDS_DEFAULT = [
     '1470554652264108204', // Head Moderator
     '1470554645364478016', // Founder
     '1470554648568926219', // Developer
 ];
+const GUILD_FORUM_CHANNEL_ID_DEFAULT = '1470554848683364403';
 export const data = new SlashCommandBuilder()
     .setName('guildregister')
     .setDescription('Registers a new competitive guild')
@@ -31,10 +33,14 @@ export async function execute(interaction, db) {
             return;
         }
         const actorMember = await interaction.guild?.members.fetch(interaction.user.id).catch(() => null);
-        const canCreateGuild = !!actorMember && ALLOWED_GUILD_CREATOR_ROLE_IDS.some(roleId => actorMember.roles.cache.has(roleId));
+        const isAdmin = !!actorMember?.permissions.has('Administrator');
+        const configuredRegisterRole = getSetting(db, `${guildId}_guild_register_role_id`);
+        const canCreateGuild = isAdmin || (!!actorMember && (configuredRegisterRole
+            ? actorMember.roles.cache.has(configuredRegisterRole)
+            : ALLOWED_GUILD_CREATOR_ROLE_IDS_DEFAULT.some(roleId => actorMember.roles.cache.has(roleId))));
         if (!canCreateGuild) {
             await interaction.editReply({
-                content: '❌ Only Founder, Head Moderator, and Developer can create a guild.',
+                content: '❌ Você não tem permissão para registrar uma guild. Configure o cargo com `/setup guild_register_role`.',
             });
             return;
         }
@@ -56,17 +62,18 @@ export async function execute(interaction, db) {
         // Insert guild in database
         db.prepare(`INSERT INTO Guilds (id, name, leaderId, coLeaderId, imageUrl, region)
        VALUES (?, ?, ?, ?, ?, ?)`).run(guildUid, name, leader.id, null, null, region);
-        // Assign fixed Guild Leader role to leader
+        // Assign Guild Leader role to leader
         if (interaction.guild) {
             try {
-                const fixedLeaderRole = interaction.guild.roles.cache.get(GUILD_LEADER_ROLE_ID)
-                    || (await interaction.guild.roles.fetch(GUILD_LEADER_ROLE_ID).catch(() => null));
+                const leaderRoleId = getSetting(db, `${guildId}_guild_leader_role_id`) || GUILD_LEADER_ROLE_ID_DEFAULT;
+                const fixedLeaderRole = interaction.guild.roles.cache.get(leaderRoleId)
+                    || (await interaction.guild.roles.fetch(leaderRoleId).catch(() => null));
                 const member = await interaction.guild.members.fetch(leader.id);
                 if (fixedLeaderRole) {
                     await member.roles.add(fixedLeaderRole);
                 }
                 else {
-                    console.warn(`Guild Leader role ${GUILD_LEADER_ROLE_ID} was not found in guild ${interaction.guild.id}.`);
+                    console.warn(`Guild Leader role not found in guild ${interaction.guild.id}. Configure with /setup guild_leader_role.`);
                 }
             }
             catch (e) {
@@ -78,19 +85,20 @@ export async function execute(interaction, db) {
         const mainsFromDb = db.prepare('SELECT userId FROM MainRosters WHERE guildId = ?').all(guildUid);
         const subsFromDb = db.prepare('SELECT userId FROM SubRosters WHERE guildId = ?').all(guildUid);
         // Build embed description
-        let description = `# <:guildleader:1471171042520334477> ${name}\n\n`;
-        description += `### <:guildleader:1471171042520334477> Leader\n<@${leader.id}>\n`;
-        description += `### <:topentrosa:1471116715264970762> Co-Leader\nNone\n`;
+        let description = `# ${name}\n\n`;
+        description += `### 👑 Leader\n<@${leader.id}>\n`;
+        description += `### ⭐ Co-Leader\nNone\n`;
         if (managersFromDb.length > 0) {
-            description += `<:topplayericon:1470815685503352883> **Managers**\n`;
+            description += `**Managers**\n`;
             description += managersFromDb.map((m) => `<@${m.userId}>`).join(' ') + '\n\n';
         }
         else {
-            description += `<:topplayericon:1470815685503352883> **Managers**\nNone\n\n`;
+            description += `**Managers**\nNone\n\n`;
         }
         description += `:globe_with_meridians: **Region Stats: ${region}**\n`;
         description += `**Regions:** ${region}\n`;
         description += `:signal_strength: **W/L:** 0/0\n`;
+        description += `:bar_chart: **ELO:** 1000\n`;
         description += `━━━━━━━━━━━━━━━━━━━━━━\n`;
         description += `:crossed_swords: **Main Roster (${region})**\n`;
         if (mainsFromDb.length > 0) {
@@ -112,7 +120,7 @@ export async function execute(interaction, db) {
             .setColor('#2a8900')
             .setThumbnail(interaction.guild?.iconURL() || null);
         // Send panel embed in specific channel (Forum or Text)
-        const channelId = '1470554848683364403';
+        const channelId = getSetting(db, `${guildId}_guild_forum_channel_id`) || GUILD_FORUM_CHANNEL_ID_DEFAULT;
         const channel = (await interaction.client.channels.fetch(channelId).catch(() => null));
         console.log('Channel found:', !!channel, channel?.name, channel?.type);
         console.log('Has threads?', !!channel?.threads);

@@ -1,7 +1,9 @@
 import { SlashCommandBuilder, ChatInputCommandInteraction, MessageFlags } from 'discord.js';
+import { getSetting } from '../database.js';
 
-const WAR_DODGE_LOGS_CHANNEL_ID = '1473408078358642759';
-const WAGER_DODGE_LOGS_CHANNEL_ID = '1473407994535346177';
+const WAR_DODGE_LOGS_CHANNEL_ID_DEFAULT = '1473408078358642759';
+const WAGER_DODGE_LOGS_CHANNEL_ID_DEFAULT = '1473407994535346177';
+const HOSTER_ROLE_IDS_DEFAULT = ['1470554662687215741', '1470554664238845962'];
 
 function formatWagerTeam(teamIds: Array<string | null>): string {
   return teamIds
@@ -47,13 +49,16 @@ export async function execute(
 ): Promise<void> {
   try {
     const member = await interaction.guild?.members.fetch(interaction.user.id).catch(() => null);
-    const allowedRoles = ['1470554662687215741', '1470554664238845962', '1470554662687215741']; // Hoster roles
-
-    const hasPermission = !!member && allowedRoles.some(roleId => member.roles.cache.has(roleId));
+    const isAdmin = !!member?.permissions.has('Administrator');
+    const hosterRoleId = getSetting(db, `${interaction.guildId}_hoster_role_id`);
+    const hasPermission = isAdmin || (!!member && (
+      hosterRoleId
+        ? member.roles.cache.has(hosterRoleId)
+        : HOSTER_ROLE_IDS_DEFAULT.some(roleId => member.roles.cache.has(roleId))
+    ));
     if (!hasPermission) {
       await interaction.editReply({
-        content: '❌ Only Hoster, Junior Hoster, or Event Hoster can use this command.',
-        
+        content: '❌ Você não tem permissão. Configure o cargo com `/setup hoster_role`.',
       });
       return;
     }
@@ -96,25 +101,23 @@ export async function execute(
 
       // Send dodge message to war-dodge channel
       const dodgeSummary = `⚠️ <@${interaction.user.id}> force closed the war ticket (${openerGuild?.name || 'Unknown'} vs ${opponentGuild?.name || 'Unknown'}). Reason: ${reason}`;
-      const warDodgeLogsChannel = await interaction.client.channels.fetch(WAR_DODGE_LOGS_CHANNEL_ID).catch(() => null);
+      const warDodgeId = getSetting(db, `${interaction.guildId}_war_dodge_channel_id`) || WAR_DODGE_LOGS_CHANNEL_ID_DEFAULT;
+      const warDodgeLogsChannel = (interaction.guild?.channels.cache.get(warDodgeId) ?? await interaction.guild?.channels.fetch(warDodgeId).catch(() => null)) as any;
       if (warDodgeLogsChannel && warDodgeLogsChannel.isTextBased() && 'send' in warDodgeLogsChannel) {
         await warDodgeLogsChannel.send({
           content: dodgeSummary,
         });
       }
 
-      // Log the action
-      const logChannel = await interaction.client.channels.fetch('1470554772678512794').catch(() => null);
-      if (logChannel && logChannel.isTextBased() && 'send' in logChannel) {
-        await logChannel.send(`🔨 Admin Close: War #${ticketId} force closed by <@${interaction.user.id}>. Reason: ${reason}`);
-      }
-
       // Try to delete the channel
       if (war.channelId) {
-        const channel = await interaction.client.channels.fetch(war.channelId).catch(() => null);
-        if (channel && 'delete' in channel) {
-          await channel.delete(`War ticket force closed by admin: ${reason}`).catch(() => null);
+        const channel = (interaction.guild?.channels.cache.get(war.channelId) ?? await interaction.guild?.channels.fetch(war.channelId).catch(() => null)) as any;
+        if (channel && 'send' in channel) {
+          await channel.send(`⚠️ Este war foi encerrado por um admin. Motivo: **${reason}**\nCanal será deletado em 5 segundos.`).catch(() => null);
         }
+        setTimeout(async () => {
+          await channel?.delete(`War ticket force closed by admin: ${reason}`).catch(() => null);
+        }, 5000);
       }
 
       await interaction.editReply({
@@ -151,7 +154,8 @@ export async function execute(
 
       // Send dodge message to wager-dodge channel
       const dodgeSummary = `# WAGER FORCE CLOSE\n<@${interaction.user.id}> force closed the wager ticket (${teamA} vs ${teamB}). Reason: ${reason}`;
-      const wagerDodgeLogsChannel = await interaction.client.channels.fetch(WAGER_DODGE_LOGS_CHANNEL_ID).catch(() => null);
+      const wagerDodgeId = getSetting(db, `${interaction.guildId}_wager_dodge_channel_id`) || WAGER_DODGE_LOGS_CHANNEL_ID_DEFAULT;
+      const wagerDodgeLogsChannel = (interaction.guild?.channels.cache.get(wagerDodgeId) ?? await interaction.guild?.channels.fetch(wagerDodgeId).catch(() => null)) as any;
       if (wagerDodgeLogsChannel && wagerDodgeLogsChannel.isTextBased() && 'send' in wagerDodgeLogsChannel) {
         await wagerDodgeLogsChannel.send({
           content: dodgeSummary,
@@ -159,18 +163,15 @@ export async function execute(
         });
       }
 
-      // Log the action
-      const logChannel = await interaction.client.channels.fetch('1470554772678512794').catch(() => null);
-      if (logChannel && logChannel.isTextBased() && 'send' in logChannel) {
-        await logChannel.send(`🔨 Admin Close: Wager #${ticketId} force closed by <@${interaction.user.id}>. Reason: ${reason}`);
-      }
-
       // Try to delete the channel
       if (wager.channelId) {
-        const channel = await interaction.client.channels.fetch(wager.channelId).catch(() => null);
-        if (channel && 'delete' in channel) {
-          await channel.delete(`Wager ticket force closed by admin: ${reason}`).catch(() => null);
+        const channel = (interaction.guild?.channels.cache.get(wager.channelId) ?? await interaction.guild?.channels.fetch(wager.channelId).catch(() => null)) as any;
+        if (channel && 'send' in channel) {
+          await channel.send(`⚠️ Este wager foi encerrado por um admin. Motivo: **${reason}**\nCanal será deletado em 5 segundos.`).catch(() => null);
         }
+        setTimeout(async () => {
+          await channel?.delete(`Wager ticket force closed by admin: ${reason}`).catch(() => null);
+        }, 5000);
       }
 
       await interaction.editReply({

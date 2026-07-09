@@ -5,17 +5,16 @@ export const data = new SlashCommandBuilder()
     .setName('rolesync')
     .setDescription('Sync guild roles to all members based on site data (staff only)');
 export async function execute(interaction, db) {
-    await interaction.deferReply({ ephemeral: true });
     const staffRoleId = getSetting(db, 'staff_role_id');
     if (staffRoleId && interaction.guild) {
         const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
         if (!member?.roles.cache.has(staffRoleId)) {
-            await interaction.editReply('❌ You do not have permission to use this command.');
+            await interaction.editReply('âŒ You do not have permission to use this command.');
             return;
         }
     }
     if (!interaction.guild) {
-        await interaction.editReply('❌ This command must be used in a server.');
+        await interaction.editReply('âŒ This command must be used in a server.');
         return;
     }
     const orgs = await getAllOrgs();
@@ -38,6 +37,6 @@ export async function execute(interaction, db) {
             }
         }
     }
-    await interaction.editReply(`✅ Role sync complete. **${synced}** members synced, **${errors}** errors.`);
+    await interaction.editReply(`âœ… Role sync complete. **${synced}** members synced, **${errors}** errors.`);
 }
 //# sourceMappingURL=rolesync.js.map

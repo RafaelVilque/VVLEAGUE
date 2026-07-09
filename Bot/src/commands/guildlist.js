@@ -1,8 +1,9 @@
 import { SlashCommandBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, ActionRowBuilder, EmbedBuilder, ButtonBuilder, ButtonStyle, } from 'discord.js';
-const ALLOWED_GUILD_PANEL_ROLE_IDS = [
-    '1470554645364478016', // Founder
-    '1470554652264108204', // Head Moderator
-    '1470554648568926219', // Developer
+import { getSetting } from '../database.js';
+const ALLOWED_GUILD_PANEL_ROLE_IDS_DEFAULT = [
+    '1470554645364478016',
+    '1470554652264108204',
+    '1470554648568926219',
 ];
 export const data = new SlashCommandBuilder()
     .setName('guildlist')
@@ -17,10 +18,14 @@ export async function execute(interaction, db) {
             return;
         }
         const actorMember = await interaction.guild?.members.fetch(interaction.user.id).catch(() => null);
-        const canUseGuildList = !!actorMember && ALLOWED_GUILD_PANEL_ROLE_IDS.some(roleId => actorMember.roles.cache.has(roleId));
+        const isAdmin = !!actorMember?.permissions.has('Administrator');
+        const configuredRole = getSetting(db, `${guildId}_guild_register_role_id`);
+        const canUseGuildList = isAdmin || (!!actorMember && (configuredRole
+            ? actorMember.roles.cache.has(configuredRole)
+            : ALLOWED_GUILD_PANEL_ROLE_IDS_DEFAULT.some(roleId => actorMember.roles.cache.has(roleId))));
         if (!canUseGuildList) {
             await interaction.editReply({
-                content: '❌ Only Founder, Head Moderator, and Developer can use this command.',
+                content: '❌ Você não tem permissão. Configure o cargo com `/setup guild_register_role`.',
             });
             return;
         }

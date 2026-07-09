@@ -53,6 +53,9 @@ export declare function finishWar(db: any, warId: number, resultGuildId: string,
 export declare function dodgeWar(db: any, warId: number): void;
 export declare function addGuildWin(db: any, guildId: string): void;
 export declare function addGuildLoss(db: any, guildId: string): void;
+export declare function applyGuildElo(db: any, winnerGuildId: string, winnerGain: number, loserGuildId: string, loserLoss: number, warId?: number): void;
+export declare function getPlayerElo(db: any, userId: string): number;
+export declare function applyPlayerElo(db: any, winnerIds: string[], winnerGain: number, loserIds: string[], loserLoss: number, wagerId?: number): void;
 export declare function renderGuildPanel(db: any, guildId: string): {
     guild: any;
     managers: any;

@@ -4,8 +4,9 @@ import {
   AttachmentBuilder,
 } from 'discord.js';
 import { Buffer } from 'node:buffer';
+import { getSetting } from '../database.js';
 
-const FOUNDER_ROLE_ID = '1470554645364478016';
+const FOUNDER_ROLE_ID_DEFAULT = '1470554645364478016';
 
 function tableExists(db: any, tableName: string): boolean {
   const row = db
@@ -31,11 +32,13 @@ export async function execute(
     }
 
     const actorMember = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
-    const canBackup = !!actorMember && actorMember.roles.cache.has(FOUNDER_ROLE_ID);
+    const isAdmin = !!actorMember?.permissions.has('Administrator');
+    const staffRoleId = getSetting(db, `${interaction.guildId}_staff_role_id`) || FOUNDER_ROLE_ID_DEFAULT;
+    const canBackup = isAdmin || (!!actorMember && actorMember.roles.cache.has(staffRoleId));
 
     if (!canBackup) {
       await interaction.editReply({
-        content: '❌ Only Founder can use this command.',
+        content: '❌ Você não tem permissão. Configure o cargo com `/setup staff_role`.',
       });
       return;
     }

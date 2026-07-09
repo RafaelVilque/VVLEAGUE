@@ -5,19 +5,18 @@ export const data = new SlashCommandBuilder()
     .setDescription('Set cooldown (days) before a released player can join another guild')
     .addIntegerOption(o => o.setName('days').setDescription('Number of days (0 = no cooldown)').setMinValue(0).setMaxValue(30).setRequired(true));
 export async function execute(interaction, db) {
-    await interaction.deferReply({ ephemeral: true });
     const staffRoleId = getSetting(db, 'staff_role_id');
     if (staffRoleId && interaction.guild) {
         const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
         if (!member?.roles.cache.has(staffRoleId)) {
-            await interaction.editReply('❌ No permission.');
+            await interaction.editReply('âŒ No permission.');
             return;
         }
     }
     const days = interaction.options.getInteger('days', true);
     setSetting(db, 'cooldown_days', String(days));
     await interaction.editReply(days === 0
-        ? '✅ Signing cooldown **disabled**.'
-        : `✅ Signing cooldown set to **${days} day(s)**.`);
+        ? 'âœ… Signing cooldown **disabled**.'
+        : `âœ… Signing cooldown set to **${days} day(s)**.`);
 }
 //# sourceMappingURL=setcooldown.js.map

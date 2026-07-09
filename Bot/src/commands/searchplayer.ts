@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, ChatInputCommandInteraction, EmbedBuilder } from 'discord.js';
+﻿import { SlashCommandBuilder, ChatInputCommandInteraction, EmbedBuilder } from 'discord.js';
 import { searchPlayers } from '../siteapi.js';
 
 export const data = new SlashCommandBuilder()
@@ -7,13 +7,12 @@ export const data = new SlashCommandBuilder()
   .addStringOption(o => o.setName('query').setDescription('Player name').setRequired(true));
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  await interaction.deferReply({ ephemeral: true });
   const query = interaction.options.getString('query', true);
   try {
     const players = await searchPlayers(query);
     if (!players.length) { await interaction.editReply('No players found.'); return; }
     const p = players[0]!;
-    const wr = (p.wins + p.losses) > 0 ? `${((p.wins / (p.wins + p.losses)) * 100).toFixed(0)}%` : '—';
+    const wr = (p.wins + p.losses) > 0 ? `${((p.wins / (p.wins + p.losses)) * 100).toFixed(0)}%` : 'â€”';
     const embed = new EmbedBuilder()
       .setTitle(p.name)
       .setColor(0x5BADFF)
@@ -26,6 +25,6 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       );
     await interaction.editReply({ embeds: [embed] });
   } catch (e: any) {
-    await interaction.editReply(`❌ Error: ${e.message}`);
+    await interaction.editReply(`âŒ Error: ${e.message}`);
   }
 }

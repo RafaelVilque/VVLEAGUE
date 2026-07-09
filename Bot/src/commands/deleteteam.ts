@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, ChatInputCommandInteraction } from 'discord.js';
+﻿import { SlashCommandBuilder, ChatInputCommandInteraction } from 'discord.js';
 import { deleteOrg } from '../siteapi.js';
 import { getSetting } from '../database.js';
 
@@ -8,17 +8,16 @@ export const data = new SlashCommandBuilder()
   .addStringOption(o => o.setName('tag').setDescription('Guild tag (e.g. VVS)').setRequired(true));
 
 export async function execute(interaction: ChatInputCommandInteraction, db: any): Promise<void> {
-  await interaction.deferReply({ ephemeral: true });
   const staffRoleId = getSetting(db, 'staff_role_id');
   if (staffRoleId && interaction.guild) {
     const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
-    if (!member?.roles.cache.has(staffRoleId)) { await interaction.editReply('❌ No permission.'); return; }
+    if (!member?.roles.cache.has(staffRoleId)) { await interaction.editReply('âŒ No permission.'); return; }
   }
   const tag = interaction.options.getString('tag', true).toUpperCase();
   try {
     await deleteOrg(tag);
-    await interaction.editReply(`✅ Guild **[${tag}]** has been deleted from the site.`);
+    await interaction.editReply(`âœ… Guild **[${tag}]** has been deleted from the site.`);
   } catch (e: any) {
-    await interaction.editReply(`❌ ${e.message}`);
+    await interaction.editReply(`âŒ ${e.message}`);
   }
 }

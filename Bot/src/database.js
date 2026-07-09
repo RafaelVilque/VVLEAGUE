@@ -108,6 +108,7 @@ export function setupDatabase(db) {
     ensureGuildColumns(db);
     ensureWarColumns(db);
     ensureWagerColumns(db);
+    ensurePlayerEloTable(db);
     setupBotTables(db);
 }
 function setupBotTables(db) {
@@ -182,6 +183,9 @@ function ensureGuildColumns(db) {
     if (!existing.has('losses')) {
         db.exec('ALTER TABLE Guilds ADD COLUMN losses INTEGER NOT NULL DEFAULT 0');
     }
+    if (!existing.has('elo')) {
+        db.exec('ALTER TABLE Guilds ADD COLUMN elo INTEGER NOT NULL DEFAULT 1000');
+    }
 }
 function ensureWarColumns(db) {
     const columns = db.prepare('PRAGMA table_info(Wars)').all();
@@ -197,6 +201,12 @@ function ensureWarColumns(db) {
     }
     if (!existing.has('expiresAt')) {
         db.exec('ALTER TABLE Wars ADD COLUMN expiresAt DATETIME');
+    }
+    if (!existing.has('winnerEloChange')) {
+        db.exec('ALTER TABLE Wars ADD COLUMN winnerEloChange INTEGER');
+    }
+    if (!existing.has('loserEloChange')) {
+        db.exec('ALTER TABLE Wars ADD COLUMN loserEloChange INTEGER');
     }
 }
 function ensureWagerColumns(db) {
@@ -216,6 +226,20 @@ function ensureWagerColumns(db) {
     if (!existing.has('expiresAt')) {
         db.exec('ALTER TABLE Wagers ADD COLUMN expiresAt DATETIME');
     }
+    if (!existing.has('winnerEloChange')) {
+        db.exec('ALTER TABLE Wagers ADD COLUMN winnerEloChange INTEGER');
+    }
+    if (!existing.has('loserEloChange')) {
+        db.exec('ALTER TABLE Wagers ADD COLUMN loserEloChange INTEGER');
+    }
+}
+function ensurePlayerEloTable(db) {
+    db.exec(`
+    CREATE TABLE IF NOT EXISTS PlayerElo (
+      userId TEXT PRIMARY KEY,
+      elo    INTEGER NOT NULL DEFAULT 1000
+    );
+  `);
 }
 export function getRoleLabel(roleType) {
     return ROLE_LABELS[roleType];
@@ -367,14 +391,15 @@ export function formatGuildPanelDescription(db, guildId) {
     const managers = db.prepare('SELECT userId FROM Managers WHERE guildId = ?').all(guildId);
     const mains = db.prepare('SELECT userId FROM MainRosters WHERE guildId = ?').all(guildId);
     const subs = db.prepare('SELECT userId FROM SubRosters WHERE guildId = ?').all(guildId);
-    let description = `# <:guildleader:1471171042520334477> ${guild.name}\n\n`;
-    description += `### <:guildleader:1471171042520334477> Leader\n<@${guild.leaderId}>\n`;
-    description += `### <:topentrosa:1471116715264970762> Co-Leader\n${guild.coLeaderId ? `<@${guild.coLeaderId}>` : 'None'}\n`;
-    description += `<:topplayericon:1470815685503352883> **Managers**\n`;
+    let description = `# ${guild.name}\n\n`;
+    description += `### 👑 Leader\n<@${guild.leaderId}>\n`;
+    description += `### ⭐ Co-Leader\n${guild.coLeaderId ? `<@${guild.coLeaderId}>` : 'None'}\n`;
+    description += `**Managers**\n`;
     description += managers.length > 0 ? `${managers.map((m) => `<@${m.userId}>`).join(' ')}\n\n` : 'None\n\n';
     description += `:globe_with_meridians: **Region Stats: ${guild.region}**\n`;
     description += `**Regions:** ${guild.region}\n`;
     description += `:signal_strength: **W/L:** ${guild.wins || 0}/${guild.losses || 0}\n`;
+    description += `:bar_chart: **ELO:** ${guild.elo ?? 1000}\n`;
     description += `━━━━━━━━━━━━━━━━━━━━━━\n`;
     description += `:crossed_swords: **Main Roster (${guild.region})**\n`;
     description += mains.length > 0 ? `${mains.map((m) => `<@${m.userId}>`).join('\n')}\n\n` : 'None\n\n';
@@ -500,6 +525,32 @@ export function addGuildWin(db, guildId) {
 }
 export function addGuildLoss(db, guildId) {
     db.prepare('UPDATE Guilds SET losses = COALESCE(losses, 0) + 1 WHERE id = ?').run(guildId);
+}
+export function applyGuildElo(db, winnerGuildId, winnerGain, loserGuildId, loserLoss, warId) {
+    db.prepare('UPDATE Guilds SET elo = MAX(0, COALESCE(elo, 1000) + ?) WHERE id = ?').run(winnerGain, winnerGuildId);
+    db.prepare('UPDATE Guilds SET elo = MAX(0, COALESCE(elo, 1000) - ?) WHERE id = ?').run(loserLoss, loserGuildId);
+    if (warId != null) {
+        db.prepare('UPDATE Wars SET winnerEloChange = ?, loserEloChange = ? WHERE id = ?').run(winnerGain, loserLoss, warId);
+    }
+}
+export function getPlayerElo(db, userId) {
+    const row = db.prepare('SELECT elo FROM PlayerElo WHERE userId = ?').get(userId);
+    if (!row) {
+        db.prepare('INSERT OR IGNORE INTO PlayerElo (userId, elo) VALUES (?, 1000)').run(userId);
+        return 1000;
+    }
+    return row.elo;
+}
+export function applyPlayerElo(db, winnerIds, winnerGain, loserIds, loserLoss, wagerId) {
+    for (const uid of winnerIds) {
+        db.prepare('INSERT INTO PlayerElo (userId, elo) VALUES (?, 1000) ON CONFLICT(userId) DO UPDATE SET elo = MAX(0, elo + ?)').run(uid, winnerGain);
+    }
+    for (const uid of loserIds) {
+        db.prepare('INSERT INTO PlayerElo (userId, elo) VALUES (?, 1000) ON CONFLICT(userId) DO UPDATE SET elo = MAX(0, elo - ?)').run(uid, loserLoss);
+    }
+    if (wagerId != null) {
+        db.prepare('UPDATE Wagers SET winnerEloChange = ?, loserEloChange = ? WHERE id = ?').run(winnerGain, loserLoss, wagerId);
+    }
 }
 export function renderGuildPanel(db, guildId) {
     const guild = db.prepare('SELECT * FROM Guilds WHERE id = ?').get(guildId);
