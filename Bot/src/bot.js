@@ -39,6 +39,8 @@ const client = new Client({
     partials: [Partials.Channel],
 });
 let commands;
+// Deduplication: prevent double-fire from WebSocket reconnects
+const seenInteractions = new Set();
 // Event: Bot ready
 client.once('ready', async () => {
     console.log(`✅ Bot connected as ${client.user?.tag}`);
@@ -70,6 +72,9 @@ client.once('ready', async () => {
 });
 // Event: Interaction received
 client.on('interactionCreate', async (interaction) => {
+    if (seenInteractions.has(interaction.id)) return;
+    seenInteractions.add(interaction.id);
+    if (seenInteractions.size > 500) seenInteractions.clear();
     await handleInteractions(interaction, client, db, commands);
 });
 // Event: Error
