@@ -706,9 +706,11 @@ export async function handleInteractions(interaction, client, db, commands) {
                 }
                 catch (reloadErr) {
                     console.error(`[auto-reload] /${interaction.commandName} threw:`, reloadErr?.message ?? reloadErr);
+                    await interaction.editReply({ content: `❌ Erro ao executar o comando: ${reloadErr?.message ?? reloadErr}` });
+                    return;
                 }
                 await interaction.editReply({
-                    content: 'Command not found.',
+                    content: '❌ Comando não encontrado. Tente novamente.',
                 });
                 return;
             }
