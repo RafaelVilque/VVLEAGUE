@@ -4156,7 +4156,11 @@ export async function handleInteractions(
   } catch (error) {
     const discordCode = (error as any)?.code;
     if (discordCode === 10062 || discordCode === 'InteractionAlreadyReplied') {
-      // Ignore expired or already replied interactions
+      return;
+    }
+    // 40060: another bot instance already acknowledged this interaction — nothing to do
+    if (discordCode === 40060) {
+      console.warn(`[40060] Interaction ${(interaction as any)?.id} already acked by another instance — skipping.`);
       return;
     }
     console.error('Error while handling interaction:', error);
