@@ -915,8 +915,9 @@ export async function handleInteractions(
         try {
           await interaction.deferReply({ flags: 64 });
         } catch (e: any) {
-          if (e?.code === 40060) return; // already handled by another process
-          throw e;
+          if (e?.code !== 40060) throw e;
+          // 40060: already acknowledged — mark as deferred so editReply works
+          Object.defineProperty(interaction, 'deferred', { value: true, writable: true });
         }
       }
     }
@@ -950,8 +951,8 @@ export async function handleInteractions(
             console.error(`Reload also could not find: ${interaction.commandName}`);
             console.error('Reloaded set:', Array.from(newCommands.keys()).sort().join(', '));
           }
-        } catch (reloadErr) {
-          console.error('Failed to reload commands:', reloadErr);
+        } catch (reloadErr: any) {
+          console.error(`[auto-reload] /${interaction.commandName} threw:`, reloadErr?.message ?? reloadErr);
         }
 
         await interaction.editReply({

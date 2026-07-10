@@ -669,9 +669,10 @@ export async function handleInteractions(interaction, client, db, commands) {
                     await interaction.deferReply({ flags: 64 });
                 }
                 catch (e) {
-                    if (e?.code === 40060)
-                        return;
-                    throw e;
+                    if (e?.code !== 40060)
+                        throw e;
+                    // 40060: already acknowledged — mark as deferred so editReply works
+                    Object.defineProperty(interaction, 'deferred', { value: true, writable: true });
                 }
             }
         }
@@ -704,7 +705,7 @@ export async function handleInteractions(interaction, client, db, commands) {
                     }
                 }
                 catch (reloadErr) {
-                    console.error('Failed to reload commands:', reloadErr);
+                    console.error(`[auto-reload] /${interaction.commandName} threw:`, reloadErr?.message ?? reloadErr);
                 }
                 await interaction.editReply({
                     content: 'Command not found.',
