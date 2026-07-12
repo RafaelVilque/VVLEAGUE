@@ -72,7 +72,7 @@ export async function execute(interaction, db) {
             saved.push(`✅ **${label}** → ${display}`);
         }
         else {
-            skipped.push(`⬜ ${label}`);
+            skipped.push(`— ${label}`);
         }
     }
     // Roles
@@ -119,7 +119,7 @@ export async function execute(interaction, db) {
     const guildForum = interaction.options.getChannel('guild_forum_channel');
     save('guild_forum_channel_id', guildForum?.id ?? null, 'Fórum de Guilds', guildForum ? `<#${guildForum.id}>` : '');
     if (saved.length === 0) {
-        await interaction.editReply('⚠️ Nenhuma configuração foi fornecida. Use as opções do comando para configurar o servidor.');
+        await interaction.editReply({ content: '⚠️ Nenhuma configuração foi fornecida. Use as opções do comando para configurar o servidor.', embeds: [] });
         return;
     }
     const embed = new EmbedBuilder()
@@ -127,11 +127,11 @@ export async function execute(interaction, db) {
         .setColor(0x2ecc71)
         .setTimestamp();
     if (saved.length > 0) {
-        embed.addFields({ name: 'Configurações salvas', value: saved.join('\n') });
+        embed.addFields({ name: '✅ Configurações salvas', value: saved.join('\n') });
     }
     if (skipped.length > 0) {
-        embed.addFields({ name: 'Não configuradas (mantidas como antes)', value: skipped.join('\n') });
+        embed.addFields({ name: '— Não configuradas nesta chamada', value: skipped.join('\n') });
     }
-    await interaction.editReply({ embeds: [embed] });
+    await interaction.editReply({ content: '', embeds: [embed] });
 }
 //# sourceMappingURL=setup.js.map

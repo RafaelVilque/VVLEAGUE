@@ -96,7 +96,7 @@ export async function execute(interaction: ChatInputCommandInteraction, db: any)
       setSetting(db, `${guildId}_${key}`, value);
       saved.push(`✅ **${label}** → ${display}`);
     } else {
-      skipped.push(`⬜ ${label}`);
+      skipped.push(`— ${label}`);
     }
   }
 
@@ -129,7 +129,7 @@ export async function execute(interaction: ChatInputCommandInteraction, db: any)
     setSetting(db, `${guildId}_war_category_id`, ticketCategory.id);
     saved.push(`✅ **Categoria de Tickets** → ${ticketCategory.name}`);
   } else {
-    skipped.push('⬜ Categoria de Tickets');
+    skipped.push('— Categoria de Tickets');
   }
 
   // Panel channels
@@ -158,7 +158,7 @@ export async function execute(interaction: ChatInputCommandInteraction, db: any)
   save('guild_forum_channel_id', guildForum?.id ?? null, 'Fórum de Guilds', guildForum ? `<#${guildForum.id}>` : '');
 
   if (saved.length === 0) {
-    await interaction.editReply('⚠️ Nenhuma configuração foi fornecida. Use as opções do comando para configurar o servidor.');
+    await interaction.editReply({ content: '⚠️ Nenhuma configuração foi fornecida. Use as opções do comando para configurar o servidor.', embeds: [] });
     return;
   }
 
@@ -168,11 +168,11 @@ export async function execute(interaction: ChatInputCommandInteraction, db: any)
     .setTimestamp();
 
   if (saved.length > 0) {
-    embed.addFields({ name: 'Configurações salvas', value: saved.join('\n') });
+    embed.addFields({ name: '✅ Configurações salvas', value: saved.join('\n') });
   }
   if (skipped.length > 0) {
-    embed.addFields({ name: 'Não configuradas (mantidas como antes)', value: skipped.join('\n') });
+    embed.addFields({ name: '— Não configuradas nesta chamada', value: skipped.join('\n') });
   }
 
-  await interaction.editReply({ embeds: [embed] });
+  await interaction.editReply({ content: '', embeds: [embed] });
 }
