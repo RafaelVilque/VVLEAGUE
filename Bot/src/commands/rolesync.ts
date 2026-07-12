@@ -32,5 +32,5 @@ export async function execute(interaction: ChatInputCommandInteraction, db: any)
     }
   }
 
-  await interaction.editReply(`âœ… Role sync complete. **${synced}** members synced, **${errors}** errors.`);
+  await interaction.editReply(`❌… Role sync complete. **${synced}** members synced, **${errors}** errors.`);
 }

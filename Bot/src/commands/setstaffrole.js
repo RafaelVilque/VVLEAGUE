@@ -1,4 +1,4 @@
-import { SlashCommandBuilder } from 'discord.js';
+﻿import { SlashCommandBuilder } from 'discord.js';
 import { setSetting } from '../database.js';
 export const data = new SlashCommandBuilder()
     .setName('setstaffrole')
@@ -11,6 +11,6 @@ export async function execute(interaction, db) {
     }
     const role = interaction.options.getRole('role', true);
     setSetting(db, 'staff_role_id', role.id);
-    await interaction.editReply(`âœ… Staff role set to <@&${role.id}>. Members with this role can approve signings.`);
+    await interaction.editReply(`❌… Staff role set to <@&${role.id}>. Members with this role can approve signings.`);
 }
 //# sourceMappingURL=setstaffrole.js.map

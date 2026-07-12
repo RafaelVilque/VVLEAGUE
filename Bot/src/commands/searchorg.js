@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
+﻿import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
 import { searchOrgs } from '../siteapi.js';
 export const data = new SlashCommandBuilder()
     .setName('searchorg')
@@ -20,7 +20,7 @@ export async function execute(interaction) {
             .setThumbnail(org.logo_url || null)
             .addFields({ name: 'Region', value: org.region || 'â€”', inline: true }, { name: 'Status', value: org.status?.toUpperCase() || 'â€”', inline: true }, { name: 'Founded', value: org.founded || 'â€”', inline: true }, { name: 'Record', value: `${org.wins}W â€” ${org.losses}L`, inline: true }, { name: 'Winrate', value: wr, inline: true }, { name: 'Members', value: String(org.members?.length || 0), inline: true }, { name: 'MVP', value: org.mvp || 'â€”', inline: true }, { name: 'Points', value: String(org.points || 0), inline: true });
         if (org.members?.length) {
-            const rosterLines = org.members.map((m) => `â€¢ **${m.name}** â€” ${m.role}`).join('\n');
+            const rosterLines = org.members.map((m) => `• **${m.name}** â€” ${m.role}`).join('\n');
             embed.addFields({ name: 'Roster', value: rosterLines.slice(0, 1024) });
         }
         await interaction.editReply({ embeds: [embed] });

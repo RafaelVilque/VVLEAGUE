@@ -15,6 +15,6 @@ export async function execute(interaction: ChatInputCommandInteraction, db: any)
   const days = interaction.options.getInteger('days', true);
   setSetting(db, 'cooldown_days', String(days));
   await interaction.editReply(days === 0
-    ? 'âœ… Signing cooldown **disabled**.'
-    : `âœ… Signing cooldown set to **${days} day(s)**.`);
+    ? '❌… Signing cooldown **disabled**.'
+    : `❌… Signing cooldown set to **${days} day(s)**.`);
 }

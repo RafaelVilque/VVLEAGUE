@@ -12,5 +12,5 @@ export async function execute(interaction: ChatInputCommandInteraction, db: any)
   }
   const role = interaction.options.getRole('role', true);
   setSetting(db, 'staff_role_id', role.id);
-  await interaction.editReply(`âœ… Staff role set to <@&${role.id}>. Members with this role can approve signings.`);
+  await interaction.editReply(`❌… Staff role set to <@&${role.id}>. Members with this role can approve signings.`);
 }

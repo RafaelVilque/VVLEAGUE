@@ -8,11 +8,11 @@ export async function execute(interaction, db) {
     if (staffRoleId && interaction.guild) {
         const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
         if (!member?.roles.cache.has(staffRoleId)) {
-            await interaction.editReply('âŒ No permission.');
+            await interaction.editReply('❌ No permission.');
             return;
         }
     }
     setSetting(db, 'signing_closed', '1');
-    await interaction.editReply('ðŸ”’ Signings are now **closed**. No new sign requests can be made.');
+    await interaction.editReply('🔒 Signings are now **closed**. No new sign requests can be made.');
 }
 //# sourceMappingURL=closesigning.js.map

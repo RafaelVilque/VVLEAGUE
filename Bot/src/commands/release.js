@@ -1,4 +1,4 @@
-import { SlashCommandBuilder } from 'discord.js';
+﻿import { SlashCommandBuilder } from 'discord.js';
 import { getMemberByDiscordId, releaseMember } from '../siteapi.js';
 import { setCooldown } from '../database.js';
 export const data = new SlashCommandBuilder()
@@ -25,6 +25,6 @@ export async function execute(interaction, db) {
         }
         catch { /* ignore role removal errors */ }
     }
-    await interaction.editReply(`âœ… You have been released from **${memberData.org_name}** [${memberData.tag}].`);
+    await interaction.editReply(`❌… You have been released from **${memberData.org_name}** [${memberData.tag}].`);
 }
 //# sourceMappingURL=release.js.map

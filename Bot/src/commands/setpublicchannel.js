@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, ChannelType } from 'discord.js';
+﻿import { SlashCommandBuilder, ChannelType } from 'discord.js';
 import { getSetting, setSetting } from '../database.js';
 export const data = new SlashCommandBuilder()
     .setName('setpublicchannel')
@@ -15,6 +15,6 @@ export async function execute(interaction, db) {
     }
     const ch = interaction.options.getChannel('channel', true);
     setSetting(db, 'public_channel_id', ch.id);
-    await interaction.editReply(`âœ… Public announcements channel set to <#${ch.id}>.`);
+    await interaction.editReply(`❌… Public announcements channel set to <#${ch.id}>.`);
 }
 //# sourceMappingURL=setpublicchannel.js.map

@@ -14,5 +14,5 @@ export async function execute(interaction: ChatInputCommandInteraction, db: any)
   }
   const ch = interaction.options.getChannel('channel', true);
   setSetting(db, 'public_channel_id', ch.id);
-  await interaction.editReply(`âœ… Public announcements channel set to <#${ch.id}>.`);
+  await interaction.editReply(`❌… Public announcements channel set to <#${ch.id}>.`);
 }

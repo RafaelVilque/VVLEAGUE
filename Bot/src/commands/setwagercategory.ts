@@ -12,5 +12,5 @@ export async function execute(interaction: ChatInputCommandInteraction, db: any)
   }
   const ch = interaction.options.getChannel('category', true);
   setSetting(db, `${interaction.guildId}_wager_category_id`, ch.id);
-  await interaction.editReply(`âœ… Wager ticket category set to **${ch.name}**.`);
+  await interaction.editReply(`❌… Wager ticket category set to **${ch.name}**.`);
 }

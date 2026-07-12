@@ -16,7 +16,7 @@ export async function execute(interaction: ChatInputCommandInteraction, db: any)
   const tag = interaction.options.getString('tag', true).toUpperCase();
   try {
     await deleteOrg(tag);
-    await interaction.editReply(`âœ… Guild **[${tag}]** has been deleted from the site.`);
+    await interaction.editReply(`❌… Guild **[${tag}]** has been deleted from the site.`);
   } catch (e: any) {
     await interaction.editReply(`âŒ ${e.message}`);
   }

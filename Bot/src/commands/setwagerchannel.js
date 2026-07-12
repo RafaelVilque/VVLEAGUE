@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, ChannelType } from 'discord.js';
+﻿import { SlashCommandBuilder, ChannelType } from 'discord.js';
 import { setSetting } from '../database.js';
 export const data = new SlashCommandBuilder()
     .setName('setwagerchannel')
@@ -11,6 +11,6 @@ export async function execute(interaction, db) {
     }
     const ch = interaction.options.getChannel('channel', true);
     setSetting(db, `${interaction.guildId}_wager_channel_id`, ch.id);
-    await interaction.editReply(`âœ… Wager ticket channel set to <#${ch.id}>.`);
+    await interaction.editReply(`❌… Wager ticket channel set to <#${ch.id}>.`);
 }
 //# sourceMappingURL=setwagerchannel.js.map

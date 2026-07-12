@@ -54,7 +54,7 @@ export async function execute(
     await btn.deferUpdate().catch(() => {});
 
     if (btn.customId === 'guildclearall_cancel') {
-      await interaction.editReply({ content: 'âœ… Cancelado.', components: [] });
+      await interaction.editReply({ content: '❌… Cancelado.', components: [] });
       return;
     }
 
@@ -67,7 +67,7 @@ export async function execute(
       db.prepare('DELETE FROM Wagers').run();
       db.prepare('DELETE FROM Guilds').run();
 
-      await interaction.editReply({ content: `âœ… Todas as **${count} guilds** foram apagadas.`, components: [] });
+      await interaction.editReply({ content: `❌… Todas as **${count} guilds** foram apagadas.`, components: [] });
     } catch (e) {
       console.error('Error in guildclearall:', e);
       await interaction.editReply({ content: 'âŒ Erro ao apagar as guilds.', components: [] });

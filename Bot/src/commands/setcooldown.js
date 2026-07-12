@@ -1,4 +1,4 @@
-import { SlashCommandBuilder } from 'discord.js';
+﻿import { SlashCommandBuilder } from 'discord.js';
 import { getSetting, setSetting } from '../database.js';
 export const data = new SlashCommandBuilder()
     .setName('setcooldown')
@@ -16,7 +16,7 @@ export async function execute(interaction, db) {
     const days = interaction.options.getInteger('days', true);
     setSetting(db, 'cooldown_days', String(days));
     await interaction.editReply(days === 0
-        ? 'âœ… Signing cooldown **disabled**.'
-        : `âœ… Signing cooldown set to **${days} day(s)**.`);
+        ? '❌… Signing cooldown **disabled**.'
+        : `❌… Signing cooldown set to **${days} day(s)**.`);
 }
 //# sourceMappingURL=setcooldown.js.map
