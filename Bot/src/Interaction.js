@@ -495,15 +495,16 @@ async function replyPermissionError(interaction, message = '❌ You do not have 
         flags: MessageFlags.Ephemeral,
     });
 }
-function buildInviteDecisionRow(inviteId, roleType) {
+function buildInviteDecisionRow(inviteId, roleType, discordGuildId = '') {
     const isRosterInvite = roleType === 'MAIN' || roleType === 'SUB';
     const acceptLabel = isRosterInvite ? 'Join Guild' : 'Accept';
     const declineLabel = isRosterInvite ? "Don't Join" : 'Decline';
+    const guildSuffix = discordGuildId ? `|${discordGuildId}` : '';
     return new ActionRowBuilder().addComponents(new ButtonBuilder()
-        .setCustomId(`gp_invite_accept|${inviteId}`)
+        .setCustomId(`gp_invite_accept|${inviteId}${guildSuffix}`)
         .setLabel(acceptLabel)
         .setStyle(ButtonStyle.Success), new ButtonBuilder()
-        .setCustomId(`gp_invite_decline|${inviteId}`)
+        .setCustomId(`gp_invite_decline|${inviteId}${guildSuffix}`)
         .setLabel(declineLabel)
         .setStyle(ButtonStyle.Danger));
 }
@@ -1893,7 +1894,7 @@ export async function handleInteractions(interaction, client, db, commands) {
                 }
                 const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
                 const inviteId = createInvite(db, guildId, targetUserId, roleType, interaction.user.id, expiresAt);
-                const inviteRow = buildInviteDecisionRow(inviteId, roleType);
+                const inviteRow = buildInviteDecisionRow(inviteId, roleType, interaction.guildId ?? '');
                 const guild = getGuildById(db, guildId);
                 const inviterMember = await interaction.guild?.members.fetch(interaction.user.id).catch(() => null);
                 const inviterNick = inviterMember?.displayName || interaction.user.username;
@@ -1934,7 +1935,7 @@ export async function handleInteractions(interaction, client, db, commands) {
                 return;
             }
             if (customId.startsWith('gp_invite_accept|') || customId.startsWith('gp_invite_decline|')) {
-                const [action, inviteIdRaw] = parseCustomId(customId);
+                const [action, inviteIdRaw, savedDiscordGuildId] = parseCustomId(customId);
                 const inviteId = Number(inviteIdRaw);
                 const validation = validateInviteForAction(db, inviteId);
                 if (!validation.invite) {
@@ -1986,14 +1987,14 @@ export async function handleInteractions(interaction, client, db, commands) {
                     return;
                 }
                 const inviteRoleType = invite.roleType;
-                const configuredRoleId = interaction.guildId
-                    ? (inviteRoleType === 'CO_LEADER' ? getSetting(db, `${interaction.guildId}_guild_co_leader_role_id`) : null)
-                        ?? (inviteRoleType === 'MANAGER' ? getSetting(db, `${interaction.guildId}_guild_manager_role_id`) : null)
+                const effectiveDiscordGuildId = savedDiscordGuildId || interaction.guildId || null;
+                const configuredRoleId = effectiveDiscordGuildId
+                    ? (inviteRoleType === 'CO_LEADER' ? getSetting(db, `${effectiveDiscordGuildId}_guild_co_leader_role_id`) : null)
+                        ?? (inviteRoleType === 'MANAGER' ? getSetting(db, `${effectiveDiscordGuildId}_guild_manager_role_id`) : null)
                     : null;
-                const discordRoleId = getDiscordRoleIdForRoleType(inviteRoleType, db, interaction.guildId ?? undefined);
-                if (discordRoleId) {
-                    const discordGuildId = getDiscordGuildIdFromInternalGuildId(invite.guildId);
-                    const roleAssigned = await assignDiscordRoleById(client, discordGuildId, invite.targetUserId, discordRoleId);
+                const discordRoleId = getDiscordRoleIdForRoleType(inviteRoleType, db, effectiveDiscordGuildId ?? undefined);
+                if (discordRoleId && effectiveDiscordGuildId) {
+                    const roleAssigned = await assignDiscordRoleById(client, effectiveDiscordGuildId, invite.targetUserId, discordRoleId);
                     if (!roleAssigned) {
                         if (configuredRoleId) {
                             // Role was explicitly configured but failed — block acceptance
