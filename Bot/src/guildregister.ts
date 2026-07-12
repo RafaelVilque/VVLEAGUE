@@ -41,6 +41,12 @@ export const data = new SlashCommandBuilder()
         { name: 'SA', value: 'SA' },
         { name: 'ASIA', value: 'ASIA' }
       )
+  )
+  .addStringOption(option =>
+    option
+      .setName('color')
+      .setDescription('Guild role color in HEX (e.g. #FF5733)')
+      .setRequired(false)
   );
 
 
@@ -76,6 +82,12 @@ export async function execute(
     const name = interaction.options.getString('name', true);
     const leader = interaction.options.getUser('leader', true);
     const region = interaction.options.getString('region', true);
+    const colorInput = interaction.options.getString('color') ?? null;
+    const hexColor = colorInput ? colorInput.trim().toUpperCase() : null;
+    if (hexColor && !/^#[0-9A-F]{6}$/.test(hexColor)) {
+      await interaction.editReply({ content: '❌ Invalid color. Use HEX format, e.g. `#FF5733`.' });
+      return;
+    }
 
     // Check whether guild name is already registered
     const existingGuild = db
@@ -114,13 +126,22 @@ export async function execute(
       } catch (e) {
         console.error('Failed to assign fixed Guild Leader role:', e);
       }
-      // Assign guild name role (create if it doesn't exist)
+      // Assign guild name role (create if it doesn't exist, apply color if provided)
       try {
-        let nameRole = interaction.guild.roles.cache.find((r: any) => r.name === name)
-          || await interaction.guild!.roles.create({ name, reason: `VVLeague: role for guild ${name}` }).catch(() => null);
+        const roleColor = hexColor ? parseInt(hexColor.slice(1), 16) : undefined;
+        let nameRole: any = interaction.guild.roles.cache.find((r: any) => r.name === name);
+        if (!nameRole) {
+          nameRole = await interaction.guild!.roles.create({
+            name,
+            color: roleColor as any,
+            reason: `VVLeague: role for guild ${name}`,
+          }).catch(() => null);
+        } else if (roleColor !== undefined) {
+          await nameRole.edit({ color: roleColor }).catch(() => null);
+        }
         if (nameRole) {
           const leaderMember = await interaction.guild!.members.fetch(leader.id).catch(() => null);
-          if (leaderMember) await leaderMember.roles.add(nameRole as any).catch(() => null);
+          if (leaderMember) await leaderMember.roles.add(nameRole).catch(() => null);
         }
       } catch (e: any) {
         console.warn('Failed to assign guild name role:', e?.message);
