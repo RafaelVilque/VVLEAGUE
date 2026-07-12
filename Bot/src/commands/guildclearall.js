@@ -4,7 +4,7 @@ export const data = new SlashCommandBuilder()
     .setDescription('Delete ALL registered guilds and their data (irreversible)');
 export async function execute(interaction, db) {
     if (!interaction.memberPermissions?.has('Administrator')) {
-        await interaction.editReply('âŒ Apenas administradores podem usar este comando.');
+        await interaction.editReply('❌ Apenas administradores podem usar este comando.');
         return;
     }
     const count = db.prepare('SELECT COUNT(*) as c FROM Guilds').get()?.c ?? 0;
@@ -46,7 +46,7 @@ export async function execute(interaction, db) {
         }
         catch (e) {
             console.error('Error in guildclearall:', e);
-            await interaction.editReply({ content: 'âŒ Erro ao apagar as guilds.', components: [] });
+            await interaction.editReply({ content: '❌ Erro ao apagar as guilds.', components: [] });
         }
     });
     collector?.on('end', (collected) => {

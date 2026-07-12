@@ -7,12 +7,12 @@ export const data = new SlashCommandBuilder()
 export async function execute(interaction, db) {
     const memberData = await getMemberByDiscordId(interaction.user.id);
     if (!memberData) {
-        await interaction.editReply('âŒ You are not registered in any guild on the site.');
+        await interaction.editReply('❌ You are not registered in any guild on the site.');
         return;
     }
     const result = await releaseMember(interaction.user.id);
     if (!result.removed) {
-        await interaction.editReply('âŒ Could not remove you from your guild.');
+        await interaction.editReply('❌ Could not remove you from your guild.');
         return;
     }
     // Set cooldown

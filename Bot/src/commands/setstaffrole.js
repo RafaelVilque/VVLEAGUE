@@ -6,7 +6,7 @@ export const data = new SlashCommandBuilder()
     .addRoleOption(o => o.setName('role').setDescription('Staff role').setRequired(true));
 export async function execute(interaction, db) {
     if (!interaction.memberPermissions?.has('Administrator')) {
-        await interaction.editReply('âŒ Only administrators can set the staff role.');
+        await interaction.editReply('❌ Only administrators can set the staff role.');
         return;
     }
     const role = interaction.options.getRole('role', true);

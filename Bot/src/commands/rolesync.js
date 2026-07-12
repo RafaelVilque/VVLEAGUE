@@ -9,12 +9,12 @@ export async function execute(interaction, db) {
     if (staffRoleId && interaction.guild) {
         const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
         if (!member?.roles.cache.has(staffRoleId)) {
-            await interaction.editReply('âŒ You do not have permission to use this command.');
+            await interaction.editReply('❌ You do not have permission to use this command.');
             return;
         }
     }
     if (!interaction.guild) {
-        await interaction.editReply('âŒ This command must be used in a server.');
+        await interaction.editReply('❌ This command must be used in a server.');
         return;
     }
     const orgs = await getAllOrgs();

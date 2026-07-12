@@ -26,7 +26,7 @@ export async function execute(interaction) {
         await interaction.editReply({ embeds: [embed] });
     }
     catch (e) {
-        await interaction.editReply(`âŒ Error: ${e.message}`);
+        await interaction.editReply(`❌ Error: ${e.message}`);
     }
 }
 //# sourceMappingURL=searchorg.js.map
