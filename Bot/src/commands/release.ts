@@ -25,5 +25,5 @@ export async function execute(interaction: ChatInputCommandInteraction, db: any)
     } catch { /* ignore role removal errors */ }
   }
 
-  await interaction.editReply(`âœ… You have been released from **${memberData.org_name}** [${memberData.tag}].`);
+  await interaction.editReply(`❌… You have been released from **${memberData.org_name}** [${memberData.tag}].`);
 }

@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, } from 'discord.js';
+﻿import { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, } from 'discord.js';
 export const data = new SlashCommandBuilder()
     .setName('guildclearall')
     .setDescription('Delete ALL registered guilds and their data (irreversible)');
@@ -31,7 +31,7 @@ export async function execute(interaction, db) {
     collector?.on('collect', async (btn) => {
         await btn.deferUpdate().catch(() => { });
         if (btn.customId === 'guildclearall_cancel') {
-            await interaction.editReply({ content: 'âœ… Cancelado.', components: [] });
+            await interaction.editReply({ content: '❌… Cancelado.', components: [] });
             return;
         }
         try {
@@ -42,7 +42,7 @@ export async function execute(interaction, db) {
             db.prepare('DELETE FROM Wars').run();
             db.prepare('DELETE FROM Wagers').run();
             db.prepare('DELETE FROM Guilds').run();
-            await interaction.editReply({ content: `âœ… Todas as **${count} guilds** foram apagadas.`, components: [] });
+            await interaction.editReply({ content: `❌… Todas as **${count} guilds** foram apagadas.`, components: [] });
         }
         catch (e) {
             console.error('Error in guildclearall:', e);

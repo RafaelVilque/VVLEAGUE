@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, ChannelType } from 'discord.js';
+﻿import { SlashCommandBuilder, ChannelType } from 'discord.js';
 import { getSetting, setSetting } from '../database.js';
 export const data = new SlashCommandBuilder()
     .setName('setlogchannel')
@@ -15,6 +15,6 @@ export async function execute(interaction, db) {
     }
     const ch = interaction.options.getChannel('channel', true);
     setSetting(db, 'log_channel_id', ch.id);
-    await interaction.editReply(`âœ… Log channel set to <#${ch.id}>.`);
+    await interaction.editReply(`❌… Log channel set to <#${ch.id}>.`);
 }
 //# sourceMappingURL=setlogchannel.js.map

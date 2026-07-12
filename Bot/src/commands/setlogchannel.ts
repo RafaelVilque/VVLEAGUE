@@ -14,5 +14,5 @@ export async function execute(interaction: ChatInputCommandInteraction, db: any)
   }
   const ch = interaction.options.getChannel('channel', true);
   setSetting(db, 'log_channel_id', ch.id);
-  await interaction.editReply(`âœ… Log channel set to <#${ch.id}>.`);
+  await interaction.editReply(`❌… Log channel set to <#${ch.id}>.`);
 }

@@ -82,7 +82,7 @@ export async function execute(interaction: ChatInputCommandInteraction, db: any)
   try {
     const dm = await target.createDM();
     await dm.send({ embeds: [embed], components: [row] });
-    await interaction.editReply(`âœ… Signing offer sent to **${target.username}**. Waiting for their response.`);
+    await interaction.editReply(`❌… Signing offer sent to **${target.username}**. Waiting for their response.`);
   } catch {
     await interaction.editReply(`âŒ Could not DM ${target.username}. They may have DMs disabled.`);
   }

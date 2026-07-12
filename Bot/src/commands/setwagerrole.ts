@@ -12,5 +12,5 @@ export async function execute(interaction: ChatInputCommandInteraction, db: any)
   }
   const role = interaction.options.getRole('role', true);
   setSetting(db, `${interaction.guildId}_wager_role_id`, role.id);
-  await interaction.editReply(`âœ… Wager ticket role set to <@&${role.id}>.`);
+  await interaction.editReply(`❌… Wager ticket role set to <@&${role.id}>.`);
 }

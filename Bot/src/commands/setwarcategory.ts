@@ -12,5 +12,5 @@ export async function execute(interaction: ChatInputCommandInteraction, db: any)
   }
   const ch = interaction.options.getChannel('category', true);
   setSetting(db, `${interaction.guildId}_war_category_id`, ch.id);
-  await interaction.editReply(`âœ… War ticket category set to **${ch.name}**.`);
+  await interaction.editReply(`❌… War ticket category set to **${ch.name}**.`);
 }

@@ -23,10 +23,10 @@ export async function execute(interaction: ChatInputCommandInteraction, db: any)
   if (action === 'add') {
     if (!roles.includes(role.id)) roles.push(role.id);
     setSetting(db, key, roles.join(','));
-    await interaction.editReply(`âœ… <@&${role.id}> will be mentioned when a wager is accepted.\nCurrent roles: ${roles.map(r => `<@&${r}>`).join(' ')}`);
+    await interaction.editReply(`❌… <@&${role.id}> will be mentioned when a wager is accepted.\nCurrent roles: ${roles.map(r => `<@&${r}>`).join(' ')}`);
   } else {
     const filtered = roles.filter(r => r !== role.id);
     setSetting(db, key, filtered.join(','));
-    await interaction.editReply(`âœ… <@&${role.id}> removed from wager mentions.\nCurrent roles: ${filtered.length ? filtered.map(r => `<@&${r}>`).join(' ') : 'none'}`);
+    await interaction.editReply(`❌… <@&${role.id}> removed from wager mentions.\nCurrent roles: ${filtered.length ? filtered.map(r => `<@&${r}>`).join(' ') : 'none'}`);
   }
 }

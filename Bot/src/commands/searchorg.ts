@@ -28,7 +28,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
         { name: 'Points', value: String(org.points || 0), inline: true },
       );
     if (org.members?.length) {
-      const rosterLines = org.members.map((m: any) => `â€¢ **${m.name}** â€” ${m.role}`).join('\n');
+      const rosterLines = org.members.map((m: any) => `• **${m.name}** â€” ${m.role}`).join('\n');
       embed.addFields({ name: 'Roster', value: rosterLines.slice(0, 1024) });
     }
     await interaction.editReply({ embeds: [embed] });

@@ -1,4 +1,4 @@
-import { SlashCommandBuilder } from 'discord.js';
+﻿import { SlashCommandBuilder } from 'discord.js';
 import { getAllOrgs } from '../siteapi.js';
 import { getSetting } from '../database.js';
 export const data = new SlashCommandBuilder()
@@ -37,6 +37,6 @@ export async function execute(interaction, db) {
             }
         }
     }
-    await interaction.editReply(`âœ… Role sync complete. **${synced}** members synced, **${errors}** errors.`);
+    await interaction.editReply(`❌… Role sync complete. **${synced}** members synced, **${errors}** errors.`);
 }
 //# sourceMappingURL=rolesync.js.map

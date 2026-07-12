@@ -10,10 +10,10 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     const orgs = await getAllOrgs();
     const active = orgs.filter((o: any) => o.status === 'active').sort((a: any, b: any) => (b.points || 0) - (a.points || 0));
     if (!active.length) { await interaction.editReply('No active guilds found.'); return; }
-    const medals = ['ðŸ¥‡', 'ðŸ¥ˆ', 'ðŸ¥‰'];
+    const medals = ['🥇', '🥈', '🥉'];
     const lines = active.map((o: any, i: number) => {
       const prefix = medals[i] || `**#${i + 1}**`;
-      return `${prefix} **${o.name}** [${o.tag}] â€” ${o.wins}W ${o.losses}L Â· ${o.points || 0}pts Â· ${o.members?.length || 0} members`;
+      return `${prefix} **${o.name}** [${o.tag}] â€” ${o.wins}W ${o.losses}L · ${o.points || 0}pts · ${o.members?.length || 0} members`;
     }).join('\n');
     const embed = new EmbedBuilder()
       .setTitle('ðŸ† Guild Rankings')
