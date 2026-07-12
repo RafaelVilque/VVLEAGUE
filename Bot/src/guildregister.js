@@ -22,7 +22,11 @@ export const data = new SlashCommandBuilder()
     .setName('region')
     .setDescription('Guild region')
     .setRequired(true)
-    .addChoices({ name: 'NA', value: 'NA' }, { name: 'EU', value: 'EU' }, { name: 'SA', value: 'SA' }, { name: 'ASIA', value: 'ASIA' }));
+    .addChoices({ name: 'NA', value: 'NA' }, { name: 'EU', value: 'EU' }, { name: 'SA', value: 'SA' }, { name: 'ASIA', value: 'ASIA' }))
+    .addStringOption(option => option
+    .setName('color')
+    .setDescription('Guild role color in HEX (e.g. #FF5733)')
+    .setRequired(false));
 export async function execute(interaction, db) {
     try {
         const guildId = interaction.guildId;
@@ -47,6 +51,12 @@ export async function execute(interaction, db) {
         const name = interaction.options.getString('name', true);
         const leader = interaction.options.getUser('leader', true);
         const region = interaction.options.getString('region', true);
+        const colorInput = interaction.options.getString('color') ?? null;
+        const hexColor = colorInput ? colorInput.trim().toUpperCase() : null;
+        if (hexColor && !/^#[0-9A-F]{6}$/.test(hexColor)) {
+            await interaction.editReply({ content: '❌ Invalid color. Use HEX format, e.g. `#FF5733`.' });
+            return;
+        }
         // Check whether guild name is already registered
         const existingGuild = db
             .prepare('SELECT id FROM Guilds WHERE name = ?')
@@ -79,10 +89,20 @@ export async function execute(interaction, db) {
             catch (e) {
                 console.error('Failed to assign fixed Guild Leader role:', e);
             }
-            // Assign guild name role (create if it doesn't exist)
+            // Assign guild name role (create if it doesn't exist, apply color if provided)
             try {
-                let nameRole = interaction.guild.roles.cache.find(r => r.name === name)
-                    || await interaction.guild.roles.create({ name, reason: `VVLeague: role for guild ${name}` }).catch(() => null);
+                const roleColor = hexColor ? parseInt(hexColor.slice(1), 16) : undefined;
+                let nameRole = interaction.guild.roles.cache.find(r => r.name === name);
+                if (!nameRole) {
+                    nameRole = await interaction.guild.roles.create({
+                        name,
+                        color: roleColor,
+                        reason: `VVLeague: role for guild ${name}`,
+                    }).catch(() => null);
+                }
+                else if (roleColor !== undefined) {
+                    await nameRole.edit({ color: roleColor }).catch(() => null);
+                }
                 if (nameRole) {
                     const leaderMember = await interaction.guild.members.fetch(leader.id).catch(() => null);
                     if (leaderMember) await leaderMember.roles.add(nameRole).catch(() => null);
