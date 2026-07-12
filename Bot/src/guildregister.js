@@ -62,7 +62,7 @@ export async function execute(interaction, db) {
         // Insert guild in database
         db.prepare(`INSERT INTO Guilds (id, name, leaderId, coLeaderId, imageUrl, region)
        VALUES (?, ?, ?, ?, ?, ?)`).run(guildUid, name, leader.id, null, null, region);
-        // Assign Guild Leader role to leader
+        // Assign Guild Leader role and guild name role to leader
         if (interaction.guild) {
             try {
                 const leaderRoleId = getSetting(db, `${guildId}_guild_leader_role_id`) || GUILD_LEADER_ROLE_ID_DEFAULT;
@@ -78,6 +78,18 @@ export async function execute(interaction, db) {
             }
             catch (e) {
                 console.error('Failed to assign fixed Guild Leader role:', e);
+            }
+            // Assign guild name role (create if it doesn't exist)
+            try {
+                let nameRole = interaction.guild.roles.cache.find(r => r.name === name)
+                    || await interaction.guild.roles.create({ name, reason: `VVLeague: role for guild ${name}` }).catch(() => null);
+                if (nameRole) {
+                    const leaderMember = await interaction.guild.members.fetch(leader.id).catch(() => null);
+                    if (leaderMember) await leaderMember.roles.add(nameRole).catch(() => null);
+                }
+            }
+            catch (e) {
+                console.warn('Failed to assign guild name role:', e?.message);
             }
         }
         // Fetch members from database

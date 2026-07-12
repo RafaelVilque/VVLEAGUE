@@ -2010,6 +2010,25 @@ export async function handleInteractions(interaction, client, db, commands) {
                         console.warn(`Discord role ${discordRoleId} not found for invite ${inviteId}; continuing without it.`);
                     }
                 }
+                // Assign guild name role
+                if (effectiveDiscordGuildId) {
+                    const discordGuild = client.guilds.cache.get(effectiveDiscordGuildId)
+                        || await client.guilds.fetch(effectiveDiscordGuildId).catch(() => null);
+                    const dbGuild = getGuildById(db, invite.guildId);
+                    if (discordGuild && dbGuild?.name) {
+                        try {
+                            let nameRole = discordGuild.roles.cache.find(r => r.name === dbGuild.name)
+                                || await discordGuild.roles.create({ name: dbGuild.name, reason: `VVLeague: role for guild ${dbGuild.name}` }).catch(() => null);
+                            if (nameRole) {
+                                const member = await discordGuild.members.fetch(invite.targetUserId).catch(() => null);
+                                if (member) await member.roles.add(nameRole).catch(() => null);
+                            }
+                        }
+                        catch (e) {
+                            console.warn(`Failed to assign guild name role "${dbGuild.name}":`, e?.message);
+                        }
+                    }
+                }
                 setInviteStatus(db, inviteId, 'ACCEPTED');
                 await refreshGuildPanel(client, db, invite.guildId).catch(() => { });
                 await interaction.update({
