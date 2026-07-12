@@ -6,7 +6,7 @@ export const data = new SlashCommandBuilder()
     .addChannelOption(o => o.setName('category').setDescription('Category').addChannelTypes(ChannelType.GuildCategory).setRequired(true));
 export async function execute(interaction, db) {
     if (!interaction.memberPermissions?.has('Administrator')) {
-        await interaction.editReply('âŒ Only administrators can set this.');
+        await interaction.editReply('❌ Only administrators can set this.');
         return;
     }
     const ch = interaction.options.getChannel('category', true);

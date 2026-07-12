@@ -6,7 +6,7 @@ export const data = new SlashCommandBuilder()
     .addChannelOption(o => o.setName('channel').setDescription('Dodge log channel').addChannelTypes(ChannelType.GuildText).setRequired(true));
 export async function execute(interaction, db) {
     if (!interaction.memberPermissions?.has('Administrator')) {
-        await interaction.editReply('âŒ Only administrators can set this.');
+        await interaction.editReply('❌ Only administrators can set this.');
         return;
     }
     const ch = interaction.options.getChannel('channel', true);

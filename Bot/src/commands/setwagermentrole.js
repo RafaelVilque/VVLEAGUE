@@ -7,7 +7,7 @@ export const data = new SlashCommandBuilder()
     .addStringOption(o => o.setName('action').setDescription('Add or remove').addChoices({ name: 'Add', value: 'add' }, { name: 'Remove', value: 'remove' }).setRequired(false));
 export async function execute(interaction, db) {
     if (!interaction.memberPermissions?.has('Administrator')) {
-        await interaction.editReply('âŒ Only administrators can set this.');
+        await interaction.editReply('❌ Only administrators can set this.');
         return;
     }
     const role = interaction.options.getRole('role', true);
