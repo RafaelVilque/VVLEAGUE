@@ -11,6 +11,6 @@ export async function execute(interaction: ChatInputCommandInteraction, db: any)
     await interaction.editReply('âŒ Only administrators can set the staff role.'); return;
   }
   const role = interaction.options.getRole('role', true);
-  setSetting(db, 'staff_role_id', role.id);
+  setSetting(db, `${interaction.guildId}_staff_role_id`, role.id);
   await interaction.editReply(`❌… Staff role set to <@&${role.id}>. Members with this role can approve signings.`);
 }

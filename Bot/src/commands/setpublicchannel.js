@@ -5,7 +5,7 @@ export const data = new SlashCommandBuilder()
     .setDescription('Set the public channel for signing announcements (staff only)')
     .addChannelOption(o => o.setName('channel').setDescription('Public channel').addChannelTypes(ChannelType.GuildText).setRequired(true));
 export async function execute(interaction, db) {
-    const staffRoleId = getSetting(db, 'staff_role_id');
+    const staffRoleId = getSetting(db, `${interaction.guildId}_staff_role_id`);
     if (staffRoleId && interaction.guild) {
         const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
         if (!member?.roles.cache.has(staffRoleId)) {

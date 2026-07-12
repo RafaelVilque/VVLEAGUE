@@ -8,7 +8,7 @@ export const data = new SlashCommandBuilder()
     .addStringOption(o => o.setName('role').setDescription('Role on roster').addChoices({ name: 'Player', value: 'Player' }, { name: 'Sub', value: 'Sub' }, { name: 'Coach', value: 'Coach' }).setRequired(false));
 export async function execute(interaction, db) {
     // Check signing is globally open
-    const signingClosed = getSetting(db, 'signing_closed') === '1';
+    const signingClosed = getSetting(db, `${interaction.guildId}_signing_closed`) === '1';
     if (signingClosed) {
         await interaction.editReply('âŒ Signings are currently closed.');
         return;
@@ -33,7 +33,7 @@ export async function execute(interaction, db) {
         return;
     }
     // Check cooldown
-    const cooldownDays = parseInt(getSetting(db, 'cooldown_days') || '0');
+    const cooldownDays = parseInt(getSetting(db, `${interaction.guildId}_cooldown_days`) || '0');
     if (cooldownDays > 0) {
         const cd = getCooldown(db, target.id);
         if (cd) {

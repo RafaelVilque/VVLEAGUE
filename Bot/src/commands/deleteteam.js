@@ -6,7 +6,7 @@ export const data = new SlashCommandBuilder()
     .setDescription('Delete a guild from the site (staff only)')
     .addStringOption(o => o.setName('tag').setDescription('Guild tag (e.g. VVS)').setRequired(true));
 export async function execute(interaction, db) {
-    const staffRoleId = getSetting(db, 'staff_role_id');
+    const staffRoleId = getSetting(db, `${interaction.guildId}_staff_role_id`);
     if (staffRoleId && interaction.guild) {
         const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
         if (!member?.roles.cache.has(staffRoleId)) {

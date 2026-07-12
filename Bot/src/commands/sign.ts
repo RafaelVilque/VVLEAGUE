@@ -18,7 +18,7 @@ export const data = new SlashCommandBuilder()
 export async function execute(interaction: ChatInputCommandInteraction, db: any): Promise<void> {
 
   // Check signing is globally open
-  const signingClosed = getSetting(db, 'signing_closed') === '1';
+  const signingClosed = getSetting(db, `${interaction.guildId}_signing_closed`) === '1';
   if (signingClosed) { await interaction.editReply('âŒ Signings are currently closed.'); return; }
 
   // Check if leader has a guild on site
@@ -38,7 +38,7 @@ export async function execute(interaction: ChatInputCommandInteraction, db: any)
   if (target.bot) { await interaction.editReply('âŒ You cannot sign a bot.'); return; }
 
   // Check cooldown
-  const cooldownDays = parseInt(getSetting(db, 'cooldown_days') || '0');
+  const cooldownDays = parseInt(getSetting(db, `${interaction.guildId}_cooldown_days`) || '0');
   if (cooldownDays > 0) {
     const cd = getCooldown(db, target.id);
     if (cd) {
