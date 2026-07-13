@@ -820,7 +820,7 @@ function refreshAdminButtons() {
     addWagerBtn: 'wager',
     addAwardBtn: 'awards',
     editHomeRulesBtn: 'all', editLogsRulesBtn: 'all', editEloInfoBtn: 'all',
-    addOrgBtn: 'orgs', addPlayerBtn: 'orgs',
+    addOrgBtn: 'orgs', addPlayerBtn: 'orgs', adjustEloBtn: 'orgs',
     addScheduleBtn: 'schedule',
     newBracketBtn: 'brackets',
   };
@@ -1258,7 +1258,7 @@ function openOrgForm(existing) {
       <div class="admin-modal-title">${isEdit?'EDIT':'ADD'} ORG</div>
     </div>
     <div class="admin-form-grid-2">
-      <div class="admin-field"><label class="admin-label">TAG (ex: VVS)</label><input id="of_tag" class="admin-input" value="${e.tag||''}" maxlength="5" ${isEdit?'readonly style="opacity:.5"':''}></div>
+      <div class="admin-field"><label class="admin-label">TAG (ex: VVS)</label><input id="of_tag" class="admin-input" value="${e.tag||''}" maxlength="5"></div>
       <div class="admin-field"><label class="admin-label">NAME</label><input id="of_name" class="admin-input" value="${e.name||''}"></div>
       <div class="admin-field"><label class="admin-label">STATUS</label><select id="of_status" class="admin-select"><option value="active" ${e.status!=='inactive'?'selected':''}>ACTIVE</option><option value="inactive" ${e.status==='inactive'?'selected':''}>INACTIVE</option></select></div>
       <div class="admin-field"><label class="admin-label">REGION</label><select id="of_region" class="admin-select"><option ${!e.region||e.region==='NA'?'selected':''}>NA</option><option ${e.region==='EU'?'selected':''}>EU</option><option ${e.region==='ASIA'?'selected':''}>ASIA</option><option ${e.region==='OCE'?'selected':''}>OCE</option><option ${e.region==='SA'?'selected':''}>SA</option></select></div>
@@ -1332,6 +1332,56 @@ async function savePlayerForm(id) {
   closeLogForm();
   await loadLeaderboard();
 }
+
+// ============================================================
+// ELO ADJUST FORM (Admin)
+// ============================================================
+function openEloAdjustForm() {
+  const opts = leaderboardData.map(p => `<option value="${p.name.replace(/"/g,'&quot;')}">`).join('');
+  document.getElementById('logFormContent').innerHTML = `
+    <div class="admin-modal-header" style="margin-bottom:1rem;">
+      <div class="admin-modal-icon">⚡</div>
+      <div class="admin-modal-title">ADJUST PLAYER ELO</div>
+    </div>
+    <datalist id="ea_playerList">${opts}</datalist>
+    <div class="admin-form-grid-2">
+      <div class="admin-field"><label class="admin-label">PLAYER NAME</label><input id="ea_name" class="admin-input" list="ea_playerList" placeholder="Type player name..." autocomplete="off"></div>
+      <div class="admin-field"><label class="admin-label">ELO TO ADD (ex: 25 or -20)</label><input id="ea_delta" type="number" class="admin-input" placeholder="ex: 25"></div>
+      <div class="admin-field"><label class="admin-label">GUILD (for W/L)</label><select id="ea_org" class="admin-select"><option value="">— No guild —</option>${orgsData.map(o=>`<option value="${o.tag}">${o.tag} — ${o.name}</option>`).join('')}</select></div>
+      <div class="admin-field"><label class="admin-label">RESULT</label><select id="ea_result" class="admin-select"><option value="">— No result —</option><option value="win">WIN (+1 W)</option><option value="loss">LOSS (+1 L)</option></select></div>
+    </div>
+    <div id="ea_feedback" style="min-height:1.4rem;font-size:.83rem;margin:.5rem 0;"></div>
+    <div class="admin-modal-actions">
+      <button class="admin-submit-btn" onclick="saveEloAdjust()">APPLY</button>
+      <button class="admin-cancel-btn" onclick="closeLogForm()">CANCEL</button>
+    </div>`;
+  document.getElementById('logFormModal').classList.add('open');
+}
+
+async function saveEloAdjust() {
+  const name = g('ea_name').trim();
+  const delta = parseInt(g('ea_delta')) || 0;
+  const org = g('ea_org');
+  const result = g('ea_result');
+  const feedback = document.getElementById('ea_feedback');
+  if (!name) { feedback.style.color='#f87171'; feedback.textContent='⚠ Enter a player name.'; return; }
+  const res = await fetch('/api/players/elo-adjust', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + adminToken },
+    body: JSON.stringify({ name, delta, org, result }),
+  });
+  const data = await res.json();
+  if (!res.ok) { feedback.style.color='#f87171'; feedback.textContent='❌ ' + (data.error || 'Player not found.'); return; }
+  feedback.style.color='#4ade80';
+  feedback.textContent=`✅ ${data.name} — ELO now ${data.elo}${result==='win'?' · +1 W':result==='loss'?' · +1 L':''}`;
+  await loadLeaderboard();
+}
+
+// ============================================================
+// SHOP
+// ============================================================
+function openShop()  { document.getElementById('shopModal').classList.add('open'); }
+function closeShop() { document.getElementById('shopModal').classList.remove('open'); }
 
 // ============================================================
 // AWARDS
