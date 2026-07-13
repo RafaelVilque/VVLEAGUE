@@ -744,6 +744,19 @@ app.delete('/api/players/:id', requireAdmin, requirePerm('orgs_delete'), (req, r
   res.json({ ok: true });
 });
 
+app.post('/api/players/elo-adjust', requireAdmin, requirePerm('orgs'), (req, res) => {
+  const { name, delta, org, result } = req.body;
+  if (!name) return res.status(400).json({ error: 'name required' });
+  const player = db.prepare('SELECT * FROM players WHERE LOWER(name) = LOWER(?)').get(name.trim());
+  if (!player) return res.status(404).json({ error: `Player "${name}" not found on leaderboard` });
+  const newElo    = (player.elo    || 1000) + (parseInt(delta) || 0);
+  const newWins   = (player.wins   || 0)    + (result === 'win'  ? 1 : 0);
+  const newLosses = (player.losses || 0)    + (result === 'loss' ? 1 : 0);
+  const newOrg    = org || player.org || '';
+  db.prepare('UPDATE players SET elo=?,wins=?,losses=?,org=? WHERE id=?').run(newElo, newWins, newLosses, newOrg, player.id);
+  res.json({ id: player.id, name: player.name, elo: newElo, wins: newWins, losses: newLosses, org: newOrg });
+});
+
 // ============================================================
 // ============================================================
 // BOT API

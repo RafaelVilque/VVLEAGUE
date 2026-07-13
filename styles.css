@@ -1187,3 +1187,7 @@ body::after {
 /* ====== DISCORD FAB ====== */
 .discord-fab { position:fixed; bottom:1.5rem; right:1.5rem; z-index:9000; display:flex; align-items:center; gap:.5rem; background:#5865F2; color:#fff; font-family:'Rajdhani',sans-serif; font-weight:700; font-size:.85rem; letter-spacing:.12em; text-transform:uppercase; text-decoration:none; padding:.55rem 1rem .55rem .8rem; border-radius:2rem; box-shadow:0 4px 20px rgba(88,101,242,.45); transition:background .15s,box-shadow .15s,transform .15s; }
 .discord-fab:hover { background:#4752c4; box-shadow:0 6px 28px rgba(88,101,242,.65); transform:translateY(-2px); }
+
+/* ====== SHOP FAB ====== */
+.shop-fab { position:fixed; bottom:1.5rem; left:1.5rem; z-index:9000; background:rgba(10,20,50,.7); border:1px solid rgba(91,173,255,.15); color:rgba(160,200,255,.4); font-size:1rem; width:2.2rem; height:2.2rem; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:opacity .2s,transform .2s; padding:0; }
+.shop-fab:hover { opacity:1; color:rgba(160,200,255,.8); transform:scale(1.1); }
