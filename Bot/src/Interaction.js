@@ -1,6 +1,6 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, ContainerBuilder, EmbedBuilder, ModalBuilder, MessageFlags, OverwriteType, PermissionFlagsBits, SeparatorBuilder, SeparatorSpacingSize, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, TextInputBuilder, TextInputStyle, TextDisplayBuilder, UserSelectMenuBuilder, } from 'discord.js';
 import { loadCommands } from './commands.js';
-import { addMemberToRole, addGuildLoss, addGuildWin, acceptWar, canAddUserToRole, createWar, createInvite, dodgeWar, finishWar, getGuildById, getMembersByRole, getPendingInviteForTarget, getRoleLabel, isUserInRole, refreshGuildPanel, removeMemberFromRole, setInviteStatus, validateInviteForAction, getWarById, createWager, getWagerById, recordWagerAcceptance, markWagerAccepted, dodgeWager, closeWager, getSetting, applyGuildElo, applyPlayerElo, } from './database.js';
+import { addMemberToRole, addGuildLoss, addGuildWin, acceptWar, canAddUserToRole, createWar, createInvite, dodgeWar, finishWar, getGuildById, getInviteById, getMembersByRole, getPendingInviteForTarget, getRoleLabel, isUserInRole, refreshGuildPanel, removeMemberFromRole, setInviteStatus, validateInviteForAction, getWarById, createWager, getWagerById, recordWagerAcceptance, markWagerAccepted, dodgeWager, closeWager, getSetting, applyGuildElo, applyPlayerElo, } from './database.js';
 const ADD_ACTION_MAP = {
     ADD_CO_LEADER: 'CO_LEADER',
     ADD_MANAGER: 'MANAGER',
@@ -246,6 +246,24 @@ async function maybeRemoveDiscordRoleByType(interaction, db, targetUserId, roleT
     await member.roles.remove(role).catch((error) => {
         console.warn(`Failed to remove role ${roleId} from ${targetUserId}:`, error);
     });
+}
+async function removeGuildNameRole(client, discordGuildId, dbGuild, targetUserId) {
+    if (!discordGuildId || !dbGuild?.name)
+        return;
+    try {
+        const discordGuild = client.guilds.cache.get(discordGuildId) || await client.guilds.fetch(discordGuildId).catch(() => null);
+        if (!discordGuild)
+            return;
+        const nameRole = discordGuild.roles.cache.find(r => r.name === dbGuild.name);
+        if (!nameRole)
+            return;
+        const member = await discordGuild.members.fetch(targetUserId).catch(() => null);
+        if (member)
+            await member.roles.remove(nameRole).catch(() => null);
+    }
+    catch (e) {
+        console.warn(`Failed to remove guild name role "${dbGuild.name}" from ${targetUserId}:`, e?.message);
+    }
 }
 function parseCustomId(customId) {
     return customId.split('|');
@@ -1986,18 +2004,54 @@ export async function handleInteractions(interaction, client, db, commands) {
                     });
                     return;
                 }
+                setInviteStatus(db, inviteId, 'ACCEPTED');
                 const inviteRoleType = invite.roleType;
                 const effectiveDiscordGuildId = savedDiscordGuildId || interaction.guildId || null;
-                const configuredRoleId = effectiveDiscordGuildId
-                    ? (inviteRoleType === 'CO_LEADER' ? getSetting(db, `${effectiveDiscordGuildId}_guild_co_leader_role_id`) : null)
-                        ?? (inviteRoleType === 'MANAGER' ? getSetting(db, `${effectiveDiscordGuildId}_guild_manager_role_id`) : null)
+                const dbGuild = getGuildById(db, invite.guildId);
+                // Check if there's a signing approval channel configured
+                const signingLogChannelId = effectiveDiscordGuildId
+                    ? getSetting(db, `${effectiveDiscordGuildId}_signing_log_channel_id`)
                     : null;
-                const discordRoleId = getDiscordRoleIdForRoleType(inviteRoleType, db, effectiveDiscordGuildId ?? undefined);
-                if (discordRoleId && effectiveDiscordGuildId) {
-                    const roleAssigned = await assignDiscordRoleById(client, effectiveDiscordGuildId, invite.targetUserId, discordRoleId);
-                    if (!roleAssigned) {
-                        if (configuredRoleId) {
-                            // Role was explicitly configured but failed — block acceptance
+                if (signingLogChannelId) {
+                    // Send approval request to admin channel — roles assigned only after admin approves
+                    try {
+                        const logChannel = await client.channels.fetch(signingLogChannelId).catch(() => null);
+                        if (logChannel) {
+                            const inviterUser = invite.inviterId ? await client.users.fetch(invite.inviterId).catch(() => null) : null;
+                            const approvalEmbed = new EmbedBuilder()
+                                .setTitle('📋 Signing Approval Required')
+                                .setColor('#f5f07a')
+                                .addFields({ name: 'Player', value: `<@${invite.targetUserId}>`, inline: true }, { name: 'Role', value: getRoleLabel(inviteRoleType), inline: true }, { name: 'Guild', value: dbGuild?.name || invite.guildId, inline: true }, { name: 'Signed by', value: inviterUser ? `<@${inviterUser.id}>` : 'Unknown', inline: true })
+                                .setTimestamp();
+                            const approvalRow = new ActionRowBuilder().addComponents(new ButtonBuilder()
+                                .setCustomId(`gp_sign_approve|${inviteId}|${effectiveDiscordGuildId}`)
+                                .setLabel('Approve')
+                                .setStyle(ButtonStyle.Success), new ButtonBuilder()
+                                .setCustomId(`gp_sign_decline|${inviteId}|${effectiveDiscordGuildId}`)
+                                .setLabel('Decline')
+                                .setStyle(ButtonStyle.Danger));
+                            await logChannel.send({ embeds: [approvalEmbed], components: [approvalRow] }).catch(() => null);
+                        }
+                    }
+                    catch (e) {
+                        console.warn('Failed to send signing approval request:', e?.message);
+                    }
+                    await refreshGuildPanel(client, db, invite.guildId).catch(() => { });
+                    await interaction.update({
+                        content: `✅ Signing accepted! Your request for **${getRoleLabel(inviteRoleType)}** in **${dbGuild?.name || invite.guildId}** is pending admin approval.`,
+                        components: [],
+                    });
+                }
+                else {
+                    // No approval channel — assign Discord roles immediately
+                    const configuredRoleId = effectiveDiscordGuildId
+                        ? (inviteRoleType === 'CO_LEADER' ? getSetting(db, `${effectiveDiscordGuildId}_guild_co_leader_role_id`) : null)
+                            ?? (inviteRoleType === 'MANAGER' ? getSetting(db, `${effectiveDiscordGuildId}_guild_manager_role_id`) : null)
+                        : null;
+                    const discordRoleId = getDiscordRoleIdForRoleType(inviteRoleType, db, effectiveDiscordGuildId ?? undefined);
+                    if (discordRoleId && effectiveDiscordGuildId) {
+                        const roleAssigned = await assignDiscordRoleById(client, effectiveDiscordGuildId, invite.targetUserId, discordRoleId);
+                        if (!roleAssigned && configuredRoleId) {
                             removeMemberFromRole(db, invite.guildId, invite.targetUserId, inviteRoleType);
                             setInviteStatus(db, inviteId, 'DECLINED');
                             await interaction.update({
@@ -2006,35 +2060,29 @@ export async function handleInteractions(interaction, client, db, commands) {
                             });
                             return;
                         }
-                        // No role configured — Discord role is optional, continue anyway
-                        console.warn(`Discord role ${discordRoleId} not found for invite ${inviteId}; continuing without it.`);
                     }
-                }
-                // Assign guild name role
-                if (effectiveDiscordGuildId) {
-                    const discordGuild = client.guilds.cache.get(effectiveDiscordGuildId)
-                        || await client.guilds.fetch(effectiveDiscordGuildId).catch(() => null);
-                    const dbGuild = getGuildById(db, invite.guildId);
-                    if (discordGuild && dbGuild?.name) {
+                    if (effectiveDiscordGuildId && dbGuild?.name) {
                         try {
-                            let nameRole = discordGuild.roles.cache.find(r => r.name === dbGuild.name)
-                                || await discordGuild.roles.create({ name: dbGuild.name, reason: `VVLeague: role for guild ${dbGuild.name}` }).catch(() => null);
-                            if (nameRole) {
-                                const member = await discordGuild.members.fetch(invite.targetUserId).catch(() => null);
-                                if (member) await member.roles.add(nameRole).catch(() => null);
+                            const discordGuild = client.guilds.cache.get(effectiveDiscordGuildId) || await client.guilds.fetch(effectiveDiscordGuildId).catch(() => null);
+                            if (discordGuild) {
+                                let nameRole = discordGuild.roles.cache.find(r => r.name === dbGuild.name)
+                                    || await discordGuild.roles.create({ name: dbGuild.name, reason: `VVLeague: role for guild ${dbGuild.name}` }).catch(() => null);
+                                if (nameRole) {
+                                    const member = await discordGuild.members.fetch(invite.targetUserId).catch(() => null);
+                                    if (member) await member.roles.add(nameRole).catch(() => null);
+                                }
                             }
                         }
                         catch (e) {
                             console.warn(`Failed to assign guild name role "${dbGuild.name}":`, e?.message);
                         }
                     }
+                    await refreshGuildPanel(client, db, invite.guildId).catch(() => { });
+                    await interaction.update({
+                        content: `✅ Invitation accepted for **${getRoleLabel(invite.roleType)}**.`,
+                        components: [],
+                    });
                 }
-                setInviteStatus(db, inviteId, 'ACCEPTED');
-                await refreshGuildPanel(client, db, invite.guildId).catch(() => { });
-                await interaction.update({
-                    content: `✅ Invitation accepted for **${getRoleLabel(invite.roleType)}**.`,
-                    components: [],
-                });
                 return;
             }
             if (customId.startsWith('gp_confirm_remove|')) {
@@ -2061,26 +2109,178 @@ export async function handleInteractions(interaction, client, db, commands) {
                     });
                     return;
                 }
-                const removed = removeMemberFromRole(db, guildId, targetUserId, roleType);
-                if (!removed) {
+                const signingLogChannelId = interaction.guildId
+                    ? getSetting(db, `${interaction.guildId}_signing_log_channel_id`)
+                    : null;
+                if (signingLogChannelId) {
+                    // Send removal request to admin channel for approval
+                    try {
+                        const logChannel = await client.channels.fetch(signingLogChannelId).catch(() => null);
+                        if (logChannel) {
+                            const targetUser = await client.users.fetch(targetUserId).catch(() => null);
+                            const approvalEmbed = new EmbedBuilder()
+                                .setTitle('🗑️ Removal Approval Required')
+                                .setColor('#f87171')
+                                .addFields({ name: 'Player', value: `<@${targetUserId}>${targetUser ? ` (${targetUser.username})` : ''}`, inline: true }, { name: 'Role', value: getRoleLabel(roleType), inline: true }, { name: 'Guild', value: guild?.name || guildId, inline: true }, { name: 'Requested by', value: `<@${interaction.user.id}>`, inline: true })
+                                .setTimestamp();
+                            const approvalRow = new ActionRowBuilder().addComponents(new ButtonBuilder()
+                                .setCustomId(`gp_remove_approve|${guildId}|${roleType}|${targetUserId}|${interaction.guildId}`)
+                                .setLabel('Approve Removal')
+                                .setStyle(ButtonStyle.Danger), new ButtonBuilder()
+                                .setCustomId(`gp_remove_decline|${guildId}`)
+                                .setLabel('Decline')
+                                .setStyle(ButtonStyle.Secondary));
+                            await logChannel.send({ embeds: [approvalEmbed], components: [approvalRow] }).catch(() => null);
+                        }
+                    }
+                    catch (e) {
+                        console.warn('Failed to send removal approval request:', e?.message);
+                    }
                     await interaction.update({
-                        content: '❌ Unable to remove the selected member.',
+                        content: `⏳ Removal request for <@${targetUserId}> sent for admin approval.`,
                         embeds: [],
                         components: [],
                     });
+                }
+                else {
+                    // No approval channel — remove immediately
+                    const removed = removeMemberFromRole(db, guildId, targetUserId, roleType);
+                    if (!removed) {
+                        await interaction.update({ content: '❌ Unable to remove the selected member.', embeds: [], components: [] });
+                        return;
+                    }
+                    await maybeRemoveDiscordRoleByType(interaction, db, targetUserId, roleType);
+                    await removeGuildNameRole(client, interaction.guildId ?? undefined, guild, targetUserId);
+                    const targetUser = await client.users.fetch(targetUserId).catch(() => null);
+                    if (targetUser) {
+                        await targetUser.send({ embeds: [buildRemovalEmbed(roleType, guild?.name || guildId)] }).catch(() => { });
+                    }
+                    await refreshGuildPanel(client, db, guildId).catch(() => { });
+                    await interaction.update({
+                        content: `✅ <@${targetUserId}> was removed from **${getRoleLabel(roleType)}** and the panel was updated.`,
+                        embeds: [],
+                        components: [],
+                    });
+                }
+                return;
+            }
+            // Admin approves a signing request
+            if (customId.startsWith('gp_sign_approve|')) {
+                const [, inviteIdRaw, discordGuildId] = parseCustomId(customId);
+                const inviteId = Number(inviteIdRaw);
+                const invite = getInviteById(db, inviteId);
+                if (!invite) {
+                    await interaction.update({ content: '❌ Invite not found or already processed.', components: [] });
                     return;
                 }
-                await maybeRemoveDiscordRoleByType(interaction, db, targetUserId, roleType);
+                const dbGuild = getGuildById(db, invite.guildId);
+                const discordGuild = discordGuildId
+                    ? (client.guilds.cache.get(discordGuildId) || await client.guilds.fetch(discordGuildId).catch(() => null))
+                    : null;
+                // Assign type-specific role (CO_LEADER / MANAGER)
+                const discordRoleId = discordGuildId ? getDiscordRoleIdForRoleType(invite.roleType, db, discordGuildId) : null;
+                if (discordRoleId && discordGuildId) {
+                    await assignDiscordRoleById(client, discordGuildId, invite.targetUserId, discordRoleId);
+                }
+                // Assign guild name role
+                if (discordGuild && dbGuild?.name) {
+                    try {
+                        let nameRole = discordGuild.roles.cache.find(r => r.name === dbGuild.name)
+                            || await discordGuild.roles.create({ name: dbGuild.name, reason: `VVLeague: role for guild ${dbGuild.name}` }).catch(() => null);
+                        if (nameRole) {
+                            const member = await discordGuild.members.fetch(invite.targetUserId).catch(() => null);
+                            if (member) await member.roles.add(nameRole).catch(() => null);
+                        }
+                    }
+                    catch (e) {
+                        console.warn(`[sign_approve] Failed to assign guild name role:`, e?.message);
+                    }
+                }
+                // Notify player
+                const targetUser = await client.users.fetch(invite.targetUserId).catch(() => null);
+                if (targetUser) {
+                    await targetUser.send({ content: `✅ Your signing for **${getRoleLabel(invite.roleType)}** in **${dbGuild?.name || invite.guildId}** has been approved! You now have the guild role.` }).catch(() => null);
+                }
+                await refreshGuildPanel(client, db, invite.guildId).catch(() => { });
+                await interaction.update({
+                    content: `✅ Signing approved — <@${invite.targetUserId}> received the **${getRoleLabel(invite.roleType)}** role in **${dbGuild?.name || invite.guildId}**.`,
+                    components: [],
+                    embeds: [],
+                });
+                return;
+            }
+            // Admin declines a signing request
+            if (customId.startsWith('gp_sign_decline|')) {
+                const [, inviteIdRaw] = parseCustomId(customId);
+                const inviteId = Number(inviteIdRaw);
+                const invite = getInviteById(db, inviteId);
+                if (!invite) {
+                    await interaction.update({ content: '❌ Invite not found.', components: [] });
+                    return;
+                }
+                const dbGuild = getGuildById(db, invite.guildId);
+                // Reverse the DB signing
+                removeMemberFromRole(db, invite.guildId, invite.targetUserId, invite.roleType);
+                setInviteStatus(db, inviteId, 'DECLINED');
+                // Notify player
+                const targetUser = await client.users.fetch(invite.targetUserId).catch(() => null);
+                if (targetUser) {
+                    await targetUser.send({ content: `❌ Your signing request for **${getRoleLabel(invite.roleType)}** in **${dbGuild?.name || invite.guildId}** was declined by an admin.` }).catch(() => null);
+                }
+                await refreshGuildPanel(client, db, invite.guildId).catch(() => { });
+                await interaction.update({
+                    content: `❌ Signing declined — <@${invite.targetUserId}> was not added to **${dbGuild?.name || invite.guildId}**.`,
+                    components: [],
+                    embeds: [],
+                });
+                return;
+            }
+            // Admin approves a removal request
+            if (customId.startsWith('gp_remove_approve|')) {
+                const [, guildId, roleType, targetUserId, discordGuildId] = parseCustomId(customId);
+                if (!guildId || !roleType || !targetUserId) {
+                    await interaction.update({ content: '❌ Invalid data.', components: [] });
+                    return;
+                }
+                const guild = getGuildById(db, guildId);
+                const removed = removeMemberFromRole(db, guildId, targetUserId, roleType);
+                if (!removed) {
+                    await interaction.update({ content: '⚠️ Member was already removed.', components: [], embeds: [] });
+                    return;
+                }
+                // Remove type-specific role (CO_LEADER / MANAGER)
+                if (discordGuildId) {
+                    const roleId = getDiscordRoleIdForRoleType(roleType, db, discordGuildId);
+                    if (roleId && !shouldKeepRoleForUser(db, targetUserId, roleType)) {
+                        const discordGuild = client.guilds.cache.get(discordGuildId) || await client.guilds.fetch(discordGuildId).catch(() => null);
+                        if (discordGuild) {
+                            const role = discordGuild.roles.cache.get(roleId) || await discordGuild.roles.fetch(roleId).catch(() => null);
+                            const member = await discordGuild.members.fetch(targetUserId).catch(() => null);
+                            if (role && member) await member.roles.remove(role).catch(() => null);
+                        }
+                    }
+                    // Remove guild name role
+                    await removeGuildNameRole(client, discordGuildId, guild, targetUserId);
+                }
+                // Notify player
                 const targetUser = await client.users.fetch(targetUserId).catch(() => null);
                 if (targetUser) {
-                    const removalEmbed = buildRemovalEmbed(roleType, guild?.name || guildId);
-                    await targetUser.send({ embeds: [removalEmbed] }).catch(() => { });
+                    await targetUser.send({ embeds: [buildRemovalEmbed(roleType, guild?.name || guildId)] }).catch(() => null);
                 }
                 await refreshGuildPanel(client, db, guildId).catch(() => { });
                 await interaction.update({
-                    content: `✅ <@${targetUserId}> was removed from **${getRoleLabel(roleType)}** and the panel was updated.`,
-                    embeds: [],
+                    content: `✅ Removal approved — <@${targetUserId}> removed from **${getRoleLabel(roleType)}** in **${guild?.name || guildId}**.`,
                     components: [],
+                    embeds: [],
+                });
+                return;
+            }
+            // Admin declines a removal request
+            if (customId.startsWith('gp_remove_decline|')) {
+                await interaction.update({
+                    content: '❌ Removal request declined — no changes made.',
+                    components: [],
+                    embeds: [],
                 });
                 return;
             }

@@ -78,6 +78,11 @@ export const data = new SlashCommandBuilder()
     o.setName('guild_forum_channel')
       .setDescription('Forum channel where Guilds are registered')
       .addChannelTypes(ChannelType.GuildForum)
+      .setRequired(false))
+  .addChannelOption(o =>
+    o.setName('signing_log_channel')
+      .setDescription('Admin channel where signing/removal requests go for approval')
+      .addChannelTypes(ChannelType.GuildText)
       .setRequired(false));
 
 export async function execute(interaction: ChatInputCommandInteraction, db: any): Promise<void> {
@@ -156,6 +161,10 @@ export async function execute(interaction: ChatInputCommandInteraction, db: any)
   // Guild forum
   const guildForum = interaction.options.getChannel('guild_forum_channel');
   save('guild_forum_channel_id', guildForum?.id ?? null, 'Guild Forum', guildForum ? `<#${guildForum.id}>` : '');
+
+  // Signing log / approval channel
+  const signingLog = interaction.options.getChannel('signing_log_channel');
+  save('signing_log_channel_id', signingLog?.id ?? null, 'Signing Log Channel', signingLog ? `<#${signingLog.id}>` : '');
 
   if (saved.length === 0) {
     await interaction.editReply({ content: '⚠️ No settings provided. Use the command options to configure the server.', embeds: [] });
