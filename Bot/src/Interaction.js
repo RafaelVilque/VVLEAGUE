@@ -2044,7 +2044,7 @@ export async function handleInteractions(interaction, client, db, commands) {
                             const inviterUser = invite.inviterId ? await client.users.fetch(invite.inviterId).catch(() => null) : null;
                             const approvalEmbed = new EmbedBuilder()
                                 .setTitle('📋 Signing Approval Required')
-                                .setColor('#f5f07a')
+                                .setColor(0x5BADFF)
                                 .addFields({ name: 'Player', value: `<@${invite.targetUserId}>`, inline: true }, { name: 'Role', value: getRoleLabel(inviteRoleType), inline: true }, { name: 'Guild', value: dbGuild?.name || invite.guildId, inline: true }, { name: 'Signed by', value: inviterUser ? `<@${inviterUser.id}>` : 'Unknown', inline: true })
                                 .setTimestamp();
                             const approvalRow = new ActionRowBuilder().addComponents(new ButtonBuilder()
@@ -2174,7 +2174,7 @@ export async function handleInteractions(interaction, client, db, commands) {
                             const targetUser = await client.users.fetch(targetUserId).catch(() => null);
                             const approvalEmbed = new EmbedBuilder()
                                 .setTitle('🗑️ Removal Approval Required')
-                                .setColor('#f87171')
+                                .setColor(0x5BADFF)
                                 .addFields({ name: 'Player', value: `<@${targetUserId}>${targetUser ? ` (${targetUser.username})` : ''}`, inline: true }, { name: 'Role', value: getRoleLabel(roleType), inline: true }, { name: 'Guild', value: guild?.name || guildId, inline: true }, { name: 'Requested by', value: `<@${interaction.user.id}>`, inline: true })
                                 .setTimestamp();
                             const approvalRow = new ActionRowBuilder().addComponents(new ButtonBuilder()
@@ -2549,7 +2549,7 @@ export async function handleInteractions(interaction, client, db, commands) {
                 const { EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } = await import('discord.js');
                 const embed = new EmbedBuilder()
                     .setTitle('⏳ Signing Request — Pending Staff Approval')
-                    .setColor(0xF5F07A)
+                    .setColor(0x5BADFF)
                     .addFields({ name: 'Guild', value: `${req.org_tag}`, inline: true }, { name: 'Player', value: `<@${req.target_discord_id}> (${req.target_name})`, inline: true }, { name: 'Role', value: req.role, inline: true }, { name: 'Invited by', value: `<@${req.inviter_discord_id}>`, inline: true });
                 const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`sign_approve_${signingId}`).setLabel('Approve').setStyle(ButtonStyle.Success), new ButtonBuilder().setCustomId(`sign_reject_${signingId}`).setLabel('Reject').setStyle(ButtonStyle.Danger));
                 const logMsg = await logChannel.send({ embeds: [embed], components: [row] });
