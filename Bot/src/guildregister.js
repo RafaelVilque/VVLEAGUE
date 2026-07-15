@@ -29,6 +29,10 @@ export const data = new SlashCommandBuilder()
     .setRequired(true)
     .addChoices({ name: 'NA', value: 'NA' }, { name: 'EU', value: 'EU' }, { name: 'SA', value: 'SA' }, { name: 'ASIA', value: 'ASIA' }))
     .addStringOption(option => option
+    .setName('season')
+    .setDescription('Season the guild was founded in (e.g. S1, S2, S3)')
+    .setRequired(false))
+    .addStringOption(option => option
     .setName('color')
     .setDescription('Guild role color in HEX (e.g. #FF5733)')
     .setRequired(false));
@@ -57,6 +61,7 @@ export async function execute(interaction, db) {
         const name = interaction.options.getString('name', true);
         const leader = interaction.options.getUser('leader', true);
         const region = interaction.options.getString('region', true);
+        const season = interaction.options.getString('season')?.trim() || null;
         const colorInput = interaction.options.getString('color') ?? null;
         const hexColor = colorInput ? colorInput.trim().toUpperCase() : null;
         if (hexColor && !/^#[0-9A-F]{6}$/.test(hexColor)) {
@@ -74,7 +79,7 @@ export async function execute(interaction, db) {
         // Register guild on site first to catch duplicate tags before Discord role creation
         let siteOrgId = null;
         try {
-            const orgResult = await createOrg(tag, name, region);
+            const orgResult = await createOrg(tag, name, region, null, season);
             siteOrgId = orgResult?.id ?? null;
         }
         catch (e) {

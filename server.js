@@ -825,10 +825,10 @@ app.post('/api/bot/release', requireBotAuth, (req, res) => {
 });
 
 app.post('/api/bot/orgs', requireBotAuth, (req, res) => {
-  const { tag, name, region, logo_url } = req.body;
+  const { tag, name, region, logo_url, founded } = req.body;
   if (!tag || !name) return res.status(400).json({ error: 'tag and name required' });
   try {
-    const r = db.prepare('INSERT INTO orgs (tag,name,status,founded,region,icon,mvp,logo_url) VALUES (?,?,?,?,?,?,?,?)').run(tag.toUpperCase(), name, 'active', 'S3', region||'NA', '', '', logo_url||'');
+    const r = db.prepare('INSERT INTO orgs (tag,name,status,founded,region,icon,mvp,logo_url) VALUES (?,?,?,?,?,?,?,?)').run(tag.toUpperCase(), name, 'active', founded || 'S1', region||'NA', '', '', logo_url||'');
     res.json({ id: r.lastInsertRowid });
   } catch(e) { res.status(400).json({ error: 'Tag already exists' }); }
 });
