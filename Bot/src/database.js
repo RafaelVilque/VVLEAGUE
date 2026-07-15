@@ -186,6 +186,12 @@ function ensureGuildColumns(db) {
     if (!existing.has('elo')) {
         db.exec('ALTER TABLE Guilds ADD COLUMN elo INTEGER NOT NULL DEFAULT 1000');
     }
+    if (!existing.has('tag')) {
+        db.exec('ALTER TABLE Guilds ADD COLUMN tag TEXT');
+    }
+    if (!existing.has('site_org_id')) {
+        db.exec('ALTER TABLE Guilds ADD COLUMN site_org_id INTEGER');
+    }
 }
 function ensureWarColumns(db) {
     const columns = db.prepare('PRAGMA table_info(Wars)').all();
@@ -410,7 +416,7 @@ export function formatGuildPanelDescription(db, guildId) {
 export function buildGuildPanelEmbed(db, guildId, thumbnailUrl = null) {
     return new EmbedBuilder()
         .setDescription(formatGuildPanelDescription(db, guildId))
-        .setColor('#2a8900')
+        .setColor(0x5BADFF)
         .setThumbnail(thumbnailUrl);
 }
 async function tryEditPanelMessage(thread, panelMessageId, embed) {
@@ -462,6 +468,9 @@ export function createWager(db, type, channelId, challenger1Id, challenger2Id, c
 }
 export function getWagerById(db, wagerId) {
     return db.prepare('SELECT * FROM Wagers WHERE id = ?').get(wagerId) || null;
+}
+export function getActiveWagerForUser(db, userId) {
+    return db.prepare(`SELECT * FROM Wagers WHERE status IN ('PENDING','ACCEPTED') AND (challenger1Id = ? OR challenger2Id = ? OR challenged1Id = ? OR challenged2Id = ?) LIMIT 1`).get(userId, userId, userId, userId) || null;
 }
 export function getWagerByChannelId(db, channelId) {
     return db.prepare('SELECT * FROM Wagers WHERE channelId = ? ORDER BY id DESC LIMIT 1').get(channelId) || null;

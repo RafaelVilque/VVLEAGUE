@@ -68,7 +68,7 @@ export async function execute(interaction, db) {
         const embed = new EmbedBuilder()
             .setTitle('🏰 Registered Guilds')
             .setDescription(`📊 Total guilds: **${guilds.length}**\n\nSelect a guild from the menu below to open its management panel.\nPage ${currentPage}/${totalPages}.`)
-            .setColor('#2a8900');
+            .setColor(0x5BADFF);
         await interaction.editReply({
             embeds: [embed],
             components,
@@ -96,7 +96,7 @@ export async function execute(interaction, db) {
             const subsCount = db.prepare('SELECT COUNT(*) as count FROM SubRosters WHERE guildId = ?').get(selectedGuild.id)?.count || 0;
             const panelEmbed = new EmbedBuilder()
                 .setTitle(`🏰 ${selectedGuild.name}`)
-                .setColor('#2a8900')
+                .setColor(0x5BADFF)
                 .addFields({ name: 'Leader', value: `<@${selectedGuild.leaderId}>`, inline: true }, { name: 'Co-Leader', value: coLeader ? `<@${coLeader}>` : 'None', inline: true }, { name: 'Region', value: selectedGuild.region, inline: true }, { name: 'Managers', value: `${managersCount}/2`, inline: true }, { name: 'Main Roster', value: `${mainsCount}/5`, inline: true }, { name: 'Sub Roster', value: `${subsCount}/5`, inline: true })
                 .setThumbnail(selectedGuild.imageUrl || null);
             const row1 = new ActionRowBuilder().addComponents(new ButtonBuilder()

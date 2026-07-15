@@ -1,5 +1,6 @@
 import { SlashCommandBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, } from 'discord.js';
 import { getSetting } from '../database.js';
+import { deleteOrg } from '../siteapi.js';
 const ALLOWED_GUILD_DELETE_ROLE_IDS_DEFAULT = [
     '1470554645364478016',
     '1470554652264108204',
@@ -217,8 +218,25 @@ export async function execute(interaction, db) {
                                 console.warn('Could not remove fixed roles:', e);
                             }
                         })());
+                        // Delete the guild name Discord role
+                        tasks.push((async () => {
+                            try {
+                                if (!interaction.guild)
+                                    return;
+                                const nameRole = interaction.guild.roles.cache.find(r => r.name === selectedGuild.name);
+                                if (nameRole)
+                                    await nameRole.delete(`VVLeague: guild ${selectedGuild.name} deleted`).catch(() => { });
+                            }
+                            catch (e) {
+                                console.warn('Could not delete guild name role:', e);
+                            }
+                        })());
                         // Wait for all operations
                         await Promise.all(tasks);
+                        // Delete guild from site
+                        if (selectedGuild.tag) {
+                            deleteOrg(selectedGuild.tag).catch(e => console.warn('Failed to delete guild from site:', e?.message));
+                        }
                         await interaction.editReply({
                             content: `✅ Guild **${selectedGuild.name}** was deleted successfully!`,
                             components: [],

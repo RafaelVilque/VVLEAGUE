@@ -619,6 +619,7 @@ async function loadEloInfo() {
     eloInfoData = data.content ? JSON.parse(data.content) : DEFAULT_ELO_INFO;
   } catch(e) { eloInfoData = DEFAULT_ELO_INFO; }
   renderEloInfo();
+  renderLeaderboard();
 }
 
 function renderEloInfo() {
@@ -702,6 +703,7 @@ async function saveEloInfo() {
   eloInfoData = info;
   closeLogForm();
   renderEloInfo();
+  renderLeaderboard();
 }
 
 // ============================================================
@@ -735,11 +737,15 @@ async function loadLeaderboard() {
 }
 
 function getEloTier(elo) {
-  if (elo>=2500) return {label:'DIAMOND', cls:'tier-diamond'};
-  if (elo>=2000) return {label:'PLATINUM',cls:'tier-platinum'};
-  if (elo>=1500) return {label:'GOLD',    cls:'tier-gold'};
-  if (elo>=1000) return {label:'SILVER',  cls:'tier-silver'};
-  return               {label:'BRONZE',  cls:'tier-bronze'};
+  const info = eloInfoData || DEFAULT_ELO_INFO;
+  const tiers = (info.tiers || []).map(t => {
+    const m = t.range.match(/\d+/);
+    return { label: t.name, color: t.color, min: m ? parseInt(m[0]) : 0 };
+  }).sort((a, b) => b.min - a.min);
+  for (const t of tiers) {
+    if (elo >= t.min) return t;
+  }
+  return tiers.length ? tiers[tiers.length - 1] : { label: 'UNRANKED', color: '#888', min: 0 };
 }
 
 function renderLeaderboard() {
@@ -752,7 +758,7 @@ function renderLeaderboard() {
     const _pEdit = hasPerm('orgs') ? `<button class="tbl-btn" onclick="openPlayerForm(${JSON.stringify(p).replace(/"/g,'&quot;')})">✎</button>` : '';
     const _pDel  = hasPerm('orgs_delete') ? `<button class="tbl-btn del" onclick="confirmDelete('player',${p.id})">✕</button>` : '';
     const adminBtns = (_pEdit||_pDel) ? `<td>${_pEdit}${_pDel}</td>` : '';
-    return `<tr class="${rc}"><td class="lb-rank">${rd}</td><td style="font-weight:600">${p.name}</td><td style="color:rgba(160,200,255,.5);font-size:.85rem;">[${p.org}]</td><td class="lb-elo">${p.elo}</td><td><span class="tier-badge ${t.cls}">${t.label}</span></td><td style="font-size:.85rem;"><span class="stat-wins">${p.wins}W</span>&nbsp;<span style="opacity:.4">/</span>&nbsp;<span class="stat-losses">${p.losses}L</span></td>${adminBtns}</tr>`;
+    return `<tr class="${rc}"><td class="lb-rank">${rd}</td><td style="font-weight:600">${p.name}</td><td style="color:rgba(160,200,255,.5);font-size:.85rem;">[${p.org}]</td><td class="lb-elo">${p.elo}</td><td><span class="tier-badge" style="color:${t.color};border:1px solid ${t.color}66">${t.label}</span></td><td style="font-size:.85rem;"><span class="stat-wins">${p.wins}W</span>&nbsp;<span style="opacity:.4">/</span>&nbsp;<span class="stat-losses">${p.losses}L</span></td>${adminBtns}</tr>`;
   }).join('');
 }
 

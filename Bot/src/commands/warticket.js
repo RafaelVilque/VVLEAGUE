@@ -34,7 +34,7 @@ export async function execute(interaction, db) {
         }
         const components = [
             new ContainerBuilder()
-                .setAccentColor(0x2a8900)
+                .setAccentColor(0x5BADFF)
                 .addTextDisplayComponents(new TextDisplayBuilder().setContent('# <:deepwoken:1470975025988501515> War Ticket'))
                 .addTextDisplayComponents(new TextDisplayBuilder().setContent('ℹ️ Use this panel to start the flow of creating a war between guilds.\n\n' +
                 '• Click the button below to start\n' +

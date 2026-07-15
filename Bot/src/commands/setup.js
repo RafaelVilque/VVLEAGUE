@@ -61,6 +61,10 @@ export const data = new SlashCommandBuilder()
     .addChannelOption(o => o.setName('signing_log_channel')
     .setDescription('Admin channel where signing/removal requests go for approval')
     .addChannelTypes(ChannelType.GuildText)
+    .setRequired(false))
+    .addChannelOption(o => o.setName('signings_announce_channel')
+    .setDescription('Public channel where approved signings are announced')
+    .addChannelTypes(ChannelType.GuildText)
     .setRequired(false));
 export async function execute(interaction, db) {
     if (!interaction.memberPermissions?.has('Administrator')) {
@@ -125,13 +129,16 @@ export async function execute(interaction, db) {
     // Signing log / approval channel
     const signingLog = interaction.options.getChannel('signing_log_channel');
     save('signing_log_channel_id', signingLog?.id ?? null, 'Signing Log Channel', signingLog ? `<#${signingLog.id}>` : '');
+    // Public signings announcement channel
+    const signingsAnnounce = interaction.options.getChannel('signings_announce_channel');
+    save('signings_announce_channel_id', signingsAnnounce?.id ?? null, 'Signings Announce Channel', signingsAnnounce ? `<#${signingsAnnounce.id}>` : '');
     if (saved.length === 0) {
         await interaction.editReply({ content: '⚠️ No settings provided. Use the command options to configure the server.', embeds: [] });
         return;
     }
     const embed = new EmbedBuilder()
         .setTitle('⚙️ Server Configuration')
-        .setColor(0x2ecc71)
+        .setColor(0x5BADFF)
         .setTimestamp();
     if (saved.length > 0) {
         embed.addFields({ name: '✅ Saved settings', value: saved.join('\n') });

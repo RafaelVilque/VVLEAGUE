@@ -308,6 +308,7 @@ try { db.exec('ALTER TABLE wager_records ADD COLUMN stats TEXT DEFAULT ""'); } c
 try { db.exec("ALTER TABLE org_members ADD COLUMN discord_id TEXT DEFAULT ''"); } catch(e) {}
 try { db.exec("ALTER TABLE orgs ADD COLUMN discord_role_id TEXT DEFAULT ''"); } catch(e) {}
 try { db.exec("ALTER TABLE orgs ADD COLUMN signing_open INTEGER DEFAULT 1"); } catch(e) {}
+try { db.exec("ALTER TABLE players ADD COLUMN discord_id TEXT DEFAULT ''"); } catch(e) {}
 
 // Admin users table (multi-login with permissions)
 db.exec(`
@@ -773,6 +774,32 @@ app.get('/api/bot/players', requireBotAuth, (req, res) => {
   let players = db.prepare('SELECT * FROM players ORDER BY elo DESC').all();
   if (q) { const ql = q.toLowerCase(); players = players.filter(p => p.name.toLowerCase().includes(ql)); }
   res.json(players);
+});
+
+app.get('/api/bot/players/by-discord/:discord_id', requireBotAuth, (req, res) => {
+  const p = db.prepare('SELECT * FROM players WHERE discord_id = ?').get(req.params.discord_id);
+  if (!p) return res.status(404).json({ error: 'Not found' });
+  res.json(p);
+});
+
+app.post('/api/bot/players/wager-result', requireBotAuth, (req, res) => {
+  const { discord_id, name, org, elo_delta, won } = req.body;
+  if (!discord_id || !name) return res.status(400).json({ error: 'discord_id and name required' });
+  const delta = parseInt(elo_delta) || 0;
+  const existing = db.prepare("SELECT * FROM players WHERE discord_id = ?").get(discord_id);
+  if (existing) {
+    const newElo = Math.max(0, (existing.elo || 1000) + delta);
+    const newWins = (existing.wins || 0) + (won ? 1 : 0);
+    const newLosses = (existing.losses || 0) + (won ? 0 : 1);
+    db.prepare("UPDATE players SET elo = ?, wins = ?, losses = ?, org = ?, name = ? WHERE discord_id = ?")
+      .run(newElo, newWins, newLosses, org ?? existing.org ?? '', name, discord_id);
+    res.json({ id: existing.id, elo: newElo, wins: newWins, losses: newLosses, created: false });
+  } else {
+    const startElo = Math.max(0, 1000 + delta);
+    const r = db.prepare("INSERT INTO players (name, org, elo, wins, losses, discord_id) VALUES (?, ?, ?, ?, ?, ?)")
+      .run(name, org || '', startElo, won ? 1 : 0, won ? 0 : 1, discord_id);
+    res.json({ id: r.lastInsertRowid, elo: startElo, wins: won ? 1 : 0, losses: won ? 0 : 1, created: true });
+  }
 });
 
 app.get('/api/bot/member/:discord_id', requireBotAuth, (req, res) => {

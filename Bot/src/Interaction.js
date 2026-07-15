@@ -1,6 +1,6 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, ContainerBuilder, EmbedBuilder, ModalBuilder, MessageFlags, OverwriteType, PermissionFlagsBits, SeparatorBuilder, SeparatorSpacingSize, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, TextInputBuilder, TextInputStyle, TextDisplayBuilder, UserSelectMenuBuilder, } from 'discord.js';
 import { loadCommands } from './commands.js';
-import { addMemberToRole, addGuildLoss, addGuildWin, acceptWar, canAddUserToRole, createWar, createInvite, dodgeWar, finishWar, getGuildById, getInviteById, getMembersByRole, getPendingInviteForTarget, getRoleLabel, isUserInRole, refreshGuildPanel, removeMemberFromRole, setInviteStatus, validateInviteForAction, getWarById, createWager, getWagerById, recordWagerAcceptance, markWagerAccepted, dodgeWager, closeWager, getSetting, applyGuildElo, applyPlayerElo, } from './database.js';
+import { addMemberToRole, addGuildLoss, addGuildWin, acceptWar, canAddUserToRole, createWar, createInvite, dodgeWar, finishWar, getGuildById, getInviteById, getMembersByRole, getPendingInviteForTarget, getRoleLabel, isUserInRole, refreshGuildPanel, removeMemberFromRole, setInviteStatus, validateInviteForAction, getWarById, createWager, getWagerById, getActiveWagerForUser, recordWagerAcceptance, markWagerAccepted, dodgeWager, closeWager, getSetting, applyGuildElo, applyPlayerElo, } from './database.js';
 const ADD_ACTION_MAP = {
     ADD_CO_LEADER: 'CO_LEADER',
     ADD_MANAGER: 'MANAGER',
@@ -147,7 +147,7 @@ async function createWarTicketChannel(interaction, db, guildA, guildB) {
         return null;
     const warConfirmationContainer = new ContainerBuilder()
         .setAccentColor(40192)
-        .addTextDisplayComponents(new TextDisplayBuilder().setContent(`# <:deepwoken:1470975025988501515> War Confirmation\nWar between: **${guildA.name}** vs **${guildB.name}**`))
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent(`# ⚔️ War Confirmation\nWar between: **${guildA.name}** vs **${guildB.name}**`))
         .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true))
         .addTextDisplayComponents(new TextDisplayBuilder().setContent('\nℹ️ Waiting for confirmation from the opponent team (Leader/Co-leader).\n\nUse the buttons below:\n• **Accept War** — confirm the war\n• **Dodge** — cancel the war'));
     const initialMessage = await channel.send({
@@ -273,6 +273,9 @@ function parseWarScore(value) {
         return { winnerScore: 2, loserScore: 1 };
     if (value === '3-0')
         return { winnerScore: 3, loserScore: 0 };
+    const m = value?.trim().match(/^(\d+)\s*[-—]\s*(\d+)$/);
+    if (m)
+        return { winnerScore: parseInt(m[1]), loserScore: parseInt(m[2]) };
     return null;
 }
 function parseRoundDowns(value) {
@@ -313,30 +316,31 @@ function buildWarLogsContainer(winnerGuildName, loserGuildName, winnerScore, los
         roundWinners.push(i < winnerScore ? winnerGuildName : loserGuildName);
     }
     const roundsText = roundSummary && roundSummary.trim()
-        ? `### Round Details\n\n${roundSummary.trim()}`
-        : roundWinners
-            .map((roundWinner, index) => {
+        ? roundSummary.trim()
+        : roundWinners.map((roundWinner, index) => {
             const round = roundDowns?.[index] || { winnerDowns: 0, loserDowns: 0 };
-            return (`**Round ${index + 1}**\n\n` +
-                `${winnerGuildName}: ${round.winnerDowns} downs\n` +
-                `${loserGuildName}: ${round.loserDowns} downs\n\n` +
-                `## ${roundWinner} WINS`);
-        })
-            .join('\n\n');
+            const badge = roundWinner === winnerGuildName ? '✅' : '❌';
+            return (
+                `**Round ${index + 1}** ${badge}  ${roundWinner} wins\n` +
+                `-# ${winnerGuildName}: ${round.winnerDowns} downs  •  ${loserGuildName}: ${round.loserDowns} downs`
+            );
+        }).join('\n\n');
     return new ContainerBuilder()
-        .setAccentColor(0x2a8900)
-        .addTextDisplayComponents(new TextDisplayBuilder().setContent(`# <:deepwoken:1470975025988501515> War Logs\n\n## ${winnerGuildName} VS ${loserGuildName}\n### Final Score: **${winnerScore} x ${loserScore}**`))
+        .setAccentColor(0x5BADFF)
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent(
+            `# ⚔️ War Logs\n**${winnerGuildName}** vs **${loserGuildName}**\n-# Final Score: ${winnerScore} — ${loserScore}`
+        ))
         .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true))
-        .addTextDisplayComponents(new TextDisplayBuilder().setContent(`\n${roundsText}`))
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent(roundsText))
         .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true))
-        .addTextDisplayComponents(new TextDisplayBuilder().setContent(`## ${winnerGuildName} WINS\n\n` +
-        `-# CLIPE: ${clipsLink ? clipsLink.split('\n').map((link, index) => `[Link ${index + 1}](${link})`).join('\n-# CLIPE: ') : 'not provided'}\n` +
-        `-# MVP: ${formatMvpValue(mvpValue)}`));
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent(
+            `🏆 **${winnerGuildName} WINS**\n-# 👑 MVP: ${formatMvpValue(mvpValue)}`
+        ));
 }
 function buildWagerLogsContainer(title, teamA, teamB, details, footer) {
     return new ContainerBuilder()
-        .setAccentColor(0x2a8900)
-        .addTextDisplayComponents(new TextDisplayBuilder().setContent(`# <:deepwoken:1470975025988501515> Wager Logs\n\n## ${teamA} VS ${teamB}\n${title}`))
+        .setAccentColor(0x5BADFF)
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent(`# 💰 Wager Logs\n\n## ${teamA} VS ${teamB}\n${title}`))
         .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true))
         .addTextDisplayComponents(new TextDisplayBuilder().setContent(details))
         .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true))
@@ -534,7 +538,7 @@ function getRoleInviteTitle(roleType) {
     return ':busts_in_silhouette: Guild Roster Invitation';
 }
 function buildInviteEmbed(roleType, guildName, inviterNick) {
-    const embed = new EmbedBuilder().setColor('#2a8900').setTitle(getRoleInviteTitle(roleType));
+    const embed = new EmbedBuilder().setColor(0x5BADFF).setTitle(getRoleInviteTitle(roleType));
     if (roleType === 'CO_LEADER') {
         return embed.setDescription(`You have been invited to become Co-Leader of the guild **"${guildName}"**.\n\n` +
             `As a co-leader, you will have access to manage rosters and help lead the guild.\n\n` +
@@ -561,7 +565,7 @@ function buildInviteEmbed(roleType, guildName, inviterNick) {
 }
 function buildRemovalEmbed(roleType, guildName) {
     return new EmbedBuilder()
-        .setColor('#2a8900')
+        .setColor(0x5BADFF)
         .setTitle('❌ Role removed')
         .setDescription(`You are no longer part of **${getRoleLabel(roleType)}** in guild **${guildName}**.`);
 }
@@ -608,7 +612,7 @@ function buildGuildPanelEmbedForInteraction(db, guildId) {
     const subsCount = db.prepare('SELECT COUNT(*) as count FROM SubRosters WHERE guildId = ?').get(guild.id)?.count || 0;
     return new EmbedBuilder()
         .setTitle(`🏰 ${guild.name}`)
-        .setColor('#2a8900')
+        .setColor(0x5BADFF)
         .addFields({ name: 'Leader', value: `<@${guild.leaderId}>`, inline: true }, { name: 'Co-Leader', value: coLeader ? `<@${coLeader}>` : 'None', inline: true }, { name: 'Region', value: guild.region, inline: true }, { name: 'Managers', value: `${managersCount}/2`, inline: true }, { name: 'Main Roster', value: `${mainsCount}/5`, inline: true }, { name: 'Sub Roster', value: `${subsCount}/5`, inline: true })
         .setThumbnail(guild.imageUrl || null);
 }
@@ -793,7 +797,7 @@ export async function handleInteractions(interaction, client, db, commands) {
                     components.push(pageRow);
                 }
                 const embed = new EmbedBuilder()
-                    .setColor('#2a8900')
+                    .setColor(0x5BADFF)
                     .setTitle('Start War')
                     .setDescription(`Select an opponent guild from the list below to start the war ticket. Page ${currentPage}/${totalPages}.${totalPages > 1 ? ' Use the buttons to change pages.' : ''}`);
                 await interaction.reply({
@@ -856,7 +860,7 @@ export async function handleInteractions(interaction, client, db, commands) {
                     components.push(pageRow);
                 }
                 const embed = new EmbedBuilder()
-                    .setColor('#2a8900')
+                    .setColor(0x5BADFF)
                     .setTitle('Start War')
                     .setDescription(`Select an opponent guild from the list below to start the war ticket. Page ${page}/${totalPages}. Use the buttons to change pages.`);
                 await interaction.update({
@@ -906,7 +910,7 @@ export async function handleInteractions(interaction, client, db, commands) {
                 const pageEmbed = new EmbedBuilder()
                     .setTitle('🏰 Registered Guilds')
                     .setDescription(`📊 Total guilds: **${guilds.length}**\n\nSelect a guild from the menu below to open its management panel.\nPage ${page}/${totalPages}.`)
-                    .setColor('#2a8900');
+                    .setColor(0x5BADFF);
                 await interaction.update({
                     embeds: [pageEmbed],
                     components,
@@ -1103,8 +1107,8 @@ export async function handleInteractions(interaction, client, db, commands) {
                 }
                 acceptWar(db, war.id, interaction.user.id, war.opponentGuildId);
                 const acceptedContainer = new ContainerBuilder()
-                    .setAccentColor(0x2a8900)
-                    .addTextDisplayComponents(new TextDisplayBuilder().setContent(`# <:deepwoken:1470975025988501515> War Confirmation\nWar between: ${openerGuild?.name || 'Unknown'} vs ${opponentGuild?.name || 'Unknown'}`))
+                    .setAccentColor(0x5BADFF)
+                    .addTextDisplayComponents(new TextDisplayBuilder().setContent(`# ⚔️ War Confirmation\nWar between: ${openerGuild?.name || 'Unknown'} vs ${opponentGuild?.name || 'Unknown'}`))
                     .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true))
                     .addTextDisplayComponents(new TextDisplayBuilder().setContent(`✅ War accepted by <@${interaction.user.id}>.\n\nHoster team can proceed with the match details.`));
                 await interaction.editReply({
@@ -1131,8 +1135,8 @@ export async function handleInteractions(interaction, client, db, commands) {
                     .setLabel('Finalize War')
                     .setStyle(ButtonStyle.Primary));
                 const finalizeContainer = new ContainerBuilder()
-                    .setAccentColor(0x2a8900)
-                    .addTextDisplayComponents(new TextDisplayBuilder().setContent('# <:deepwoken:1470975025988501515> Finalize War'))
+                    .setAccentColor(0x5BADFF)
+                    .addTextDisplayComponents(new TextDisplayBuilder().setContent('# ⚔️ Finalize War'))
                     .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true))
                     .addTextDisplayComponents(new TextDisplayBuilder().setContent('ℹ️ The Hoster team can finalize the war.\n\nUse the button below to start finalization and choose the winning guild.'))
                     .addActionRowComponents(finalizeRow);
@@ -1200,23 +1204,23 @@ export async function handleInteractions(interaction, client, db, commands) {
                 const [, winnerGuildId, loserGuildId, warIdRaw] = parseCustomId(customId);
                 const member = await interaction.guild?.members.fetch(interaction.user.id).catch(() => null);
                 if (!canMemberFinalizeTicket(member, db, interaction.guildId)) {
-                    await interaction.reply({ content: '❌ Sem permissão para aplicar ELO.', flags: MessageFlags.Ephemeral });
+                    await interaction.reply({ content: '❌ You do not have permission to apply ELO.', flags: MessageFlags.Ephemeral });
                     return;
                 }
                 const eloModal = new ModalBuilder()
                     .setCustomId(`wt_elo_standalone_modal|${winnerGuildId}|${loserGuildId}|${warIdRaw || ''}`)
-                    .setTitle('Aplicar Pontos de ELO')
+                    .setTitle('Apply ELO Points')
                     .addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder()
                     .setCustomId('winner_elo_gain')
-                    .setLabel('Pontos ganhos pelo ganhador')
+                    .setLabel('Winner ELO gain')
                     .setStyle(TextInputStyle.Short)
-                    .setPlaceholder('ex: 25')
+                    .setPlaceholder('25')
                     .setRequired(true)
                     .setMaxLength(6)), new ActionRowBuilder().addComponents(new TextInputBuilder()
                     .setCustomId('loser_elo_loss')
-                    .setLabel('Pontos removidos do perdedor')
+                    .setLabel('Loser ELO loss')
                     .setStyle(TextInputStyle.Short)
-                    .setPlaceholder('ex: 20')
+                    .setPlaceholder('20')
                     .setRequired(true)
                     .setMaxLength(6)));
                 await interaction.showModal(eloModal);
@@ -1270,7 +1274,7 @@ export async function handleInteractions(interaction, client, db, commands) {
                     .setMinValues(1)
                     .setMaxValues(1);
                 const embed = new EmbedBuilder()
-                    .setColor('#2a8900')
+                    .setColor(0x5BADFF)
                     .setTitle('Wager 1v1')
                     .setDescription('Select the opponent for this 1v1 wager.');
                 await interaction.editReply({
@@ -1287,7 +1291,7 @@ export async function handleInteractions(interaction, client, db, commands) {
                     .setMinValues(1)
                     .setMaxValues(1);
                 const embed = new EmbedBuilder()
-                    .setColor('#2a8900')
+                    .setColor(0x5BADFF)
                     .setTitle('Wager 2v2')
                     .setDescription('Step 1/2: Select your teammate.');
                 await interaction.editReply({
@@ -1382,21 +1386,30 @@ export async function handleInteractions(interaction, client, db, commands) {
                     });
                     return;
                 }
-                const teamA = formatWagerTeam([wager.challenger1Id, wager.challenger2Id]);
-                const teamB = formatWagerTeam([wager.challenged1Id, wager.challenged2Id]);
+                // Fetch display names so select labels show names, not raw IDs
+                async function resolveTeamLabel(ids) {
+                    const names = [];
+                    for (const id of ids.filter(Boolean)) {
+                        const m = await interaction.guild?.members.fetch(id).catch(() => null);
+                        names.push(m?.displayName || id);
+                    }
+                    return names.join(' + ') || 'Team';
+                }
+                const teamALabel = await resolveTeamLabel([wager.challenger1Id, wager.challenger2Id]);
+                const teamBLabel = await resolveTeamLabel([wager.challenged1Id, wager.challenged2Id]);
                 const winnerSelect = new StringSelectMenuBuilder()
                     .setCustomId(`wg_finalize_winner_select|${wager.id}`)
                     .setPlaceholder('Select the winning team')
                     .addOptions([
                     new StringSelectMenuOptionBuilder()
-                        .setLabel((teamA || 'Team A').slice(0, 100))
+                        .setLabel(teamALabel.slice(0, 100))
                         .setValue('CHALLENGER'),
                     new StringSelectMenuOptionBuilder()
-                        .setLabel((teamB || 'Team B').slice(0, 100))
+                        .setLabel(teamBLabel.slice(0, 100))
                         .setValue('CHALLENGED'),
                 ]);
                 await interaction.reply({
-                    content: 'Select the winner team:',
+                    content: 'Select the winning team:',
                     components: [new ActionRowBuilder().addComponents(winnerSelect)],
                     flags: MessageFlags.Ephemeral,
                 });
@@ -1517,18 +1530,18 @@ export async function handleInteractions(interaction, client, db, commands) {
                 }
                 const eloModal = new ModalBuilder()
                     .setCustomId(`wt_elo_modal|${war.id}|${winnerGuildId}|${scoreValue}`)
-                    .setTitle('Definir Pontos de ELO')
+                    .setTitle('Set ELO Points')
                     .addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder()
                     .setCustomId('winner_elo_gain')
-                    .setLabel('Pontos ganhos pelo ganhador')
+                    .setLabel('Winner ELO gain')
                     .setStyle(TextInputStyle.Short)
-                    .setPlaceholder('ex: 25')
+                    .setPlaceholder('25')
                     .setRequired(true)
                     .setMaxLength(6)), new ActionRowBuilder().addComponents(new TextInputBuilder()
                     .setCustomId('loser_elo_loss')
-                    .setLabel('Pontos removidos do perdedor')
+                    .setLabel('Loser ELO loss')
                     .setStyle(TextInputStyle.Short)
-                    .setPlaceholder('ex: 20')
+                    .setPlaceholder('20')
                     .setRequired(true)
                     .setMaxLength(6)));
                 await interaction.showModal(eloModal);
@@ -1564,18 +1577,18 @@ export async function handleInteractions(interaction, client, db, commands) {
                     .setMaxLength(400);
                 const modal = new ModalBuilder()
                     .setCustomId(`wt_finalize_link_modal|${war.id}|${winnerGuildId}|${scoreValue}`)
-                    .setTitle('Finalizar War (Link + ELO)')
+                    .setTitle('Finalize War')
                     .addComponents(new ActionRowBuilder().addComponents(linkInput), new ActionRowBuilder().addComponents(new TextInputBuilder()
                     .setCustomId('winner_elo_gain')
-                    .setLabel('Pontos ganhos pelo ganhador')
+                    .setLabel('Winner ELO gain')
                     .setStyle(TextInputStyle.Short)
-                    .setPlaceholder('ex: 25')
+                    .setPlaceholder('25')
                     .setRequired(true)
                     .setMaxLength(6)), new ActionRowBuilder().addComponents(new TextInputBuilder()
                     .setCustomId('loser_elo_loss')
-                    .setLabel('Pontos removidos do perdedor')
+                    .setLabel('Loser ELO loss')
                     .setStyle(TextInputStyle.Short)
-                    .setPlaceholder('ex: 20')
+                    .setPlaceholder('20')
                     .setRequired(true)
                     .setMaxLength(6)));
                 await interaction.showModal(modal);
@@ -1766,7 +1779,7 @@ export async function handleInteractions(interaction, client, db, commands) {
                 const embed = new EmbedBuilder()
                     .setTitle('Member Invitation')
                     .setDescription(`Choose a user to invite to **${getRoleLabel(castRoleType)}**.`)
-                    .setColor('#2a8900');
+                    .setColor(0x5BADFF);
                 await interaction.update({
                     embeds: [embed],
                     components: [
@@ -1910,6 +1923,12 @@ export async function handleInteractions(interaction, client, db, commands) {
                     });
                     return;
                 }
+                // Bug 2: respect signing_closed setting
+                const signingClosed = interaction.guildId ? getSetting(db, `${interaction.guildId}_signing_closed`) : null;
+                if (signingClosed === '1') {
+                    await interaction.update({ content: '❌ Signings are currently closed.', embeds: [], components: [] });
+                    return;
+                }
                 const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
                 const inviteId = createInvite(db, guildId, targetUserId, roleType, interaction.user.id, expiresAt);
                 const inviteRow = buildInviteDecisionRow(inviteId, roleType, interaction.guildId ?? '');
@@ -2015,7 +2034,12 @@ export async function handleInteractions(interaction, client, db, commands) {
                 if (signingLogChannelId) {
                     // Send approval request to admin channel — roles assigned only after admin approves
                     try {
-                        const logChannel = await client.channels.fetch(signingLogChannelId).catch(() => null);
+                        const discordGuildForSigning = effectiveDiscordGuildId
+                            ? (client.guilds.cache.get(effectiveDiscordGuildId) || await client.guilds.fetch(effectiveDiscordGuildId).catch(() => null))
+                            : null;
+                        const logChannel = discordGuildForSigning
+                            ? (discordGuildForSigning.channels.cache.get(signingLogChannelId) || await discordGuildForSigning.channels.fetch(signingLogChannelId).catch(() => null))
+                            : await client.channels.fetch(signingLogChannelId).catch(() => null);
                         if (logChannel) {
                             const inviterUser = invite.inviterId ? await client.users.fetch(invite.inviterId).catch(() => null) : null;
                             const approvalEmbed = new EmbedBuilder()
@@ -2077,6 +2101,30 @@ export async function handleInteractions(interaction, client, db, commands) {
                             console.warn(`Failed to assign guild name role "${dbGuild.name}":`, e?.message);
                         }
                     }
+                    // Sync to site
+                    if (dbGuild?.site_org_id) {
+                        try {
+                            const { signMember } = await import('./siteapi.js');
+                            const targetUser = await client.users.fetch(invite.targetUserId).catch(() => null);
+                            const siteRole = invite.roleType === 'SUB' ? 'Sub' : 'Player';
+                            await signMember(dbGuild.site_org_id, invite.targetUserId, targetUser?.username || invite.targetUserId, siteRole);
+                        }
+                        catch (e) { console.warn('Failed to sync signing to site:', e?.message); }
+                    }
+                    // Announce to public signings channel
+                    const announceChannelId = effectiveDiscordGuildId ? getSetting(db, `${effectiveDiscordGuildId}_signings_announce_channel_id`) : null;
+                    if (announceChannelId && effectiveDiscordGuildId) {
+                        try {
+                            const announceGuild = client.guilds.cache.get(effectiveDiscordGuildId) || await client.guilds.fetch(effectiveDiscordGuildId).catch(() => null);
+                            const announceChannel = announceGuild ? (announceGuild.channels.cache.get(announceChannelId) || await announceGuild.channels.fetch(announceChannelId).catch(() => null)) : null;
+                            if (announceChannel && 'send' in announceChannel) {
+                                await announceChannel.send({
+                                    content: `🎉 <@${invite.targetUserId}> has been signed to **${dbGuild?.name || invite.guildId}** as a **${getRoleLabel(invite.roleType)}**!`,
+                                }).catch(() => null);
+                            }
+                        }
+                        catch (e) { console.warn('Failed to send signing announcement:', e?.message); }
+                    }
                     await refreshGuildPanel(client, db, invite.guildId).catch(() => { });
                     await interaction.update({
                         content: `✅ Invitation accepted for **${getRoleLabel(invite.roleType)}**.`,
@@ -2114,8 +2162,14 @@ export async function handleInteractions(interaction, client, db, commands) {
                     : null;
                 if (signingLogChannelId) {
                     // Send removal request to admin channel for approval
+                    let removalRequestSent = false;
                     try {
-                        const logChannel = await client.channels.fetch(signingLogChannelId).catch(() => null);
+                        const discordGuildForRemoval = interaction.guildId
+                            ? (client.guilds.cache.get(interaction.guildId) || await client.guilds.fetch(interaction.guildId).catch(() => null))
+                            : null;
+                        const logChannel = discordGuildForRemoval
+                            ? (discordGuildForRemoval.channels.cache.get(signingLogChannelId) || await discordGuildForRemoval.channels.fetch(signingLogChannelId).catch(() => null))
+                            : await client.channels.fetch(signingLogChannelId).catch(() => null);
                         if (logChannel) {
                             const targetUser = await client.users.fetch(targetUserId).catch(() => null);
                             const approvalEmbed = new EmbedBuilder()
@@ -2130,17 +2184,27 @@ export async function handleInteractions(interaction, client, db, commands) {
                                 .setCustomId(`gp_remove_decline|${guildId}`)
                                 .setLabel('Decline')
                                 .setStyle(ButtonStyle.Secondary));
-                            await logChannel.send({ embeds: [approvalEmbed], components: [approvalRow] }).catch(() => null);
+                            const sent = await logChannel.send({ embeds: [approvalEmbed], components: [approvalRow] }).catch(() => null);
+                            if (sent) removalRequestSent = true;
                         }
                     }
                     catch (e) {
                         console.warn('Failed to send removal approval request:', e?.message);
                     }
-                    await interaction.update({
-                        content: `⏳ Removal request for <@${targetUserId}> sent for admin approval.`,
-                        embeds: [],
-                        components: [],
-                    });
+                    if (removalRequestSent) {
+                        await interaction.update({
+                            content: `⏳ Removal request for <@${targetUserId}> sent for admin approval.`,
+                            embeds: [],
+                            components: [],
+                        });
+                    }
+                    else {
+                        await interaction.update({
+                            content: `❌ Could not reach the signing log channel. Check bot permissions or reconfigure with \`/setup signing_log_channel\`.`,
+                            embeds: [],
+                            components: [],
+                        });
+                    }
                 }
                 else {
                     // No approval channel — remove immediately
@@ -2151,6 +2215,12 @@ export async function handleInteractions(interaction, client, db, commands) {
                     }
                     await maybeRemoveDiscordRoleByType(interaction, db, targetUserId, roleType);
                     await removeGuildNameRole(client, interaction.guildId ?? undefined, guild, targetUserId);
+                    // Sync removal to site
+                    try {
+                        const { releaseMember } = await import('./siteapi.js');
+                        await releaseMember(targetUserId);
+                    }
+                    catch (e) { console.warn('Failed to sync removal to site:', e?.message); }
                     const targetUser = await client.users.fetch(targetUserId).catch(() => null);
                     if (targetUser) {
                         await targetUser.send({ embeds: [buildRemovalEmbed(roleType, guild?.name || guildId)] }).catch(() => { });
@@ -2196,14 +2266,37 @@ export async function handleInteractions(interaction, client, db, commands) {
                         console.warn(`[sign_approve] Failed to assign guild name role:`, e?.message);
                     }
                 }
+                // Sync to site
+                if (dbGuild?.site_org_id) {
+                    try {
+                        const { signMember } = await import('./siteapi.js');
+                        const siteRole = invite.roleType === 'SUB' ? 'Sub' : 'Player';
+                        const targetUserForSite = await client.users.fetch(invite.targetUserId).catch(() => null);
+                        await signMember(dbGuild.site_org_id, invite.targetUserId, targetUserForSite?.username || invite.targetUserId, siteRole);
+                    }
+                    catch (e) { console.warn('Failed to sync signing approval to site:', e?.message); }
+                }
                 // Notify player
                 const targetUser = await client.users.fetch(invite.targetUserId).catch(() => null);
                 if (targetUser) {
                     await targetUser.send({ content: `✅ Your signing for **${getRoleLabel(invite.roleType)}** in **${dbGuild?.name || invite.guildId}** has been approved! You now have the guild role.` }).catch(() => null);
                 }
+                // Announce to public signings channel
+                const announceChannelId = discordGuildId ? getSetting(db, `${discordGuildId}_signings_announce_channel_id`) : null;
+                if (announceChannelId && discordGuild) {
+                    try {
+                        const announceChannel = discordGuild.channels.cache.get(announceChannelId) || await discordGuild.channels.fetch(announceChannelId).catch(() => null);
+                        if (announceChannel && 'send' in announceChannel) {
+                            await announceChannel.send({
+                                content: `🎉 <@${invite.targetUserId}> has been signed to **${dbGuild?.name || invite.guildId}** as a **${getRoleLabel(invite.roleType)}**!`,
+                            }).catch(() => null);
+                        }
+                    }
+                    catch (e) { console.warn('Failed to send signing announcement:', e?.message); }
+                }
                 await refreshGuildPanel(client, db, invite.guildId).catch(() => { });
                 await interaction.update({
-                    content: `✅ Signing approved — <@${invite.targetUserId}> received the **${getRoleLabel(invite.roleType)}** role in **${dbGuild?.name || invite.guildId}**.`,
+                    content: `✅ Signing approved by <@${interaction.user.id}> — <@${invite.targetUserId}> received the **${getRoleLabel(invite.roleType)}** role in **${dbGuild?.name || invite.guildId}**.`,
                     components: [],
                     embeds: [],
                 });
@@ -2262,6 +2355,12 @@ export async function handleInteractions(interaction, client, db, commands) {
                     // Remove guild name role
                     await removeGuildNameRole(client, discordGuildId, guild, targetUserId);
                 }
+                // Sync removal to site
+                try {
+                    const { releaseMember } = await import('./siteapi.js');
+                    await releaseMember(targetUserId);
+                }
+                catch (e) { console.warn('Failed to sync removal approval to site:', e?.message); }
                 // Notify player
                 const targetUser = await client.users.fetch(targetUserId).catch(() => null);
                 if (targetUser) {
@@ -2467,7 +2566,9 @@ export async function handleInteractions(interaction, client, db, commands) {
             }
             else if (action === 'approve') {
                 // Staff approving
-                const staffRoleId = getSetting(db, 'staff_role_id');
+                const staffRoleId = interaction.guildId
+                    ? getSetting(db, `${interaction.guildId}_staff_role_id`)
+                    : null;
                 if (staffRoleId && interaction.guild) {
                     const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
                     if (!member?.roles.cache.has(staffRoleId)) {
@@ -2503,7 +2604,7 @@ export async function handleInteractions(interaction, client, db, commands) {
                     if (pubChannel && pubChannel.isTextBased() && 'send' in pubChannel) {
                         const pubEmbed = new EmbedBuilder()
                             .setTitle('📝 New Signing')
-                            .setColor(0x2a8900)
+                            .setColor(0x5BADFF)
                             .setDescription(`<@${req.target_discord_id}> has been signed to **${req.org_tag}** as **${req.role}**!`);
                         await pubChannel.send({ embeds: [pubEmbed] });
                     }
@@ -2511,7 +2612,9 @@ export async function handleInteractions(interaction, client, db, commands) {
                 await interaction.update({ content: `✅ Signing approved. ${req.target_name} added to ${req.org_tag}.`, components: [], embeds: [] });
             }
             else if (action === 'reject') {
-                const staffRoleId = getSetting(db, 'staff_role_id');
+                const staffRoleId = interaction.guildId
+                    ? getSetting(db, `${interaction.guildId}_staff_role_id`)
+                    : null;
                 if (staffRoleId && interaction.guild) {
                     const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
                     if (!member?.roles.cache.has(staffRoleId)) {
@@ -2605,24 +2708,40 @@ export async function handleInteractions(interaction, client, db, commands) {
                     });
                     return;
                 }
-                const scoreSelect = new StringSelectMenuBuilder()
-                    .setCustomId(`wt_finalize_score_select|${war.id}|${winnerGuildId}`)
-                    .setPlaceholder('Select the final score')
-                    .addOptions([
-                    new StringSelectMenuOptionBuilder()
-                        .setLabel('2-1')
-                        .setDescription('Close war result')
-                        .setValue('2-1'),
-                    new StringSelectMenuOptionBuilder()
-                        .setLabel('3-0')
-                        .setDescription('Clean sweep result')
-                        .setValue('3-0'),
-                ]);
-                await interaction.update({
-                    content: 'Select the final score:',
-                    components: [new ActionRowBuilder().addComponents(scoreSelect)],
-                    embeds: [],
-                });
+                const quickModal = new ModalBuilder()
+                    .setCustomId(`wt_quick_modal|${war.id}|${winnerGuildId}`)
+                    .setTitle('Finalize War')
+                    .addComponents(
+                        new ActionRowBuilder().addComponents(new TextInputBuilder()
+                            .setCustomId('score')
+                            .setLabel('Final Score (Winner-Loser, e.g. 3-0)')
+                            .setStyle(TextInputStyle.Short)
+                            .setPlaceholder('3-0')
+                            .setRequired(true)
+                            .setMaxLength(10)),
+                        new ActionRowBuilder().addComponents(new TextInputBuilder()
+                            .setCustomId('winner_elo_gain')
+                            .setLabel('Winner ELO gain')
+                            .setStyle(TextInputStyle.Short)
+                            .setPlaceholder('25')
+                            .setRequired(true)
+                            .setMaxLength(6)),
+                        new ActionRowBuilder().addComponents(new TextInputBuilder()
+                            .setCustomId('loser_elo_loss')
+                            .setLabel('Loser ELO loss')
+                            .setStyle(TextInputStyle.Short)
+                            .setPlaceholder('20')
+                            .setRequired(true)
+                            .setMaxLength(6)),
+                        new ActionRowBuilder().addComponents(new TextInputBuilder()
+                            .setCustomId('mvp_user')
+                            .setLabel('MVP (optional)')
+                            .setStyle(TextInputStyle.Short)
+                            .setPlaceholder('@player or name')
+                            .setRequired(false)
+                            .setMaxLength(120))
+                    );
+                await interaction.showModal(quickModal);
                 return;
             }
             if (customId.startsWith('wt_finalize_score_select|')) {
@@ -2722,27 +2841,20 @@ export async function handleInteractions(interaction, client, db, commands) {
                     });
                     return;
                 }
-                const clipsInput = new TextInputBuilder()
-                    .setCustomId('wager_clips_link')
-                    .setLabel('Clips link (required)')
-                    .setStyle(TextInputStyle.Short)
-                    .setPlaceholder('https://...')
-                    .setRequired(true)
-                    .setMaxLength(400);
                 const modal = new ModalBuilder()
-                    .setCustomId(`wg_finalize_clip_modal|${wager.id}|${winnerSide}`)
-                    .setTitle('Finalizar Wager')
-                    .addComponents(new ActionRowBuilder().addComponents(clipsInput), new ActionRowBuilder().addComponents(new TextInputBuilder()
+                    .setCustomId(`wg_finalize_elo_modal|${wager.id}|${winnerSide}`)
+                    .setTitle('Finalize Wager')
+                    .addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder()
                     .setCustomId('winner_elo_gain')
-                    .setLabel('Pontos ELO ganhos pelo ganhador')
+                    .setLabel('Winner ELO gain')
                     .setStyle(TextInputStyle.Short)
-                    .setPlaceholder('ex: 25')
+                    .setPlaceholder('25')
                     .setRequired(true)
                     .setMaxLength(6)), new ActionRowBuilder().addComponents(new TextInputBuilder()
                     .setCustomId('loser_elo_loss')
-                    .setLabel('Pontos ELO removidos do perdedor')
+                    .setLabel('Loser ELO loss')
                     .setStyle(TextInputStyle.Short)
-                    .setPlaceholder('ex: 20')
+                    .setPlaceholder('20')
                     .setRequired(true)
                     .setMaxLength(6)));
                 await interaction.showModal(modal);
@@ -2800,7 +2912,7 @@ export async function handleInteractions(interaction, client, db, commands) {
                 const embed = new EmbedBuilder()
                     .setTitle('Member Invitation')
                     .setDescription(`Choose a user to invite to **${getRoleLabel(roleType)}**.`)
-                    .setColor('#2a8900');
+                    .setColor(0x5BADFF);
                 await interaction.update({
                     embeds: [embed],
                     components: [new ActionRowBuilder().addComponents(userSelect)],
@@ -2972,6 +3084,29 @@ export async function handleInteractions(interaction, client, db, commands) {
                     });
                     return;
                 }
+                // Block if either player already has an active wager (auto-close stale tickets whose channel was deleted)
+                const challengerActiveWager = getActiveWagerForUser(db, challengerId);
+                if (challengerActiveWager) {
+                    const staleChannel = challengerActiveWager.channelId
+                        ? await interaction.guild?.channels.fetch(challengerActiveWager.channelId).catch(() => null)
+                        : null;
+                    if (staleChannel) {
+                        await interaction.editReply({ content: '❌ You already have an active wager ticket. Close or finish it before creating a new one.', embeds: [], components: [] });
+                        return;
+                    }
+                    closeWager(db, challengerActiveWager.id);
+                }
+                const challengedActiveWager = getActiveWagerForUser(db, challengedId);
+                if (challengedActiveWager) {
+                    const staleChannel = challengedActiveWager.channelId
+                        ? await interaction.guild?.channels.fetch(challengedActiveWager.channelId).catch(() => null)
+                        : null;
+                    if (staleChannel) {
+                        await interaction.editReply({ content: `❌ <@${challengedId}> already has an active wager ticket.`, embeds: [], components: [] });
+                        return;
+                    }
+                    closeWager(db, challengedActiveWager.id);
+                }
                 const challengerMember = await interaction.guild?.members.fetch(challengerId).catch(() => null);
                 const challengerName = challengerMember?.displayName || interaction.user.username;
                 const challengedName = challengedMember.displayName || challengedId;
@@ -2986,7 +3121,7 @@ export async function handleInteractions(interaction, client, db, commands) {
                     return;
                 }
                 const wagerEmbed = new EmbedBuilder()
-                    .setColor('#2a8900')
+                    .setColor(0x5BADFF)
                     .setTitle('Wager Ticket')
                     .setDescription(' Chat is locked until the wager is accepted.\n\n' +
                     'Use the buttons below to accept, dodge, or close the ticket.');
@@ -3033,7 +3168,7 @@ export async function handleInteractions(interaction, client, db, commands) {
                     .setMinValues(2)
                     .setMaxValues(2);
                 const embed = new EmbedBuilder()
-                    .setColor('#2a8900')
+                    .setColor(0x5BADFF)
                     .setTitle('Wager 2v2')
                     .setDescription('Step 2/2: Select the two opposing players.');
                 await interaction.update({
@@ -3073,6 +3208,21 @@ export async function handleInteractions(interaction, client, db, commands) {
                     });
                     return;
                 }
+                // Block if any player already has an active wager (auto-close stale tickets whose channel was deleted)
+                const allPlayerIds = [challenger1Id, challenger2Id, challenged1Id, challenged2Id];
+                for (const pid of allPlayerIds) {
+                    const activeWager = getActiveWagerForUser(db, pid);
+                    if (activeWager) {
+                        const staleChannel = activeWager.channelId
+                            ? await interaction.guild?.channels.fetch(activeWager.channelId).catch(() => null)
+                            : null;
+                        if (staleChannel) {
+                            await interaction.editReply({ content: `❌ <@${pid}> already has an active wager ticket. It must be closed before a new one can be created.`, embeds: [], components: [] });
+                            return;
+                        }
+                        closeWager(db, activeWager.id);
+                    }
+                }
                 const ticketName = `${members[0]?.displayName || challenger1Id}-${members[1]?.displayName || challenger2Id} vs ${members[2]?.displayName || challenged1Id}-${members[3]?.displayName || challenged2Id}`;
                 const ticketChannel = await createWagerTicketChannel(interaction, ticketName, [challenger1Id, challenger2Id, challenged1Id, challenged2Id], db);
                 if (!ticketChannel) {
@@ -3084,7 +3234,7 @@ export async function handleInteractions(interaction, client, db, commands) {
                     return;
                 }
                 const wagerEmbed = new EmbedBuilder()
-                    .setColor('#2a8900')
+                    .setColor(0x5BADFF)
                     .setTitle('Wager Ticket')
                     .setDescription(' Chat is locked until the wager is accepted by both challenged players.\n\n' +
                     'Use the buttons below to accept, dodge, or close the ticket.');
@@ -3211,12 +3361,11 @@ export async function handleInteractions(interaction, client, db, commands) {
                 });
                 return;
             }
-            if (customId.startsWith('wg_finalize_clip_modal|')) {
+            if (customId.startsWith('wg_finalize_clip_modal|') || customId.startsWith('wg_finalize_elo_modal|')) {
                 await interaction.deferReply({ flags: MessageFlags.Ephemeral });
                 const [, wagerIdRaw, winnerSide] = parseCustomId(customId);
                 const wagerId = Number(wagerIdRaw);
                 const wager = getWagerById(db, wagerId);
-                const clipsLink = interaction.fields.getTextInputValue('wager_clips_link')?.trim();
                 const winnerEloGainRaw = interaction.fields.getTextInputValue('winner_elo_gain')?.trim();
                 const loserEloLossRaw = interaction.fields.getTextInputValue('loser_elo_loss')?.trim();
                 if (!wager || wager.status !== 'ACCEPTED') {
@@ -3239,16 +3388,10 @@ export async function handleInteractions(interaction, client, db, commands) {
                     });
                     return;
                 }
-                if (!clipsLink || !isValidClipLink(clipsLink)) {
-                    await interaction.editReply({
-                        content: '❌ Invalid link. Please provide a valid URL starting with http:// or https://',
-                    });
-                    return;
-                }
                 const winnerEloGain = parseInt(winnerEloGainRaw || '', 10);
                 const loserEloLoss = parseInt(loserEloLossRaw || '', 10);
                 if (isNaN(winnerEloGain) || winnerEloGain < 0 || isNaN(loserEloLoss) || loserEloLoss < 0) {
-                    await interaction.editReply({ content: '❌ Pontos de ELO inválidos. Use números inteiros positivos.' });
+                    await interaction.editReply({ content: '❌ Invalid ELO values. Use positive integers.' });
                     return;
                 }
                 closeWager(db, wager.id);
@@ -3262,22 +3405,84 @@ export async function handleInteractions(interaction, client, db, commands) {
                     ? [wager.challenged1Id, wager.challenged2Id].filter(Boolean)
                     : [wager.challenger1Id, wager.challenger2Id].filter(Boolean);
                 applyPlayerElo(db, winnerIds, winnerEloGain, loserIds, loserEloLoss, wager.id);
+                // Sync wager results to site Player-LB
+                (async () => {
+                    try {
+                        const { upsertWagerResult } = await import('./siteapi.js');
+                        function getPlayerOrgTag(userId) {
+                            const row = db.prepare('SELECT g.tag FROM Guilds g WHERE g.id = (SELECT guildId FROM MainRosters WHERE userId = ? LIMIT 1) OR g.id = (SELECT guildId FROM SubRosters WHERE userId = ? LIMIT 1) OR g.id = (SELECT guildId FROM Managers WHERE userId = ? LIMIT 1) LIMIT 1').get(userId, userId, userId);
+                            return row?.tag || '';
+                        }
+                        for (const uid of winnerIds) {
+                            const user = await client.users.fetch(uid).catch(() => null);
+                            await upsertWagerResult(uid, user?.displayName || user?.username || uid, getPlayerOrgTag(uid), winnerEloGain, true)
+                                .catch(e => console.warn('Player-LB sync (winner) failed:', e?.message));
+                        }
+                        for (const uid of loserIds) {
+                            const user = await client.users.fetch(uid).catch(() => null);
+                            await upsertWagerResult(uid, user?.displayName || user?.username || uid, getPlayerOrgTag(uid), -loserEloLoss, false)
+                                .catch(e => console.warn('Player-LB sync (loser) failed:', e?.message));
+                        }
+                    }
+                    catch (e) { console.warn('Player-LB sync failed:', e?.message); }
+                })();
                 const wagerLogId = getSetting(db, `${interaction.guildId}_wager_log_channel_id`) || WAGER_LOGS_CHANNEL_ID;
                 const wagerLogsChannel = await interaction.client.channels.fetch(wagerLogId).catch(() => null);
                 if (wagerLogsChannel && wagerLogsChannel.isTextBased() && 'send' in wagerLogsChannel) {
                     await wagerLogsChannel.send({
                         flags: MessageFlags.IsComponentsV2,
                         components: [
-                            buildWagerLogsContainer(`WAGER FINALIZED (${wager.type})`, teamA, teamB, `\nWinner: ${winnerTeam}\nClips: ${clipsLink}\nELO: +${winnerEloGain} / -${loserEloLoss}\nClosed by: <@${interaction.user.id}>`, '## WAGER CLOSED'),
+                            buildWagerLogsContainer(`WAGER FINALIZED (${wager.type})`, teamA, teamB, `\nWinner: ${winnerTeam}\nELO: +${winnerEloGain} / -${loserEloLoss}\nClosed by: <@${interaction.user.id}>`, '## WAGER CLOSED'),
                         ],
                     });
                 }
                 await interaction.followUp({
-                    content: `✅ Wager finalizado. Ganhador: ${winnerTeam} | Clips: ${clipsLink}\n📊 ELO: +${winnerEloGain} / -${loserEloLoss}. Fechando ticket...`,
+                    content: `✅ Wager finalized! Winner: **${winnerTeam}** | ELO: +${winnerEloGain} / -${loserEloLoss}. Closing ticket...`,
                     flags: MessageFlags.Ephemeral,
                 });
                 if (interaction.channel && 'delete' in interaction.channel) {
                     await interaction.channel.delete('Wager finalized and recorded').catch(() => null);
+                }
+                return;
+            }
+            if (customId.startsWith('wt_quick_modal|')) {
+                await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+                const [, warIdRaw, winnerGuildId] = parseCustomId(customId);
+                const warId = Number(warIdRaw);
+                const war = getWarById(db, warId);
+                const scoreRaw = interaction.fields.getTextInputValue('score')?.trim();
+                const parsedScore = parseWarScore(scoreRaw || '');
+                if (!war || !winnerGuildId || !parsedScore || !['PENDING', 'ACCEPTED'].includes(war.status)) {
+                    await interaction.editReply({ content: '❌ This war is not available for finalization.' });
+                    return;
+                }
+                if (![war.openerGuildId, war.opponentGuildId].includes(winnerGuildId)) {
+                    await interaction.editReply({ content: '❌ Invalid winner.' });
+                    return;
+                }
+                const member = await interaction.guild?.members.fetch(interaction.user.id).catch(() => null);
+                if (!canMemberFinalizeTicket(member, db, interaction.guildId)) {
+                    await interaction.editReply({ content: '❌ You do not have permission to finalize this war.' });
+                    return;
+                }
+                const winnerEloGain = parseInt(interaction.fields.getTextInputValue('winner_elo_gain')?.trim() || '', 10);
+                const loserEloLoss = parseInt(interaction.fields.getTextInputValue('loser_elo_loss')?.trim() || '', 10);
+                if (isNaN(winnerEloGain) || winnerEloGain < 0 || isNaN(loserEloLoss) || loserEloLoss < 0) {
+                    await interaction.editReply({ content: '❌ Invalid ELO values. Use positive integers.' });
+                    return;
+                }
+                const mvpRaw = interaction.fields.getTextInputValue('mvp_user')?.trim() || null;
+                const { winnerScore, loserScore } = parsedScore;
+                const loserGuildId = winnerGuildId === war.openerGuildId ? war.opponentGuildId : war.openerGuildId;
+                const { winnerGuild } = await finalizeWarAndLog(interaction, client, db, war, winnerGuildId, winnerScore, loserScore, null, null, mvpRaw, null);
+                applyGuildElo(db, winnerGuildId, winnerEloGain, loserGuildId, loserEloLoss, war.id);
+                await refreshGuildPanel(client, db, winnerGuildId).catch(() => { });
+                await refreshGuildPanel(client, db, loserGuildId).catch(() => { });
+                await interaction.editReply({
+                    content: `✅ War finalized! **${winnerGuild?.name || 'Unknown'}** wins **${winnerScore}-${loserScore}** | ELO: +${winnerEloGain} / -${loserEloLoss}. Closing ticket...`,
+                });
+                if (interaction.channel && 'delete' in interaction.channel) {
+                    await interaction.channel.delete('War finished and recorded').catch(() => null);
                 }
                 return;
             }
@@ -3362,11 +3567,10 @@ export async function handleInteractions(interaction, client, db, commands) {
                 const clipsText = clipLinks.length > 0 ? ` | Clips: ${clipLinks.length} link(s) provided` : '';
                 const eloRow = new ActionRowBuilder().addComponents(new ButtonBuilder()
                     .setCustomId(`wt_elo_btn|${winnerGuildId}|${loserGuildId}|${war.id}`)
-                    .setLabel('Aplicar ELO')
+                    .setLabel('Apply ELO')
                     .setStyle(ButtonStyle.Primary));
                 await interaction.editReply({
-                    content: `✅ War finalizada. Ganhador: **${winnerGuild?.name || 'Unknown'}** | ` +
-                        `Score: **${winnerScore}-${loserScore}**${clipsText}.\nClique em **Aplicar ELO** para definir os pontos.`,
+                    content: `✅ War finalized! **${winnerGuild?.name || 'Unknown'}** wins **${winnerScore}-${loserScore}**. Click **Apply ELO** to set points.`,
                     components: [eloRow],
                 });
                 if (interaction.channel && 'delete' in interaction.channel) {
@@ -3412,7 +3616,7 @@ export async function handleInteractions(interaction, client, db, commands) {
                 const winnerEloGain = parseInt(winnerEloGainRaw || '', 10);
                 const loserEloLoss = parseInt(loserEloLossRaw || '', 10);
                 if (isNaN(winnerEloGain) || winnerEloGain < 0 || isNaN(loserEloLoss) || loserEloLoss < 0) {
-                    await interaction.editReply({ content: '❌ Pontos de ELO inválidos. Use números inteiros positivos.' });
+                    await interaction.editReply({ content: '❌ Invalid ELO values. Use positive integers.' });
                     return;
                 }
                 const { winnerScore, loserScore } = parsedScore;
@@ -3422,7 +3626,7 @@ export async function handleInteractions(interaction, client, db, commands) {
                 await refreshGuildPanel(client, db, winnerGuildId).catch(() => { });
                 await refreshGuildPanel(client, db, loserGuildId).catch(() => { });
                 await interaction.editReply({
-                    content: `✅ War finalizada. Ganhador: **${winnerGuild?.name || 'Unknown'}** | Score: **${winnerScore}-${loserScore}** | Clips: ${clipsLinkRaw}\n📊 ELO: +${winnerEloGain} / -${loserEloLoss}. Fechando ticket...`,
+                    content: `✅ War finalized! **${winnerGuild?.name || 'Unknown'}** wins **${winnerScore}-${loserScore}** | ELO: +${winnerEloGain} / -${loserEloLoss}. Closing ticket...`,
                 });
                 if (interaction.channel && 'delete' in interaction.channel) {
                     await interaction.channel.delete('War finished and recorded').catch(() => null);
@@ -3437,22 +3641,22 @@ export async function handleInteractions(interaction, client, db, commands) {
                 const war = getWarById(db, warId);
                 const parsedScore = parseWarScore(scoreValue || '');
                 if (!war || !winnerGuildId || !parsedScore || !['PENDING', 'ACCEPTED'].includes(war.status)) {
-                    await interaction.editReply({ content: '❌ Esta war não está disponível para finalização.' });
+                    await interaction.editReply({ content: '❌ This war is not available for finalization.' });
                     return;
                 }
                 if (![war.openerGuildId, war.opponentGuildId].includes(winnerGuildId)) {
-                    await interaction.editReply({ content: '❌ Ganhador inválido.' });
+                    await interaction.editReply({ content: '❌ Invalid winner.' });
                     return;
                 }
                 const member = await interaction.guild?.members.fetch(interaction.user.id).catch(() => null);
                 if (!canMemberFinalizeTicket(member, db, interaction.guildId)) {
-                    await interaction.editReply({ content: '❌ Sem permissão para finalizar. Configure com `/setup hoster_role`.' });
+                    await interaction.editReply({ content: '❌ You do not have permission to finalize this war.' });
                     return;
                 }
                 const winnerEloGain = parseInt(interaction.fields.getTextInputValue('winner_elo_gain')?.trim() || '', 10);
                 const loserEloLoss = parseInt(interaction.fields.getTextInputValue('loser_elo_loss')?.trim() || '', 10);
                 if (isNaN(winnerEloGain) || winnerEloGain < 0 || isNaN(loserEloLoss) || loserEloLoss < 0) {
-                    await interaction.editReply({ content: '❌ Pontos de ELO inválidos. Use números inteiros positivos.' });
+                    await interaction.editReply({ content: '❌ Invalid ELO values. Use positive integers.' });
                     return;
                 }
                 const { winnerScore, loserScore } = parsedScore;
@@ -3462,7 +3666,7 @@ export async function handleInteractions(interaction, client, db, commands) {
                 await refreshGuildPanel(client, db, winnerGuildId).catch(() => { });
                 await refreshGuildPanel(client, db, loserGuildId).catch(() => { });
                 await interaction.editReply({
-                    content: `✅ War finalizada. Ganhador: **${winnerGuild?.name || 'Unknown'}** | Score: **${winnerScore}-${loserScore}**\n📊 ELO: +${winnerEloGain} / -${loserEloLoss}. Fechando ticket...`,
+                    content: `✅ War finalized! **${winnerGuild?.name || 'Unknown'}** wins **${winnerScore}-${loserScore}** | ELO: +${winnerEloGain} / -${loserEloLoss}. Closing ticket...`,
                 });
                 if (interaction.channel && 'delete' in interaction.channel) {
                     await interaction.channel.delete('War finished and recorded').catch(() => null);
@@ -3475,20 +3679,20 @@ export async function handleInteractions(interaction, client, db, commands) {
                 const [, winnerGuildId, loserGuildId, warIdRaw] = parseCustomId(customId);
                 const warId = Number(warIdRaw);
                 if (!winnerGuildId || !loserGuildId) {
-                    await interaction.editReply({ content: '❌ Dados inválidos.' });
+                    await interaction.editReply({ content: '❌ Invalid data.' });
                     return;
                 }
                 const winnerEloGain = parseInt(interaction.fields.getTextInputValue('winner_elo_gain')?.trim() || '', 10);
                 const loserEloLoss = parseInt(interaction.fields.getTextInputValue('loser_elo_loss')?.trim() || '', 10);
                 if (isNaN(winnerEloGain) || winnerEloGain < 0 || isNaN(loserEloLoss) || loserEloLoss < 0) {
-                    await interaction.editReply({ content: '❌ Pontos de ELO inválidos. Use números inteiros positivos.' });
+                    await interaction.editReply({ content: '❌ Invalid ELO values. Use positive integers.' });
                     return;
                 }
                 applyGuildElo(db, winnerGuildId, winnerEloGain, loserGuildId, loserEloLoss, isNaN(warId) ? undefined : warId);
                 await refreshGuildPanel(client, db, winnerGuildId).catch(() => { });
                 await refreshGuildPanel(client, db, loserGuildId).catch(() => { });
                 await interaction.editReply({
-                    content: `✅ ELO aplicado! Ganhador: +${winnerEloGain} | Perdedor: -${loserEloLoss}`,
+                    content: `✅ ELO applied! Winner: +${winnerEloGain} | Loser: -${loserEloLoss}`,
                 });
                 return;
             }
