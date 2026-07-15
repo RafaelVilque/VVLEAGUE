@@ -68,4 +68,10 @@ export async function setSigningOpen(tag, open) {
 export async function setOrgRole(tag, discordRoleId) {
     await botFetch(`/orgs/${encodeURIComponent(tag)}/role`, { method: 'PUT', body: JSON.stringify({ discord_role_id: discordRoleId }) });
 }
+export async function upsertWagerResult(discordId, name, org, eloDelta, won) {
+    return botFetch('/players/wager-result', {
+        method: 'POST',
+        body: JSON.stringify({ discord_id: discordId, name, org, elo_delta: eloDelta, won }),
+    });
+}
 //# sourceMappingURL=siteapi.js.map

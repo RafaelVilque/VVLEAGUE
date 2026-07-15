@@ -60,7 +60,7 @@ export async function execute(interaction, db) {
         // Build management panel embed
         const embed = new EmbedBuilder()
             .setTitle(`🏰 ${guild.name}`)
-            .setColor('#2a8900')
+            .setColor(0x5BADFF)
             .addFields({ name: 'Leader', value: `<@${guild.leaderId}>`, inline: true }, { name: 'Co-Leader', value: coLeader ? `<@${coLeader}>` : 'None', inline: true }, { name: 'Region', value: guild.region, inline: true }, { name: 'Managers', value: `${managersCount}/2`, inline: true }, { name: 'Main Roster', value: `${mainsCount}/5`, inline: true }, { name: 'Sub Roster', value: `${subsCount}/5`, inline: true })
             .setThumbnail(guild.imageUrl || null);
         const row1 = new ActionRowBuilder().addComponents(new ButtonBuilder()

@@ -1,5 +1,6 @@
 import { SlashCommandBuilder, EmbedBuilder, ChannelType, } from 'discord.js';
 import { getSetting } from './database.js';
+import { createOrg, signMember } from './siteapi.js';
 const GUILD_LEADER_ROLE_ID_DEFAULT = '1470554671944040605';
 const ALLOWED_GUILD_CREATOR_ROLE_IDS_DEFAULT = [
     '1470554652264108204', // Head Moderator
@@ -10,6 +11,10 @@ const GUILD_FORUM_CHANNEL_ID_DEFAULT = '1470554848683364403';
 export const data = new SlashCommandBuilder()
     .setName('guildregister')
     .setDescription('Registers a new competitive guild')
+    .addStringOption(option => option
+    .setName('tag')
+    .setDescription('Guild tag (e.g. VVS) — max 5 chars')
+    .setRequired(true))
     .addStringOption(option => option
     .setName('name')
     .setDescription('Guild name')
@@ -48,6 +53,7 @@ export async function execute(interaction, db) {
             });
             return;
         }
+        const tag = interaction.options.getString('tag', true).toUpperCase().slice(0, 5);
         const name = interaction.options.getString('name', true);
         const leader = interaction.options.getUser('leader', true);
         const region = interaction.options.getString('region', true);
@@ -57,21 +63,41 @@ export async function execute(interaction, db) {
             await interaction.editReply({ content: '❌ Invalid color. Use HEX format, e.g. `#FF5733`.' });
             return;
         }
-        // Check whether guild name is already registered
-        const existingGuild = db
-            .prepare('SELECT id FROM Guilds WHERE name = ?')
-            .get(name);
+        // Check whether guild name or tag is already registered
+        const existingGuild = db.prepare('SELECT id FROM Guilds WHERE name = ? OR tag = ?').get(name, tag);
         if (existingGuild) {
             await interaction.editReply({
-                content: `⚠️ A guild named **${name}** is already registered.`,
+                content: `⚠️ A guild with name **${name}** or tag **[${tag}]** is already registered.`,
             });
             return;
+        }
+        // Register guild on site first to catch duplicate tags before Discord role creation
+        let siteOrgId = null;
+        try {
+            const orgResult = await createOrg(tag, name, region);
+            siteOrgId = orgResult?.id ?? null;
+        }
+        catch (e) {
+            if (e?.message === 'Tag already exists') {
+                await interaction.editReply({ content: `❌ A guild with tag **[${tag}]** already exists on the site.` });
+                return;
+            }
+            console.warn('Failed to register guild on site (continuing):', e?.message);
         }
         // Generate unique guild ID
         const guildUid = `${guildId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
         // Insert guild in database
-        db.prepare(`INSERT INTO Guilds (id, name, leaderId, coLeaderId, imageUrl, region)
-       VALUES (?, ?, ?, ?, ?, ?)`).run(guildUid, name, leader.id, null, null, region);
+        db.prepare(`INSERT INTO Guilds (id, name, leaderId, coLeaderId, imageUrl, region, tag, site_org_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(guildUid, name, leader.id, null, null, region, tag, siteOrgId);
+        // Add guild leader to site as member
+        if (siteOrgId) {
+            try {
+                await signMember(siteOrgId, leader.id, leader.username, 'Leader');
+            }
+            catch (e) {
+                console.warn('Failed to add guild leader to site:', e?.message);
+            }
+        }
         // Assign Guild Leader role and guild name role to leader
         if (interaction.guild) {
             try {
@@ -149,7 +175,7 @@ export async function execute(interaction, db) {
         // Build panel embed for public channel
         const embed = new EmbedBuilder()
             .setDescription(description)
-            .setColor('#2a8900')
+            .setColor(0x5BADFF)
             .setThumbnail(interaction.guild?.iconURL() || null);
         // Send panel embed in specific channel (Forum or Text)
         const channelId = getSetting(db, `${guildId}_guild_forum_channel_id`) || GUILD_FORUM_CHANNEL_ID_DEFAULT;

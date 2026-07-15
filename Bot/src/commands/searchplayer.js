@@ -13,7 +13,7 @@ export async function execute(interaction) {
             return;
         }
         const p = players[0];
-        const wr = (p.wins + p.losses) > 0 ? `${((p.wins / (p.wins + p.losses)) * 100).toFixed(0)}%` : 'â€”';
+        const wr = (p.wins + p.losses) > 0 ? `${((p.wins / (p.wins + p.losses)) * 100).toFixed(0)}%` : 'N/A';
         const embed = new EmbedBuilder()
             .setTitle(p.name)
             .setColor(0x5BADFF)

@@ -1,28 +1,49 @@
-﻿import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
+import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
 import { getAllOrgs } from '../siteapi.js';
+import { getRoleLimit } from '../database.js';
+
 export const data = new SlashCommandBuilder()
     .setName('teamstats')
-    .setDescription('Show all guilds ranked by points');
+    .setDescription('Show all active guilds and their roster status');
+
+const MAX_SIZE = 1 + getRoleLimit('CO_LEADER') + getRoleLimit('MANAGER') + getRoleLimit('MAIN') + getRoleLimit('SUB');
+
 export async function execute(interaction) {
     try {
         const orgs = await getAllOrgs();
-        const active = orgs.filter((o) => o.status === 'active').sort((a, b) => (b.points || 0) - (a.points || 0));
+        const active = orgs.filter((o) => o.status === 'active').sort((a, b) => a.name.localeCompare(b.name));
         if (!active.length) {
             await interaction.editReply('No active guilds found.');
             return;
         }
-        const medals = ['🥇', '🥈', '🥉'];
-        const lines = active.map((o, i) => {
-            const prefix = medals[i] || `**#${i + 1}**`;
-            return `${prefix} **${o.name}** [${o.tag}] â€” ${o.wins}W ${o.losses}L · ${o.points || 0}pts · ${o.members?.length || 0} members`;
-        }).join('\n');
+
+        const lines = active.map((o) => {
+            const memberCount = o.members?.length ?? 0;
+            const ratio = memberCount / MAX_SIZE;
+
+            let dot, status;
+            if (memberCount >= MAX_SIZE) {
+                dot = '🔴'; status = 'Full';
+            } else if (ratio >= 0.8) {
+                dot = '🟡'; status = 'Almost Full';
+            } else {
+                dot = '🟢'; status = 'Open';
+            }
+
+            const roleMention = o.discord_role_id ? `<@&${o.discord_role_id}>` : `**${o.name}**`;
+            const leader = o.members?.find(m => m.role === 'Leader');
+            const leaderName = leader?.name || 'No captain';
+
+            return `${dot} ${status} ${roleMention} — ${memberCount}/${MAX_SIZE}\n👑 ${leaderName}`;
+        });
+
         const embed = new EmbedBuilder()
-            .setTitle('ðŸ† Guild Rankings')
+            .setTitle('🏆 Team Overview')
             .setColor(0x5BADFF)
-            .setDescription(lines.slice(0, 4096));
+            .setDescription(lines.join('\n\n').slice(0, 4096));
+
         await interaction.editReply({ embeds: [embed] });
-    }
-    catch (e) {
+    } catch (e) {
         await interaction.editReply(`❌ Error: ${e.message}`);
     }
 }
