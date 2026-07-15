@@ -56,8 +56,8 @@ export async function signMember(orgId, discordId, name, role = 'Player') {
 export async function releaseMember(discordId) {
     return botFetch('/release', { method: 'POST', body: JSON.stringify({ discord_id: discordId }) });
 }
-export async function createOrg(tag, name, region, logoUrl) {
-    return botFetch('/orgs', { method: 'POST', body: JSON.stringify({ tag, name, region, logo_url: logoUrl }) });
+export async function createOrg(tag, name, region, logoUrl, season) {
+    return botFetch('/orgs', { method: 'POST', body: JSON.stringify({ tag, name, region, logo_url: logoUrl, founded: season || undefined }) });
 }
 export async function deleteOrg(tag) {
     return botFetch(`/orgs/${encodeURIComponent(tag)}`, { method: 'DELETE' });
