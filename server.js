@@ -859,11 +859,12 @@ app.put('/api/bot/orgs/:tag/founded', requireBotAuth, (req, res) => {
 });
 
 app.post('/api/bot/logs/war', requireBotAuth, (req, res) => {
-  const { date, org1, org2, score1, score2, winner, region, elo_org1, elo_org2 } = req.body;
+  const { date, org1, org2, score1, score2, winner, region, elo_org1, elo_org2, stats } = req.body;
   if (!date || !org1 || !org2) return res.status(400).json({ error: 'date, org1, org2 required' });
+  const statsJson = Array.isArray(stats) && stats.length > 0 ? JSON.stringify(stats) : '';
   const r = db.prepare(
     'INSERT INTO war_logs (date,org1,org2,score1,score2,winner,wager,region,season,notes,elo_org1,elo_org2,stats) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)'
-  ).run(date, org1.toUpperCase(), org2.toUpperCase(), score1||0, score2||0, winner||'', '', region||'NA', '', '', elo_org1??null, elo_org2??null, '');
+  ).run(date, org1.toUpperCase(), org2.toUpperCase(), score1||0, score2||0, winner||'', '', region||'NA', '', '', elo_org1??null, elo_org2??null, statsJson);
   res.json({ id: r.lastInsertRowid });
 });
 

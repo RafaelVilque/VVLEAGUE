@@ -134,9 +134,28 @@ function setupBotTables(db) {
       released_at  TEXT NOT NULL,
       guild_name   TEXT NOT NULL DEFAULT ''
     );
+    CREATE TABLE IF NOT EXISTS war_player_collection (
+      war_id          INTEGER PRIMARY KEY,
+      guild1_id       TEXT NOT NULL,
+      guild2_id       TEXT NOT NULL,
+      guild1_players  TEXT NOT NULL DEFAULT '[]',
+      guild2_players  TEXT NOT NULL DEFAULT '[]',
+      step            INTEGER NOT NULL DEFAULT 1
+    );
   `);
     // Migration: add guild_name to existing cooldowns tables that pre-date this column
     try { db.exec("ALTER TABLE cooldowns ADD COLUMN guild_name TEXT NOT NULL DEFAULT ''"); } catch (_) {}
+}
+export function initPlayerCollection(db, warId, guild1Id, guild2Id) {
+    db.prepare('INSERT OR REPLACE INTO war_player_collection (war_id, guild1_id, guild2_id, guild1_players, guild2_players, step) VALUES (?, ?, ?, ?, ?, ?)').run(warId, guild1Id, guild2Id, '[]', '[]', 1);
+}
+export function getPlayerCollection(db, warId) {
+    return db.prepare('SELECT * FROM war_player_collection WHERE war_id = ?').get(warId) || null;
+}
+export function setCollectionPlayers(db, warId, step, players) {
+    const col = step === 1 ? 'guild1_players' : 'guild2_players';
+    const nextStep = step === 1 ? 2 : 3;
+    db.prepare(`UPDATE war_player_collection SET ${col} = ?, step = ? WHERE war_id = ?`).run(JSON.stringify(players), nextStep, warId);
 }
 export function getSetting(db, key) {
     return db.prepare('SELECT value FROM bot_settings WHERE key = ?').get(key)?.value || '';
