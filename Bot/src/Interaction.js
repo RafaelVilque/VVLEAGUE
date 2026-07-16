@@ -310,28 +310,18 @@ function formatMvpValue(rawValue) {
     return value;
 }
 function buildWarLogsContainer(winnerGuildName, loserGuildName, winnerScore, loserScore, clipsLink, roundDowns = null, mvpValue = null, roundSummary = null) {
-    const totalRounds = Math.max(1, winnerScore + loserScore);
-    const roundWinners = [];
-    for (let i = 0; i < totalRounds; i += 1) {
-        roundWinners.push(i < winnerScore ? winnerGuildName : loserGuildName);
-    }
-    const roundsText = roundSummary && roundSummary.trim()
+    const details = roundSummary && roundSummary.trim()
         ? roundSummary.trim()
-        : roundWinners.map((roundWinner, index) => {
-            const round = roundDowns?.[index] || { winnerDowns: 0, loserDowns: 0 };
-            const badge = roundWinner === winnerGuildName ? '✅' : '❌';
-            return (
-                `**Round ${index + 1}** ${badge}  ${roundWinner} wins\n` +
-                `-# ${winnerGuildName}: ${round.winnerDowns} downs  •  ${loserGuildName}: ${round.loserDowns} downs`
-            );
-        }).join('\n\n');
+        : '*This is where the stats of the game go, and extra details.*';
     return new ContainerBuilder()
         .setAccentColor(0x5BADFF)
         .addTextDisplayComponents(new TextDisplayBuilder().setContent(
             `# ⚔️ War Logs\n**${winnerGuildName}** vs **${loserGuildName}**\n-# Final Score: ${winnerScore} — ${loserScore}`
         ))
         .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true))
-        .addTextDisplayComponents(new TextDisplayBuilder().setContent(roundsText))
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent(
+            `### 📋 Round Details\n${details}`
+        ))
         .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true))
         .addTextDisplayComponents(new TextDisplayBuilder().setContent(
             `🏆 **${winnerGuildName} WINS**\n-# 👑 MVP: ${formatMvpValue(mvpValue)}`
