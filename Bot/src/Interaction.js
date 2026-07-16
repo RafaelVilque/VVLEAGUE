@@ -1173,7 +1173,7 @@ export async function handleInteractions(interaction, client, db, commands) {
                     return;
                 }
                 dodgeWar(db, war.id);
-                const dodgeSummary = `⚠️ <@${interaction.user.id}> used Dodge and closed the war ticket (${openerGuild?.name || 'Unknown'} vs ${opponentGuild?.name || 'Unknown'}).`;
+                const dodgeSummary = `# WAR DODGE\n<@${interaction.user.id}> used Dodge and closed the war ticket (${openerGuild?.name || 'Unknown'} vs ${opponentGuild?.name || 'Unknown'}).`;
                 const warDodgeId = getSetting(db, `${interaction.guildId}_war_dodge_channel_id`) || WAR_DODGE_LOGS_CHANNEL_ID;
                 const warDodgeLogsChannel = await interaction.client.channels.fetch(warDodgeId).catch(() => null);
                 if (warDodgeLogsChannel && warDodgeLogsChannel.isTextBased() && 'send' in warDodgeLogsChannel) {
@@ -1182,7 +1182,7 @@ export async function handleInteractions(interaction, client, db, commands) {
                     });
                 }
                 await interaction.editReply({
-                    content: `${dodgeSummary}\n\n⏳ Canal será deletado em 5 segundos...`,
+                    content: `${dodgeSummary}\n\n⏳ Channel will be deleted in 5 seconds...`,
                     embeds: [],
                     components: [],
                     allowedMentions: { users: [interaction.user.id] },
