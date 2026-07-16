@@ -1,6 +1,6 @@
 import { SlashCommandBuilder, EmbedBuilder, ChannelType, } from 'discord.js';
 import { getSetting } from './database.js';
-import { createOrg, signMember } from './siteapi.js';
+import { createOrg, signMember, setOrgFounded } from './siteapi.js';
 const GUILD_LEADER_ROLE_ID_DEFAULT = '1470554671944040605';
 const ALLOWED_GUILD_CREATOR_ROLE_IDS_DEFAULT = [
     '1470554652264108204', // Head Moderator
@@ -81,6 +81,9 @@ export async function execute(interaction, db) {
         try {
             const orgResult = await createOrg(tag, name, region, null, season);
             siteOrgId = orgResult?.id ?? null;
+            if (season && tag) {
+                await setOrgFounded(tag, season).catch(e => console.warn('Failed to set org founded:', e?.message));
+            }
         }
         catch (e) {
             if (e?.message === 'Tag already exists') {

@@ -851,6 +851,13 @@ app.put('/api/bot/orgs/:tag/role', requireBotAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+app.put('/api/bot/orgs/:tag/founded', requireBotAuth, (req, res) => {
+  const { founded } = req.body;
+  if (!founded) return res.status(400).json({ error: 'founded required' });
+  db.prepare('UPDATE orgs SET founded = ? WHERE tag = ?').run(founded, req.params.tag.toUpperCase());
+  res.json({ ok: true });
+});
+
 // ============================================================
 // SERVE FRONTEND
 // ============================================================
