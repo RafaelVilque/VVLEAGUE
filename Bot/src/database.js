@@ -135,6 +135,8 @@ function setupBotTables(db) {
       guild_name   TEXT NOT NULL DEFAULT ''
     );
   `);
+    // Migration: add guild_name to existing cooldowns tables that pre-date this column
+    try { db.exec("ALTER TABLE cooldowns ADD COLUMN guild_name TEXT NOT NULL DEFAULT ''"); } catch (_) {}
 }
 export function getSetting(db, key) {
     return db.prepare('SELECT value FROM bot_settings WHERE key = ?').get(key)?.value || '';
@@ -158,7 +160,6 @@ export function updateSigningStatus(db, id, status, logMessageId) {
         db.prepare('UPDATE signing_requests SET status=? WHERE id=?').run(status, id);
     }
 }
-try { db.exec("ALTER TABLE cooldowns ADD COLUMN guild_name TEXT NOT NULL DEFAULT ''"); } catch (_) {}
 export function getCooldown(db, discordId) {
     const row = db.prepare('SELECT released_at, guild_name FROM cooldowns WHERE discord_id = ?').get(discordId);
     return row ? { releasedAt: new Date(row.released_at), guildName: row.guild_name || '' } : null;
