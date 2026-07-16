@@ -1482,7 +1482,7 @@ export async function handleInteractions(interaction, client, db, commands) {
                     const rulesEmbed = new EmbedBuilder()
                         .setColor(0x5BADFF)
                         .setTitle('📋 Match Rules')
-                        .setDescription('Please select the rules for this match:');
+                        .setDescription('**Default Rules:** No Skeying, No Mode Pops, Aura is allowed.\n\nSelect an option below:');
                     const rulesRow = new ActionRowBuilder().addComponents(
                         new ButtonBuilder().setCustomId(`wg_rules_default|${wagerId}`).setLabel('Default Rules').setStyle(ButtonStyle.Primary),
                         new ButtonBuilder().setCustomId(`wg_rules_bans|${wagerId}`).setLabel('Mutual Bans').setStyle(ButtonStyle.Secondary),
