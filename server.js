@@ -788,14 +788,14 @@ app.post('/api/bot/players/wager-result', requireBotAuth, (req, res) => {
   const delta = parseInt(elo_delta) || 0;
   const existing = db.prepare("SELECT * FROM players WHERE discord_id = ?").get(discord_id);
   if (existing) {
-    const newElo = Math.max(0, (existing.elo || 0) + delta);
+    const newElo = (existing.elo || 0) + delta;
     const newWins = (existing.wins || 0) + (won ? 1 : 0);
     const newLosses = (existing.losses || 0) + (won ? 0 : 1);
     db.prepare("UPDATE players SET elo = ?, wins = ?, losses = ?, org = ?, name = ? WHERE discord_id = ?")
       .run(newElo, newWins, newLosses, org ?? existing.org ?? '', name, discord_id);
     res.json({ id: existing.id, elo: newElo, wins: newWins, losses: newLosses, created: false });
   } else {
-    const startElo = Math.max(0, delta);
+    const startElo = delta;
     const r = db.prepare("INSERT INTO players (name, org, elo, wins, losses, discord_id) VALUES (?, ?, ?, ?, ?, ?)")
       .run(name, org || '', startElo, won ? 1 : 0, won ? 0 : 1, discord_id);
     res.json({ id: r.lastInsertRowid, elo: startElo, wins: won ? 1 : 0, losses: won ? 0 : 1, created: true });
