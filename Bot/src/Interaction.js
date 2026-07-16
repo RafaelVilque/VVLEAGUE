@@ -2111,7 +2111,6 @@ export async function handleInteractions(interaction, client, db, commands) {
                                 const guildNameRole = announceGuild?.roles.cache.find(r => r.name === (dbGuild?.name || ''));
                                 const guildMention = guildNameRole ? `<@&${guildNameRole.id}>` : `**${dbGuild?.name || invite.guildId}**`;
                                 const announceEmbed = new EmbedBuilder()
-                                    .setTitle('🖊️ Player Signed')
                                     .setColor(0x5BADFF)
                                     .setDescription(`<@${invite.targetUserId}> has been signed to ${guildMention} as **${getRoleLabel(invite.roleType)}**`);
                                 await announceChannel.send({ embeds: [announceEmbed] }).catch(() => null);
