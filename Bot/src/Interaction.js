@@ -3494,9 +3494,10 @@ export async function handleInteractions(interaction, client, db, commands) {
                     return;
                 }
                 const mvpRaw = interaction.fields.getTextInputValue('mvp_user')?.trim() || null;
+                const roundSummaryQuick = interaction.fields.getTextInputValue('rounds_summary')?.trim() || null;
                 const { winnerScore, loserScore } = parsedScore;
                 const loserGuildId = winnerGuildId === war.openerGuildId ? war.opponentGuildId : war.openerGuildId;
-                const { winnerGuild } = await finalizeWarAndLog(interaction, client, db, war, winnerGuildId, winnerScore, loserScore, null, null, mvpRaw, null);
+                const { winnerGuild } = await finalizeWarAndLog(interaction, client, db, war, winnerGuildId, winnerScore, loserScore, null, null, mvpRaw, roundSummaryQuick);
                 applyGuildElo(db, winnerGuildId, winnerEloGain, loserGuildId, loserEloLoss, war.id);
                 await refreshGuildPanel(client, db, winnerGuildId).catch(() => { });
                 await refreshGuildPanel(client, db, loserGuildId).catch(() => { });
