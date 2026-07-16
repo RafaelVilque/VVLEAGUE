@@ -3788,7 +3788,7 @@ export async function handleInteractions(interaction, client, db, commands) {
         }
         if (interaction && typeof interaction.isRepliable === 'function' && interaction.isRepliable()) {
             try {
-                if (interaction.replied) {
+                if (interaction.deferred || interaction.replied) {
                     await interaction.editReply({
                         content: '❌ An unexpected error occurred while processing your request.',
                     });
@@ -3802,21 +3802,6 @@ export async function handleInteractions(interaction, client, db, commands) {
             }
             catch (replyErr) {
                 console.error('Failed to send error reply:', replyErr);
-                // Ignore if interaction already replied
-                if (replyErr?.code !== 'InteractionAlreadyReplied') {
-                    // Try followUp as fallback
-                    try {
-                        if (interaction && typeof interaction.followUp === 'function') {
-                            await interaction.followUp({
-                                content: '❌ An unexpected error occurred while processing your request.',
-                                flags: MessageFlags.Ephemeral,
-                            });
-                        }
-                    }
-                    catch (followUpErr) {
-                        console.error('Failed to send followUp error:', followUpErr);
-                    }
-                }
             }
         }
     }

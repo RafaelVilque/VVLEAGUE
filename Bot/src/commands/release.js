@@ -6,9 +6,14 @@ export const data = new SlashCommandBuilder()
     .setName('release')
     .setDescription('Release yourself from your current guild');
 export async function execute(interaction, db) {
-    const memberData = await getMemberByDiscordId(interaction.user.id);
+    let memberData = null;
+    try {
+        memberData = await getMemberByDiscordId(interaction.user.id);
+    } catch (e) {
+        console.warn('[release] Site API unavailable:', e?.message);
+    }
     if (!memberData) {
-        await interaction.editReply('❌ You are not registered in any guild on the site.');
+        await interaction.editReply('❌ You are not registered in any guild on the site, or the site is currently unavailable.');
         return;
     }
     // Find local guild before releasing so we can refresh its panel after
@@ -22,9 +27,14 @@ export async function execute(interaction, db) {
         db.prepare('DELETE FROM SubRosters WHERE userId = ?').run(interaction.user.id);
         db.prepare('DELETE FROM Managers WHERE userId = ?').run(interaction.user.id);
     }
-    const result = await releaseMember(interaction.user.id);
+    let result = { removed: false };
+    try {
+        result = await releaseMember(interaction.user.id);
+    } catch (e) {
+        console.warn('[release] releaseMember failed:', e?.message);
+    }
     if (!result.removed) {
-        await interaction.editReply('❌ Could not remove you from your guild.');
+        await interaction.editReply('❌ Could not remove you from your guild on the site. The site may be unavailable — try again later.');
         return;
     }
     // Set cooldown with guild name
