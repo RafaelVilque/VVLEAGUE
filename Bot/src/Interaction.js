@@ -1,6 +1,6 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, ContainerBuilder, EmbedBuilder, ModalBuilder, MessageFlags, OverwriteType, PermissionFlagsBits, SeparatorBuilder, SeparatorSpacingSize, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, TextInputBuilder, TextInputStyle, TextDisplayBuilder, UserSelectMenuBuilder, } from 'discord.js';
 import { loadCommands } from './commands.js';
-import { addMemberToRole, addGuildLoss, addGuildWin, acceptWar, canAddUserToRole, createWar, createInvite, dodgeWar, finishWar, getGuildById, getInviteById, getMembersByRole, getPendingInviteForTarget, getRoleLabel, isUserInRole, refreshGuildPanel, removeMemberFromRole, setInviteStatus, validateInviteForAction, getWarById, createWager, getWagerById, getActiveWagerForUser, recordWagerAcceptance, markWagerAccepted, dodgeWager, closeWager, getSetting, applyGuildElo, applyPlayerElo, setCooldown, isOnCooldown, getCooldown, initPlayerCollection, getPlayerCollection, setCollectionPlayers, initWagerAmountCollection, getWagerAmountCollection, getWagerAmountCollectionByChannel, setWagerAmount, resetWagerAmount, confirmWagerTeam, setWagerRules, getWagerCollectionByChannelForBan, setWagerBan, resetWagerBan, startWagerBanCollection, confirmWagerBanTeam, } from './database.js';
+import { addMemberToRole, addGuildLoss, addGuildWin, acceptWar, canAddUserToRole, createWar, createInvite, dodgeWar, finishWar, getGuildById, getInviteById, getMembersByRole, getPendingInviteForTarget, getRoleLabel, isUserInRole, refreshGuildPanel, removeMemberFromRole, setInviteStatus, validateInviteForAction, getWarById, createWager, getWagerById, getActiveWagerForUser, recordWagerAcceptance, markWagerAccepted, dodgeWager, closeWager, getSetting, applyGuildElo, applyPlayerElo, setCooldown, isOnCooldown, getCooldown, initPlayerCollection, getPlayerCollection, setCollectionPlayers, setPlayerCollectionMsgId, initWagerAmountCollection, getWagerAmountCollection, getWagerAmountCollectionByChannel, setWagerAmount, resetWagerAmount, confirmWagerTeam, setWagerRules, getWagerCollectionByChannelForBan, setWagerBan, resetWagerBan, startWagerBanCollection, confirmWagerBanTeam, recordRulesVote, } from './database.js';
 const ADD_ACTION_MAP = {
     ADD_CO_LEADER: 'CO_LEADER',
     ADD_MANAGER: 'MANAGER',
@@ -309,14 +309,14 @@ function formatMvpValue(rawValue) {
         return `<@${idMatch[1]}>`;
     return value;
 }
-function buildWarLogsContainer(winnerGuildName, loserGuildName, winnerScore, loserScore, clipsLink, roundDowns = null, mvpValue = null, roundSummary = null) {
+function buildWarLogsContainer(winnerDisplay, loserDisplay, winnerScore, loserScore, clipsLink, roundDowns = null, mvpValue = null, roundSummary = null) {
     const details = roundSummary && roundSummary.trim()
         ? roundSummary.trim()
         : '*This is where the stats of the game go, and extra details.*';
     return new ContainerBuilder()
         .setAccentColor(0x5BADFF)
         .addTextDisplayComponents(new TextDisplayBuilder().setContent(
-            `# ⚔️ War Logs\n**${winnerGuildName}** vs **${loserGuildName}**\n-# Final Score: ${winnerScore} — ${loserScore}`
+            `# ⚔️ War Logs\n${winnerDisplay} vs ${loserDisplay}\n-# Final Score: ${winnerScore} — ${loserScore}`
         ))
         .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true))
         .addTextDisplayComponents(new TextDisplayBuilder().setContent(
@@ -324,7 +324,7 @@ function buildWarLogsContainer(winnerGuildName, loserGuildName, winnerScore, los
         ))
         .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true))
         .addTextDisplayComponents(new TextDisplayBuilder().setContent(
-            `🏆 **${winnerGuildName} WINS**\n-# 👑 MVP: ${formatMvpValue(mvpValue)}`
+            `🏆 ${winnerDisplay} **WINS**\n-# 👑 MVP: ${formatMvpValue(mvpValue)}`
         ));
 }
 function buildWagerLogsContainer(title, teamA, teamB, details, footer) {
@@ -371,10 +371,16 @@ async function finalizeWarAndLog(interaction, client, db, war, winnerGuildId, wi
     const warLogId = getSetting(db, `${interaction.guildId}_war_log_channel_id`) || WAR_LOGS_CHANNEL_ID;
     const warLogsChannel = await interaction.client.channels.fetch(warLogId).catch(() => null);
     if (warLogsChannel && warLogsChannel.isTextBased() && 'send' in warLogsChannel) {
-        const resultContainer = buildWarLogsContainer(winnerGuild?.name || 'Guild A', loserGuild?.name || 'Guild B', winnerScore, loserScore, clipsLink, roundDowns, mvpValue, roundSummary);
+        const winnerRole = interaction.guild?.roles.cache.find(r => r.name === winnerGuild?.name);
+        const loserRole = interaction.guild?.roles.cache.find(r => r.name === loserGuild?.name);
+        const winnerDisplay = winnerRole ? `<@&${winnerRole.id}>` : `**${winnerGuild?.name || 'Guild A'}**`;
+        const loserDisplay = loserRole ? `<@&${loserRole.id}>` : `**${loserGuild?.name || 'Guild B'}**`;
+        const allowedRoles = [winnerRole?.id, loserRole?.id].filter(Boolean);
+        const resultContainer = buildWarLogsContainer(winnerDisplay, loserDisplay, winnerScore, loserScore, clipsLink, roundDowns, mvpValue, roundSummary);
         await warLogsChannel.send({
             flags: MessageFlags.IsComponentsV2,
             components: [resultContainer],
+            allowedMentions: allowedRoles.length ? { roles: allowedRoles } : { parse: [] },
         });
     }
     return { winnerGuild, loserGuild };
@@ -1211,6 +1217,10 @@ export async function handleInteractions(interaction, client, db, commands) {
                     await interaction.reply({ content: '❌ Player collection not found for this war.', flags: MessageFlags.Ephemeral });
                     return;
                 }
+                // Save this message ID so we can disable the button after submission
+                if (interaction.message?.id) {
+                    setPlayerCollectionMsgId(db, warId, step, interaction.message.id);
+                }
                 const targetGuildId = step === 1 ? collection.guild1_id : collection.guild2_id;
                 const targetGuild = getGuildById(db, targetGuildId);
                 // Permission: must be in the target guild's roster OR have its Discord role
@@ -1507,45 +1517,60 @@ export async function handleInteractions(interaction, client, db, commands) {
                 await interaction.update({ content: '❌ Wager amount rejected.\n\n💰 **What is the wager?** Type it in the chat below.', embeds: [], components: [] });
                 return;
             }
-            if (customId.startsWith('wg_rules_default|')) {
-                const [, wagerIdRaw] = parseCustomId(customId);
+            if (customId.startsWith('wg_rules_default_bans|') || customId.startsWith('wg_rules_default|') || customId.startsWith('wg_rules_bans|')) {
+                const wagerIdRaw = customId.split('|')[1];
                 const wagerId = Number(wagerIdRaw);
                 const col = getWagerAmountCollection(db, wagerId);
                 if (!col) { await interaction.reply({ content: '❌ Wager not found.', flags: MessageFlags.Ephemeral }); return; }
-                const isParticipant = [col.challenger1_id, col.challenger2_id, col.challenged1_id, col.challenged2_id].includes(interaction.user.id);
-                if (!isParticipant) { await interaction.reply({ content: '❌ You are not a participant in this wager.', flags: MessageFlags.Ephemeral }); return; }
-                setWagerRules(db, wagerId, 'default');
-                const embed = new EmbedBuilder()
-                    .setColor(0x5BADFF)
-                    .setTitle('✅ Default Rules Selected')
-                    .setDescription('**Default Rules:** No Skeying, No Mode Pops, Aura is allowed.');
-                await interaction.update({ embeds: [embed], components: [] });
-                return;
-            }
-            if (customId.startsWith('wg_rules_bans|')) {
-                const [, wagerIdRaw] = parseCustomId(customId);
-                const wagerId = Number(wagerIdRaw);
-                const col = getWagerAmountCollection(db, wagerId);
-                if (!col) { await interaction.reply({ content: '❌ Wager not found.', flags: MessageFlags.Ephemeral }); return; }
-                const isParticipant = [col.challenger1_id, col.challenger2_id, col.challenged1_id, col.challenged2_id].includes(interaction.user.id);
-                if (!isParticipant) { await interaction.reply({ content: '❌ You are not a participant in this wager.', flags: MessageFlags.Ephemeral }); return; }
-                setWagerRules(db, wagerId, 'bans');
-                startWagerBanCollection(db, wagerId);
-                await interaction.update({ embeds: [], components: [],
-                    content: '🔨 **Mutual Bans selected.**\n\n**What would you like to ban?** Type it in the chat below.' });
-                return;
-            }
-            if (customId.startsWith('wg_rules_default_bans|')) {
-                const [, wagerIdRaw] = parseCustomId(customId);
-                const wagerId = Number(wagerIdRaw);
-                const col = getWagerAmountCollection(db, wagerId);
-                if (!col) { await interaction.reply({ content: '❌ Wager not found.', flags: MessageFlags.Ephemeral }); return; }
-                const isParticipant = [col.challenger1_id, col.challenger2_id, col.challenged1_id, col.challenged2_id].includes(interaction.user.id);
-                if (!isParticipant) { await interaction.reply({ content: '❌ You are not a participant in this wager.', flags: MessageFlags.Ephemeral }); return; }
-                setWagerRules(db, wagerId, 'default_bans');
-                startWagerBanCollection(db, wagerId);
-                await interaction.update({ embeds: [], components: [],
-                    content: '📋 **Default Rules + Mutual Bans selected.**\nDefault Rules: No Skeying, No Mode Pops, Aura is allowed.\n\n**What would you like to ban?** Type it in the chat below.' });
+                const userId = interaction.user.id;
+                const isTeam1 = [col.challenger1_id, col.challenger2_id].includes(userId);
+                const isTeam2 = [col.challenged1_id, col.challenged2_id].includes(userId);
+                if (!isTeam1 && !isTeam2) { await interaction.reply({ content: '❌ You are not a participant in this wager.', flags: MessageFlags.Ephemeral }); return; }
+                const vote = customId.startsWith('wg_rules_default_bans|') ? 'default_bans'
+                    : customId.startsWith('wg_rules_default|') ? 'default'
+                    : 'bans';
+                const votes = recordRulesVote(db, wagerId, isTeam1 ? 1 : 2, vote);
+                const voteLabels = { default: 'Default Rules', bans: 'Mutual Bans', default_bans: 'Default Rules + Mutual Bans' };
+                const rulesRow = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder().setCustomId(`wg_rules_default|${wagerId}`).setLabel('Default Rules').setStyle(ButtonStyle.Primary),
+                    new ButtonBuilder().setCustomId(`wg_rules_bans|${wagerId}`).setLabel('Mutual Bans').setStyle(ButtonStyle.Secondary),
+                    new ButtonBuilder().setCustomId(`wg_rules_default_bans|${wagerId}`).setLabel('Default Rules + Mutual Bans').setStyle(ButtonStyle.Success),
+                );
+                if (votes.rules_vote_team1 && votes.rules_vote_team2) {
+                    // Both voted — determine final result
+                    const finalVote = votes.rules_vote_team1 === votes.rules_vote_team2 ? votes.rules_vote_team1 : 'default';
+                    setWagerRules(db, wagerId, finalVote);
+                    if (finalVote === 'default') {
+                        const diffNote = votes.rules_vote_team1 !== votes.rules_vote_team2
+                            ? '\n-# Teams selected different options — defaulting to Default Rules.'
+                            : '';
+                        const embed = new EmbedBuilder()
+                            .setColor(0x5BADFF)
+                            .setTitle('✅ Default Rules Selected')
+                            .setDescription(`**Default Rules:** No Skeying, No Mode Pops, Aura is allowed.${diffNote}`);
+                        await interaction.update({ embeds: [embed], components: [] });
+                    } else if (finalVote === 'bans') {
+                        startWagerBanCollection(db, wagerId);
+                        await interaction.update({ embeds: [], components: [],
+                            content: '🔨 **Mutual Bans selected.**\n\n**What would you like to ban?** Type it in the chat below.' });
+                    } else {
+                        startWagerBanCollection(db, wagerId);
+                        await interaction.update({ embeds: [], components: [],
+                            content: '📋 **Default Rules + Mutual Bans selected.**\nDefault Rules: No Skeying, No Mode Pops, Aura is allowed.\n\n**What would you like to ban?** Type it in the chat below.' });
+                    }
+                } else {
+                    // Only one team voted — show status and keep buttons
+                    const embed = new EmbedBuilder()
+                        .setColor(0x5BADFF)
+                        .setTitle('📋 Match Rules')
+                        .setDescription(
+                            `**Default Rules:** No Skeying, No Mode Pops, Aura is allowed.\n\n` +
+                            `**Team 1:** ${votes.rules_vote_team1 ? `✅ ${voteLabels[votes.rules_vote_team1]}` : '⏳ Waiting...'}\n` +
+                            `**Team 2:** ${votes.rules_vote_team2 ? `✅ ${voteLabels[votes.rules_vote_team2]}` : '⏳ Waiting...'}`
+                        )
+                        .setFooter({ text: 'Make sure to agree on rules before clicking an option. If both teams click different options, it will default to Default Rules.' });
+                    await interaction.update({ embeds: [embed], components: [rulesRow] });
+                }
                 return;
             }
             if (customId.startsWith('wg_ban_confirm|')) {
@@ -3501,6 +3526,12 @@ export async function handleInteractions(interaction, client, db, commands) {
                 }
                 setCollectionPlayers(db, warId, step, players);
                 const collection = getPlayerCollection(db, warId);
+                // Disable the Submit Players button for this step
+                const submitMsgId = step === 1 ? collection?.step1_msg_id : collection?.step2_msg_id;
+                if (submitMsgId && interaction.channel && 'messages' in interaction.channel) {
+                    const submitMsg = await interaction.channel.messages.fetch(submitMsgId).catch(() => null);
+                    if (submitMsg) await submitMsg.edit({ components: [] }).catch(() => null);
+                }
                 if (step === 1) {
                     // Ping guild 2 now
                     const guild2 = getGuildById(db, collection?.guild2_id);

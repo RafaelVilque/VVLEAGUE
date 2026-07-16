@@ -151,7 +151,9 @@ function setupBotTables(db) {
       ban_confirm_msg_id   TEXT,
       ban_team1_confirmed  INTEGER NOT NULL DEFAULT 0,
       ban_team2_confirmed  INTEGER NOT NULL DEFAULT 0,
-      ban_awaiting         INTEGER NOT NULL DEFAULT 0
+      ban_awaiting         INTEGER NOT NULL DEFAULT 0,
+      rules_vote_team1     TEXT,
+      rules_vote_team2     TEXT
     );
     CREATE TABLE IF NOT EXISTS war_player_collection (
       war_id          INTEGER PRIMARY KEY,
@@ -159,7 +161,9 @@ function setupBotTables(db) {
       guild2_id       TEXT NOT NULL,
       guild1_players  TEXT NOT NULL DEFAULT '[]',
       guild2_players  TEXT NOT NULL DEFAULT '[]',
-      step            INTEGER NOT NULL DEFAULT 1
+      step            INTEGER NOT NULL DEFAULT 1,
+      step1_msg_id    TEXT,
+      step2_msg_id    TEXT
     );
   `);
     // Migration: add guild_name to existing cooldowns tables that pre-date this column
@@ -171,6 +175,10 @@ function setupBotTables(db) {
     try { db.exec("ALTER TABLE wager_amount_collection ADD COLUMN ban_team1_confirmed INTEGER NOT NULL DEFAULT 0"); } catch (_) {}
     try { db.exec("ALTER TABLE wager_amount_collection ADD COLUMN ban_team2_confirmed INTEGER NOT NULL DEFAULT 0"); } catch (_) {}
     try { db.exec("ALTER TABLE wager_amount_collection ADD COLUMN ban_awaiting INTEGER NOT NULL DEFAULT 0"); } catch (_) {}
+    try { db.exec("ALTER TABLE wager_amount_collection ADD COLUMN rules_vote_team1 TEXT"); } catch (_) {}
+    try { db.exec("ALTER TABLE wager_amount_collection ADD COLUMN rules_vote_team2 TEXT"); } catch (_) {}
+    try { db.exec("ALTER TABLE war_player_collection ADD COLUMN step1_msg_id TEXT"); } catch (_) {}
+    try { db.exec("ALTER TABLE war_player_collection ADD COLUMN step2_msg_id TEXT"); } catch (_) {}
 }
 export function initPlayerCollection(db, warId, guild1Id, guild2Id) {
     db.prepare('INSERT OR REPLACE INTO war_player_collection (war_id, guild1_id, guild2_id, guild1_players, guild2_players, step) VALUES (?, ?, ?, ?, ?, ?)').run(warId, guild1Id, guild2Id, '[]', '[]', 1);
@@ -225,6 +233,15 @@ export function confirmWagerBanTeam(db, wagerId, team) {
     const col = team === 1 ? 'ban_team1_confirmed' : 'ban_team2_confirmed';
     db.prepare(`UPDATE wager_amount_collection SET ${col} = 1 WHERE wager_id = ?`).run(wagerId);
     return db.prepare('SELECT ban_team1_confirmed, ban_team2_confirmed FROM wager_amount_collection WHERE wager_id = ?').get(wagerId);
+}
+export function recordRulesVote(db, wagerId, team, vote) {
+    const col = team === 1 ? 'rules_vote_team1' : 'rules_vote_team2';
+    db.prepare(`UPDATE wager_amount_collection SET ${col} = ? WHERE wager_id = ?`).run(vote, wagerId);
+    return db.prepare('SELECT rules_vote_team1, rules_vote_team2 FROM wager_amount_collection WHERE wager_id = ?').get(wagerId);
+}
+export function setPlayerCollectionMsgId(db, warId, step, msgId) {
+    const col = step === 1 ? 'step1_msg_id' : 'step2_msg_id';
+    db.prepare(`UPDATE war_player_collection SET ${col} = ? WHERE war_id = ?`).run(msgId, warId);
 }
 export function getSetting(db, key) {
     return db.prepare('SELECT value FROM bot_settings WHERE key = ?').get(key)?.value || '';
