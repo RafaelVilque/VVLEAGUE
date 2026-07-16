@@ -1187,6 +1187,16 @@ export async function handleInteractions(interaction, client, db, commands) {
                 }
                 return;
             }
+            if (customId === 'wt_close_ticket') {
+                const member = await interaction.guild?.members.fetch(interaction.user.id).catch(() => null);
+                if (!canMemberFinalizeTicket(member, db, interaction.guildId)) {
+                    await interaction.reply({ content: '❌ You do not have permission to close this ticket.', flags: MessageFlags.Ephemeral });
+                    return;
+                }
+                await interaction.update({ content: '🔒 Closing ticket...', components: [] });
+                await interaction.channel?.delete('War ticket closed by host').catch(() => null);
+                return;
+            }
             if (customId.startsWith('wt_elo_btn|')) {
                 const [, winnerGuildId, loserGuildId, warIdRaw] = parseCustomId(customId);
                 const member = await interaction.guild?.members.fetch(interaction.user.id).catch(() => null);
@@ -3497,16 +3507,44 @@ export async function handleInteractions(interaction, client, db, commands) {
                 const roundSummaryQuick = interaction.fields.getTextInputValue('rounds_summary')?.trim() || null;
                 const { winnerScore, loserScore } = parsedScore;
                 const loserGuildId = winnerGuildId === war.openerGuildId ? war.opponentGuildId : war.openerGuildId;
+                const winnerGuildData = getGuildById(db, winnerGuildId);
+                const loserGuildData = getGuildById(db, loserGuildId);
                 const { winnerGuild } = await finalizeWarAndLog(interaction, client, db, war, winnerGuildId, winnerScore, loserScore, null, null, mvpRaw, roundSummaryQuick);
                 applyGuildElo(db, winnerGuildId, winnerEloGain, loserGuildId, loserEloLoss, war.id);
                 await refreshGuildPanel(client, db, winnerGuildId).catch(() => { });
                 await refreshGuildPanel(client, db, loserGuildId).catch(() => { });
+                // Create war log on site
+                try {
+                    const { createWarLog } = await import('./siteapi.js');
+                    await createWarLog(
+                        winnerGuildData?.tag || winnerGuildId,
+                        loserGuildData?.tag || loserGuildId,
+                        winnerScore,
+                        loserScore,
+                        winnerGuildData?.tag || winnerGuildId,
+                        winnerGuildData?.region || loserGuildData?.region || 'NA',
+                        winnerEloGain,
+                        loserEloLoss,
+                    );
+                } catch (e) { console.warn('Failed to create site war log:', e?.message); }
                 await interaction.editReply({
-                    content: `✅ War finalized! **${winnerGuild?.name || 'Unknown'}** wins **${winnerScore}-${loserScore}** | ELO: +${winnerEloGain} / -${loserEloLoss}. Closing ticket...`,
+                    content: `✅ War finalized! **${winnerGuild?.name || 'Unknown'}** wins **${winnerScore}-${loserScore}** | ELO: +${winnerEloGain} / -${loserEloLoss}.`,
                 });
-                if (interaction.channel && 'delete' in interaction.channel) {
-                    await interaction.channel.delete('War finished and recorded').catch(() => null);
-                }
+                // Ping hoster role with close button
+                const hosterRoleId = interaction.guildId ? getSetting(db, `${interaction.guildId}_hoster_role_id`) : null;
+                const hosterMention = hosterRoleId ? `<@&${hosterRoleId}>` : '';
+                const winnerName = winnerGuild?.name || winnerGuildData?.name || 'Team A';
+                const loserName = loserGuildData?.name || 'Team B';
+                const closeRow = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setCustomId('wt_close_ticket')
+                        .setLabel('Close Ticket')
+                        .setStyle(ButtonStyle.Danger)
+                );
+                await interaction.channel?.send({
+                    content: `${hosterMention} War Log for **(${winnerName} VS ${loserName})** created. Add stats for players, and change the season to finish the log on site.`.trim(),
+                    components: [closeRow],
+                }).catch(() => null);
                 return;
             }
             if (customId.startsWith('wt_finalize_details_modal|')) {
