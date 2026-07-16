@@ -1,6 +1,6 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, ContainerBuilder, EmbedBuilder, ModalBuilder, MessageFlags, OverwriteType, PermissionFlagsBits, SeparatorBuilder, SeparatorSpacingSize, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, TextInputBuilder, TextInputStyle, TextDisplayBuilder, UserSelectMenuBuilder, } from 'discord.js';
 import { loadCommands } from './commands.js';
-import { addMemberToRole, addGuildLoss, addGuildWin, acceptWar, canAddUserToRole, createWar, createInvite, dodgeWar, finishWar, getGuildById, getInviteById, getMembersByRole, getPendingInviteForTarget, getRoleLabel, isUserInRole, refreshGuildPanel, removeMemberFromRole, setInviteStatus, validateInviteForAction, getWarById, createWager, getWagerById, getActiveWagerForUser, recordWagerAcceptance, markWagerAccepted, dodgeWager, closeWager, getSetting, applyGuildElo, applyPlayerElo, setCooldown, isOnCooldown, getCooldown, } from './database.js';
+import { addMemberToRole, addGuildLoss, addGuildWin, acceptWar, canAddUserToRole, createWar, createInvite, dodgeWar, finishWar, getGuildById, getInviteById, getMembersByRole, getPendingInviteForTarget, getRoleLabel, isUserInRole, refreshGuildPanel, removeMemberFromRole, setInviteStatus, validateInviteForAction, getWarById, createWager, getWagerById, getActiveWagerForUser, recordWagerAcceptance, markWagerAccepted, dodgeWager, closeWager, getSetting, applyGuildElo, applyPlayerElo, setCooldown, isOnCooldown, getCooldown, initPlayerCollection, getPlayerCollection, setCollectionPlayers, } from './database.js';
 const ADD_ACTION_MAP = {
     ADD_CO_LEADER: 'CO_LEADER',
     ADD_MANAGER: 'MANAGER',
@@ -1134,6 +1134,21 @@ export async function handleInteractions(interaction, client, db, commands) {
                     flags: MessageFlags.IsComponentsV2,
                     components: [finalizeContainer],
                 });
+                // Start player collection — ping opener guild first
+                initPlayerCollection(db, war.id, war.openerGuildId, war.opponentGuildId);
+                const openerRole = interaction.guild?.roles.cache.find(r => r.name === openerGuild?.name);
+                const openerMention = openerRole ? `<@&${openerRole.id}>` : `**${openerGuild?.name || 'Opener Guild'}**`;
+                const collectBtn1 = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setCustomId(`wt_collect_players|${war.id}|1`)
+                        .setLabel('Submit Players')
+                        .setStyle(ButtonStyle.Secondary)
+                );
+                await interaction.channel?.send({
+                    content: `${openerMention} Please submit your team's Discord **usernames** (not display names) for the war stats.`,
+                    components: [collectBtn1],
+                    allowedMentions: openerRole ? { roles: [openerRole.id] } : {},
+                });
                 return;
             }
             if (customId.startsWith('wt_dodge|')) {
@@ -1185,6 +1200,41 @@ export async function handleInteractions(interaction, client, db, commands) {
                         console.error('Failed to delete war ticket channel after dodge:', err);
                     });
                 }
+                return;
+            }
+            if (customId.startsWith('wt_collect_players|')) {
+                const [, warIdRaw, stepRaw] = parseCustomId(customId);
+                const warId = Number(warIdRaw);
+                const step = Number(stepRaw);
+                const collection = getPlayerCollection(db, warId);
+                if (!collection) {
+                    await interaction.reply({ content: '❌ Player collection not found for this war.', flags: MessageFlags.Ephemeral });
+                    return;
+                }
+                const targetGuildId = step === 1 ? collection.guild1_id : collection.guild2_id;
+                const targetGuild = getGuildById(db, targetGuildId);
+                // Permission: must be in the target guild's roster OR have its Discord role
+                const inRoster = db.prepare('SELECT 1 FROM MainRosters WHERE guildId=? AND userId=? UNION SELECT 1 FROM SubRosters WHERE guildId=? AND userId=? UNION SELECT 1 FROM Managers WHERE guildId=? AND userId=?')
+                    .get(targetGuildId, interaction.user.id, targetGuildId, interaction.user.id, targetGuildId, interaction.user.id);
+                const hasRole = targetGuild?.name && interaction.member?.roles?.cache?.some(r => r.name === targetGuild.name);
+                const isLeader = targetGuild?.leaderId === interaction.user.id || targetGuild?.coLeaderId === interaction.user.id;
+                if (!inRoster && !hasRole && !isLeader) {
+                    await interaction.reply({ content: `❌ Only members of **${targetGuild?.name || 'the target guild'}** can submit their player list.`, flags: MessageFlags.Ephemeral });
+                    return;
+                }
+                const modal = new ModalBuilder()
+                    .setCustomId(`wt_collect_players_modal|${warId}|${step}`)
+                    .setTitle(`Submit ${targetGuild?.name || 'Team'} Players`)
+                    .addComponents(new ActionRowBuilder().addComponents(
+                        new TextInputBuilder()
+                            .setCustomId('players')
+                            .setLabel('Usernames — one per line (not display names)')
+                            .setStyle(TextInputStyle.Paragraph)
+                            .setPlaceholder('player1\nplayer2\nplayer3\nplayer4')
+                            .setRequired(true)
+                            .setMaxLength(500)
+                    ));
+                await interaction.showModal(modal);
                 return;
             }
             if (customId === 'wt_close_ticket') {
@@ -3313,6 +3363,47 @@ export async function handleInteractions(interaction, client, db, commands) {
         }
         if (interaction.isModalSubmit()) {
             const customId = interaction.customId;
+            // Player collection modal
+            if (customId.startsWith('wt_collect_players_modal|')) {
+                await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+                const [, warIdRaw, stepRaw] = parseCustomId(customId);
+                const warId = Number(warIdRaw);
+                const step = Number(stepRaw);
+                const raw = interaction.fields.getTextInputValue('players');
+                const players = raw.split('\n').map(s => s.trim()).filter(Boolean);
+                if (players.length === 0) {
+                    await interaction.editReply({ content: '❌ No usernames provided.' });
+                    return;
+                }
+                setCollectionPlayers(db, warId, step, players);
+                const collection = getPlayerCollection(db, warId);
+                if (step === 1) {
+                    // Ping guild 2 now
+                    const guild2 = getGuildById(db, collection?.guild2_id);
+                    const guild2Role = interaction.guild?.roles.cache.find(r => r.name === guild2?.name);
+                    const guild2Mention = guild2Role ? `<@&${guild2Role.id}>` : `**${guild2?.name || 'Opponent Guild'}**`;
+                    const collectBtn2 = new ActionRowBuilder().addComponents(
+                        new ButtonBuilder()
+                            .setCustomId(`wt_collect_players|${warId}|2`)
+                            .setLabel('Submit Players')
+                            .setStyle(ButtonStyle.Secondary)
+                    );
+                    await interaction.channel?.send({
+                        content: `✅ **${getGuildById(db, collection?.guild1_id)?.name || 'Team 1'}** players noted.\n\n${guild2Mention} Please submit your team's Discord **usernames** (not display names) for the war stats.`,
+                        components: [collectBtn2],
+                        allowedMentions: guild2Role ? { roles: [guild2Role.id] } : {},
+                    });
+                    await interaction.editReply({ content: `✅ Players submitted: ${players.map(p => `\`${p}\``).join(', ')}` });
+                } else {
+                    const guild1 = getGuildById(db, collection?.guild1_id);
+                    const guild2 = getGuildById(db, collection?.guild2_id);
+                    await interaction.channel?.send({
+                        content: `✅ **${guild2?.name || 'Team 2'}** players noted. Both teams are ready — the hoster can now finalize the war.`,
+                    });
+                    await interaction.editReply({ content: `✅ Players submitted: ${players.map(p => `\`${p}\``).join(', ')}` });
+                }
+                return;
+            }
             // Register team modal
             if (customId === 'registerteam_modal') {
                 await interaction.deferReply({ ephemeral: true });
@@ -3513,6 +3604,20 @@ export async function handleInteractions(interaction, client, db, commands) {
                 applyGuildElo(db, winnerGuildId, winnerEloGain, loserGuildId, loserEloLoss, war.id);
                 await refreshGuildPanel(client, db, winnerGuildId).catch(() => { });
                 await refreshGuildPanel(client, db, loserGuildId).catch(() => { });
+                // Build stats from collected player lists
+                const collection = getPlayerCollection(db, war.id);
+                const warStats = [];
+                if (collection) {
+                    const g1Raw = collection.guild1_players ? JSON.parse(collection.guild1_players) : [];
+                    const g2Raw = collection.guild2_players ? JSON.parse(collection.guild2_players) : [];
+                    // Winner players first, then loser players
+                    const winnerIsGuild1 = winnerGuildId === collection.guild1_id;
+                    const winnerPlayers = winnerIsGuild1 ? g1Raw : g2Raw;
+                    const loserPlayers = winnerIsGuild1 ? g2Raw : g1Raw;
+                    [...winnerPlayers, ...loserPlayers].forEach(username => {
+                        warStats.push({ player: username, kills: null, deaths: null, notes: '' });
+                    });
+                }
                 // Create war log on site
                 try {
                     const { createWarLog } = await import('./siteapi.js');
@@ -3525,6 +3630,7 @@ export async function handleInteractions(interaction, client, db, commands) {
                         winnerGuildData?.region || loserGuildData?.region || 'NA',
                         winnerEloGain,
                         loserEloLoss,
+                        warStats.length > 0 ? warStats : null,
                     );
                 } catch (e) { console.warn('Failed to create site war log:', e?.message); }
                 await interaction.editReply({
