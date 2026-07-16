@@ -3742,7 +3742,9 @@ export async function handleInteractions(interaction, client, db, commands) {
                         warStats.push({ player: username, kills: null, deaths: null, notes: '' });
                     });
                 }
+                console.log(`[wt_quick_modal] war=${war.id} collection=${collection ? 'found' : 'NULL'} warStats=${warStats.length} players:`, warStats.map(s => s.player));
                 // Create war log on site
+                let siteLogError = null;
                 try {
                     const { createWarLog } = await import('./siteapi.js');
                     await createWarLog(
@@ -3756,7 +3758,10 @@ export async function handleInteractions(interaction, client, db, commands) {
                         -loserEloLoss,
                         warStats.length > 0 ? warStats : null,
                     );
-                } catch (e) { console.warn('Failed to create site war log:', e?.message); }
+                } catch (e) {
+                    siteLogError = e?.message || 'Unknown error';
+                    console.error('Failed to create site war log:', siteLogError);
+                }
                 await interaction.editReply({
                     content: `✅ War finalized! **${winnerGuild?.name || 'Unknown'}** wins **${winnerScore}-${loserScore}** | ELO: +${winnerEloGain} / -${loserEloLoss}.`,
                 });
@@ -3771,8 +3776,13 @@ export async function handleInteractions(interaction, client, db, commands) {
                         .setLabel('Close Ticket')
                         .setStyle(ButtonStyle.Danger)
                 );
+                const statsNote = siteLogError
+                    ? `⚠️ **Site log error:** ${siteLogError}`
+                    : warStats.length > 0
+                        ? `📊 **${warStats.length} player(s)** added to stats.`
+                        : `ℹ️ No player names were collected — open the log on site to add stats manually.`;
                 await interaction.channel?.send({
-                    content: `${hosterMention} War Log for **(${winnerName} VS ${loserName})** created. Add stats for players, and change the season to finish the log on site.`.trim(),
+                    content: `${hosterMention} War Log for **(${winnerName} VS ${loserName})** created. ${statsNote}\nChange the season to finish the log on site.`.trim(),
                     components: [closeRow],
                 }).catch(() => null);
                 return;
