@@ -3401,18 +3401,33 @@ export async function handleInteractions(interaction, client, db, commands) {
                 (async () => {
                     try {
                         const { upsertWagerResult } = await import('./siteapi.js');
-                        function getPlayerOrgTag(userId) {
+                        const discordGuild = interaction.guild || (interaction.guildId ? client.guilds.cache.get(interaction.guildId) : null);
+                        async function getPlayerOrgTag(userId) {
+                            // 1. Check bot local DB roster
                             const row = db.prepare('SELECT g.tag FROM Guilds g WHERE g.id = (SELECT guildId FROM MainRosters WHERE userId = ? LIMIT 1) OR g.id = (SELECT guildId FROM SubRosters WHERE userId = ? LIMIT 1) OR g.id = (SELECT guildId FROM Managers WHERE userId = ? LIMIT 1) LIMIT 1').get(userId, userId, userId);
-                            return row?.tag || '';
+                            if (row?.tag) return row.tag;
+                            // 2. Fall back: match Discord roles against guild name roles
+                            try {
+                                if (discordGuild) {
+                                    const member = await discordGuild.members.fetch(userId).catch(() => null);
+                                    if (member) {
+                                        const allGuilds = db.prepare('SELECT name, tag FROM Guilds').all();
+                                        for (const g of allGuilds) {
+                                            if (member.roles.cache.some(r => r.name === g.name)) return g.tag;
+                                        }
+                                    }
+                                }
+                            } catch { /* ignore */ }
+                            return '';
                         }
                         for (const uid of winnerIds) {
                             const user = await client.users.fetch(uid).catch(() => null);
-                            await upsertWagerResult(uid, user?.displayName || user?.username || uid, getPlayerOrgTag(uid), winnerEloGain, true)
+                            await upsertWagerResult(uid, user?.username || uid, await getPlayerOrgTag(uid), winnerEloGain, true)
                                 .catch(e => console.warn('Player-LB sync (winner) failed:', e?.message));
                         }
                         for (const uid of loserIds) {
                             const user = await client.users.fetch(uid).catch(() => null);
-                            await upsertWagerResult(uid, user?.displayName || user?.username || uid, getPlayerOrgTag(uid), -loserEloLoss, false)
+                            await upsertWagerResult(uid, user?.username || uid, await getPlayerOrgTag(uid), -loserEloLoss, false)
                                 .catch(e => console.warn('Player-LB sync (loser) failed:', e?.message));
                         }
                     }
