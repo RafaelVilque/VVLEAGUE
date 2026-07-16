@@ -1257,6 +1257,16 @@ export async function handleInteractions(interaction, client, db, commands) {
                 await interaction.channel?.delete('War ticket closed by host').catch(() => null);
                 return;
             }
+            if (customId === 'wg_close_ticket') {
+                const member = await interaction.guild?.members.fetch(interaction.user.id).catch(() => null);
+                if (!canMemberFinalizeTicket(member, db, interaction.guildId)) {
+                    await interaction.reply({ content: '❌ You do not have permission to close this ticket.', flags: MessageFlags.Ephemeral });
+                    return;
+                }
+                await interaction.update({ content: '🔒 Closing ticket...', components: [] });
+                await interaction.channel?.delete('Wager ticket closed by host').catch(() => null);
+                return;
+            }
             if (customId.startsWith('wt_elo_btn|')) {
                 const [, winnerGuildId, loserGuildId, warIdRaw] = parseCustomId(customId);
                 const member = await interaction.guild?.members.fetch(interaction.user.id).catch(() => null);
@@ -3060,19 +3070,29 @@ export async function handleInteractions(interaction, client, db, commands) {
                 const modal = new ModalBuilder()
                     .setCustomId(`wg_finalize_elo_modal|${wager.id}|${winnerSide}`)
                     .setTitle('Finalize Wager')
-                    .addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder()
-                    .setCustomId('winner_elo_gain')
-                    .setLabel('Winner ELO gain')
-                    .setStyle(TextInputStyle.Short)
-                    .setPlaceholder('25')
-                    .setRequired(true)
-                    .setMaxLength(6)), new ActionRowBuilder().addComponents(new TextInputBuilder()
-                    .setCustomId('loser_elo_loss')
-                    .setLabel('Loser ELO loss')
-                    .setStyle(TextInputStyle.Short)
-                    .setPlaceholder('20')
-                    .setRequired(true)
-                    .setMaxLength(6)));
+                    .addComponents(
+                        new ActionRowBuilder().addComponents(new TextInputBuilder()
+                            .setCustomId('winner_elo_gain')
+                            .setLabel('Winner ELO gain')
+                            .setStyle(TextInputStyle.Short)
+                            .setPlaceholder('25')
+                            .setRequired(true)
+                            .setMaxLength(6)),
+                        new ActionRowBuilder().addComponents(new TextInputBuilder()
+                            .setCustomId('loser_elo_loss')
+                            .setLabel('Loser ELO loss')
+                            .setStyle(TextInputStyle.Short)
+                            .setPlaceholder('20')
+                            .setRequired(true)
+                            .setMaxLength(6)),
+                        new ActionRowBuilder().addComponents(new TextInputBuilder()
+                            .setCustomId('season')
+                            .setLabel('Season (e.g. S3)')
+                            .setStyle(TextInputStyle.Short)
+                            .setPlaceholder('S3')
+                            .setRequired(false)
+                            .setMaxLength(10))
+                    );
                 await interaction.showModal(modal);
                 return;
             }
@@ -3657,6 +3677,7 @@ export async function handleInteractions(interaction, client, db, commands) {
                     await interaction.editReply({ content: '❌ Invalid ELO values. Use positive integers.' });
                     return;
                 }
+                const seasonRaw = interaction.fields.getTextInputValue('season')?.trim() || '';
                 closeWager(db, wager.id);
                 const teamA = formatWagerTeam([wager.challenger1Id, wager.challenger2Id]);
                 const teamB = formatWagerTeam([wager.challenged1Id, wager.challenged2Id]);
@@ -3714,13 +3735,45 @@ export async function handleInteractions(interaction, client, db, commands) {
                         ],
                     });
                 }
+                // Build player stats for site log (challenger team first, then challenged)
+                const allParticipants = [
+                    ...[wager.challenger1Id, wager.challenger2Id].filter(Boolean).map(id => ({ id, team: 1 })),
+                    ...[wager.challenged1Id, wager.challenged2Id].filter(Boolean).map(id => ({ id, team: 2 })),
+                ];
+                const wagerStats = [];
+                for (const { id, team } of allParticipants) {
+                    const user = await client.users.fetch(id).catch(() => null);
+                    wagerStats.push({ player: user?.username || id, kills: null, deaths: null, notes: '', team });
+                }
+                // Get agreed wager amount
+                const wagerCol = getWagerAmountCollection(db, wager.id);
+                const wagerAmount = wagerCol?.amount || '';
+                // Create site wager log (fire-and-forget)
+                let siteWagerErr = null;
+                try {
+                    const { createWagerLog } = await import('./siteapi.js');
+                    await createWagerLog(teamA, teamB, wagerAmount, winnerTeam, seasonRaw, wagerStats);
+                } catch (e) {
+                    siteWagerErr = e?.message || 'Unknown error';
+                    console.error('[wager finalize] site log failed:', siteWagerErr);
+                }
                 await interaction.followUp({
-                    content: `✅ Wager finalized! Winner: **${winnerTeam}** | ELO: +${winnerEloGain} / -${loserEloLoss}. Closing ticket...`,
+                    content: `✅ Wager finalized! Winner: **${winnerTeam}** | ELO: +${winnerEloGain} / -${loserEloLoss}.`,
                     flags: MessageFlags.Ephemeral,
                 });
-                if (interaction.channel && 'delete' in interaction.channel) {
-                    await interaction.channel.delete('Wager finalized and recorded').catch(() => null);
-                }
+                // Ping hoster with close button
+                const hosterRoleId = interaction.guildId ? getSetting(db, `${interaction.guildId}_hoster_role_id`) : null;
+                const hosterMention = hosterRoleId ? `<@&${hosterRoleId}>` : '';
+                const closeWagerRow = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder().setCustomId('wg_close_ticket').setLabel('Close Ticket').setStyle(ButtonStyle.Danger)
+                );
+                const siteNote = siteWagerErr
+                    ? `⚠️ Site log error: ${siteWagerErr}`
+                    : `✅ Wager log created on site. Please fill out the player stats to complete the log.`;
+                await interaction.channel?.send({
+                    content: `${hosterMention} ${siteNote}`.trim(),
+                    components: [closeWagerRow],
+                }).catch(() => null);
                 return;
             }
             if (customId.startsWith('wt_quick_modal|')) {
@@ -3773,12 +3826,12 @@ export async function handleInteractions(interaction, client, db, commands) {
                         warStats.push({ player: username, kills: null, deaths: null, notes: '' });
                     });
                 }
-                console.log(`[wt_quick_modal] war=${war.id} collection=${collection ? 'found' : 'NULL'} warStats=${warStats.length} players:`, warStats.map(s => s.player));
+                console.log(`[wt_quick_modal] war=${war.id} collection=${collection ? 'found' : 'NULL'} warStats=${warStats.length} players:`, JSON.stringify(warStats));
                 // Create war log on site
                 let siteLogError = null;
                 try {
                     const { createWarLog } = await import('./siteapi.js');
-                    await createWarLog(
+                    const siteResult = await createWarLog(
                         winnerGuildData?.tag || winnerGuildId,
                         loserGuildData?.tag || loserGuildId,
                         winnerScore,
@@ -3789,6 +3842,7 @@ export async function handleInteractions(interaction, client, db, commands) {
                         -loserEloLoss,
                         warStats.length > 0 ? warStats : null,
                     );
+                    console.log(`[createWarLog] site response:`, JSON.stringify(siteResult));
                 } catch (e) {
                     siteLogError = e?.message || 'Unknown error';
                     console.error('Failed to create site war log:', siteLogError);

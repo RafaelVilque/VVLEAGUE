@@ -78,6 +78,13 @@ export async function createWarLog(org1Tag, org2Tag, score1, score2, winnerTag, 
         body: JSON.stringify({ date, org1: org1Tag, org2: org2Tag, score1, score2, winner: winnerTag, region: region || 'NA', elo_org1: eloOrg1, elo_org2: eloOrg2, stats }),
     });
 }
+export async function createWagerLog(challenger, challenged, amount, winner, season, stats = null) {
+    const date = new Date().toISOString().slice(0, 10);
+    return botFetch('/logs/wager', {
+        method: 'POST',
+        body: JSON.stringify({ date, challenger, challenged, amount, winner, season: season || '', stats }),
+    });
+}
 export async function upsertWagerResult(discordId, name, org, eloDelta, won) {
     return botFetch('/players/wager-result', {
         method: 'POST',
