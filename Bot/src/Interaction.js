@@ -146,7 +146,7 @@ async function createWarTicketChannel(interaction, db, guildA, guildB) {
     if (!channel)
         return null;
     const warConfirmationContainer = new ContainerBuilder()
-        .setAccentColor(40192)
+        .setAccentColor(0x5BADFF)
         .addTextDisplayComponents(new TextDisplayBuilder().setContent(`# ⚔️ War Confirmation\nWar between: **${guildA.name}** vs **${guildB.name}**`))
         .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true))
         .addTextDisplayComponents(new TextDisplayBuilder().setContent('\nℹ️ Waiting for confirmation from the opponent team (Leader/Co-leader).\n\nUse the buttons below:\n• **Accept War** — confirm the war\n• **Dodge** — cancel the war'));
