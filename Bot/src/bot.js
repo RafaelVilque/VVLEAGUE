@@ -14,7 +14,7 @@ Architecture Rules:
 import { Client, GatewayIntentBits, Partials } from 'discord.js';
 import Database from 'better-sqlite3';
 import { registerCommands, loadCommands } from './commands.js';
-import { handleInteractions } from './Interaction.js';
+import { handleInteractions, handleWagerAmountMessage } from './Interaction.js';
 import { setupDatabase, checkExpiredTickets, autoDodgeWar, autoDodgeWager, getPendingTicketsForReminder } from './database.js';
 import dotenv from 'dotenv';
 dotenv.config();
@@ -76,6 +76,14 @@ client.on('interactionCreate', async (interaction) => {
     seenInteractions.add(interaction.id);
     if (seenInteractions.size > 500) seenInteractions.clear();
     await handleInteractions(interaction, client, db, commands);
+});
+// Event: Message (for wager amount collection)
+client.on('messageCreate', async (message) => {
+    try {
+        await handleWagerAmountMessage(message, db);
+    } catch (e) {
+        console.error('[messageCreate] wager amount handler error:', e);
+    }
 });
 // Event: Error
 client.on('error', error => {

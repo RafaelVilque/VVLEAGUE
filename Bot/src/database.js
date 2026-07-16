@@ -134,6 +134,19 @@ function setupBotTables(db) {
       released_at  TEXT NOT NULL,
       guild_name   TEXT NOT NULL DEFAULT ''
     );
+    CREATE TABLE IF NOT EXISTS wager_amount_collection (
+      wager_id          INTEGER PRIMARY KEY,
+      channel_id        TEXT NOT NULL,
+      challenger1_id    TEXT NOT NULL,
+      challenger2_id    TEXT,
+      challenged1_id    TEXT NOT NULL,
+      challenged2_id    TEXT,
+      amount            TEXT,
+      confirm_msg_id    TEXT,
+      team1_confirmed   INTEGER NOT NULL DEFAULT 0,
+      team2_confirmed   INTEGER NOT NULL DEFAULT 0,
+      awaiting          INTEGER NOT NULL DEFAULT 1
+    );
     CREATE TABLE IF NOT EXISTS war_player_collection (
       war_id          INTEGER PRIMARY KEY,
       guild1_id       TEXT NOT NULL,
@@ -156,6 +169,29 @@ export function setCollectionPlayers(db, warId, step, players) {
     const col = step === 1 ? 'guild1_players' : 'guild2_players';
     const nextStep = step === 1 ? 2 : 3;
     db.prepare(`UPDATE war_player_collection SET ${col} = ?, step = ? WHERE war_id = ?`).run(JSON.stringify(players), nextStep, warId);
+}
+export function initWagerAmountCollection(db, wagerId, channelId, challenger1Id, challenger2Id, challenged1Id, challenged2Id) {
+    db.prepare(`INSERT OR REPLACE INTO wager_amount_collection
+        (wager_id, channel_id, challenger1_id, challenger2_id, challenged1_id, challenged2_id, amount, confirm_msg_id, team1_confirmed, team2_confirmed, awaiting)
+        VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, 0, 0, 1)`)
+        .run(wagerId, channelId, challenger1Id, challenger2Id || null, challenged1Id, challenged2Id || null);
+}
+export function getWagerAmountCollection(db, wagerId) {
+    return db.prepare('SELECT * FROM wager_amount_collection WHERE wager_id = ?').get(wagerId) || null;
+}
+export function getWagerAmountCollectionByChannel(db, channelId) {
+    return db.prepare("SELECT * FROM wager_amount_collection WHERE channel_id = ? AND awaiting = 1").get(channelId) || null;
+}
+export function setWagerAmount(db, wagerId, amount, confirmMsgId) {
+    db.prepare('UPDATE wager_amount_collection SET amount = ?, confirm_msg_id = ?, awaiting = 0 WHERE wager_id = ?').run(amount, confirmMsgId, wagerId);
+}
+export function resetWagerAmount(db, wagerId) {
+    db.prepare('UPDATE wager_amount_collection SET amount = NULL, confirm_msg_id = NULL, team1_confirmed = 0, team2_confirmed = 0, awaiting = 1 WHERE wager_id = ?').run(wagerId);
+}
+export function confirmWagerTeam(db, wagerId, team) {
+    const col = team === 1 ? 'team1_confirmed' : 'team2_confirmed';
+    db.prepare(`UPDATE wager_amount_collection SET ${col} = 1 WHERE wager_id = ?`).run(wagerId);
+    return db.prepare('SELECT team1_confirmed, team2_confirmed FROM wager_amount_collection WHERE wager_id = ?').get(wagerId);
 }
 export function getSetting(db, key) {
     return db.prepare('SELECT value FROM bot_settings WHERE key = ?').get(key)?.value || '';
