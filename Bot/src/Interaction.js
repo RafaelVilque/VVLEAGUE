@@ -2197,17 +2197,12 @@ export async function handleInteractions(interaction, client, db, commands) {
                             embeds: [],
                             components: [],
                         });
+                        return;
                     }
-                    else {
-                        await interaction.update({
-                            content: `❌ Could not reach the signing log channel. Check bot permissions or reconfigure with \`/setup signing_log_channel\`.`,
-                            embeds: [],
-                            components: [],
-                        });
-                    }
+                    // Channel unreachable — fall through to immediate removal below
                 }
-                else {
-                    // No approval channel — remove immediately
+                {
+                    // No approval channel (or channel unreachable) — remove immediately
                     const removed = removeMemberFromRole(db, guildId, targetUserId, roleType);
                     if (!removed) {
                         await interaction.update({ content: '❌ Unable to remove the selected member.', embeds: [], components: [] });

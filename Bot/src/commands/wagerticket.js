@@ -35,7 +35,7 @@ export async function execute(interaction, db) {
         const components = [
             new ContainerBuilder()
                 .setAccentColor(0x5BADFF)
-                .addTextDisplayComponents(new TextDisplayBuilder().setContent('# <:deepwoken:1470975025988501515> Wager Tickets\n\nℹ️ **Use this panel to start a wager challenge.**'))
+                .addTextDisplayComponents(new TextDisplayBuilder().setContent('# 💰 Wager Tickets\n\nℹ️ **Use this panel to start a wager challenge.**'))
                 .addTextDisplayComponents(new TextDisplayBuilder().setContent('\n\n• **1v1 Wager** — challenge a single opponent  \n' +
                 '• **2v2 Wager** — team up with a friend and challenge two opponents  \n\n' +
                 'A private channel will be automatically created in the configured category.'))
