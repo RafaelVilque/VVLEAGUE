@@ -1171,22 +1171,19 @@ export async function handleInteractions(interaction, client, db, commands) {
                         content: dodgeSummary,
                     });
                 }
-                await interaction.editReply({
-                    content: `${dodgeSummary}\n\n⏳ Channel will be deleted in 5 seconds...`,
-                    embeds: [],
-                    components: [],
-                    allowedMentions: { users: [interaction.user.id] },
-                });
-                await new Promise(resolve => setTimeout(resolve, 5000));
-                const channelToDelete = interaction.channel
+                const warChannel = interaction.channel
                     ?? (war.channelId ? (interaction.guild?.channels.cache.get(war.channelId) ?? await interaction.guild?.channels.fetch(war.channelId).catch(() => null)) : null);
-                if (channelToDelete && 'delete' in channelToDelete) {
-                    await channelToDelete.delete('War ticket closed after dodge').catch((err) => {
+                if (warChannel && 'send' in warChannel) {
+                    await warChannel.send({
+                        content: `${dodgeSummary}\n\n⏳ Channel will be deleted in 5 seconds...`,
+                        allowedMentions: { users: [interaction.user.id] },
+                    }).catch(() => null);
+                }
+                await new Promise(resolve => setTimeout(resolve, 5000));
+                if (warChannel && 'delete' in warChannel) {
+                    await warChannel.delete('War ticket closed after dodge').catch((err) => {
                         console.error('Failed to delete war ticket channel after dodge:', err);
                     });
-                }
-                else {
-                    console.warn('Could not find channel to delete after war dodge:', war.channelId);
                 }
                 return;
             }
@@ -2725,6 +2722,13 @@ export async function handleInteractions(interaction, client, db, commands) {
                             .setPlaceholder('20')
                             .setRequired(true)
                             .setMaxLength(6)),
+                        new ActionRowBuilder().addComponents(new TextInputBuilder()
+                            .setCustomId('rounds_summary')
+                            .setLabel('Round Details')
+                            .setStyle(TextInputStyle.Paragraph)
+                            .setPlaceholder('This is where the stats of the game go, and extra details.')
+                            .setRequired(false)
+                            .setMaxLength(1000)),
                         new ActionRowBuilder().addComponents(new TextInputBuilder()
                             .setCustomId('mvp_user')
                             .setLabel('MVP (optional)')
