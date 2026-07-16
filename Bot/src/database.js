@@ -135,17 +135,23 @@ function setupBotTables(db) {
       guild_name   TEXT NOT NULL DEFAULT ''
     );
     CREATE TABLE IF NOT EXISTS wager_amount_collection (
-      wager_id          INTEGER PRIMARY KEY,
-      channel_id        TEXT NOT NULL,
-      challenger1_id    TEXT NOT NULL,
-      challenger2_id    TEXT,
-      challenged1_id    TEXT NOT NULL,
-      challenged2_id    TEXT,
-      amount            TEXT,
-      confirm_msg_id    TEXT,
-      team1_confirmed   INTEGER NOT NULL DEFAULT 0,
-      team2_confirmed   INTEGER NOT NULL DEFAULT 0,
-      awaiting          INTEGER NOT NULL DEFAULT 1
+      wager_id             INTEGER PRIMARY KEY,
+      channel_id           TEXT NOT NULL,
+      challenger1_id       TEXT NOT NULL,
+      challenger2_id       TEXT,
+      challenged1_id       TEXT NOT NULL,
+      challenged2_id       TEXT,
+      amount               TEXT,
+      confirm_msg_id       TEXT,
+      team1_confirmed      INTEGER NOT NULL DEFAULT 0,
+      team2_confirmed      INTEGER NOT NULL DEFAULT 0,
+      awaiting             INTEGER NOT NULL DEFAULT 1,
+      rules_type           TEXT,
+      ban_content          TEXT,
+      ban_confirm_msg_id   TEXT,
+      ban_team1_confirmed  INTEGER NOT NULL DEFAULT 0,
+      ban_team2_confirmed  INTEGER NOT NULL DEFAULT 0,
+      ban_awaiting         INTEGER NOT NULL DEFAULT 0
     );
     CREATE TABLE IF NOT EXISTS war_player_collection (
       war_id          INTEGER PRIMARY KEY,
@@ -158,6 +164,13 @@ function setupBotTables(db) {
   `);
     // Migration: add guild_name to existing cooldowns tables that pre-date this column
     try { db.exec("ALTER TABLE cooldowns ADD COLUMN guild_name TEXT NOT NULL DEFAULT ''"); } catch (_) {}
+    // Migrations: add ban-related columns to existing wager_amount_collection rows
+    try { db.exec("ALTER TABLE wager_amount_collection ADD COLUMN rules_type TEXT"); } catch (_) {}
+    try { db.exec("ALTER TABLE wager_amount_collection ADD COLUMN ban_content TEXT"); } catch (_) {}
+    try { db.exec("ALTER TABLE wager_amount_collection ADD COLUMN ban_confirm_msg_id TEXT"); } catch (_) {}
+    try { db.exec("ALTER TABLE wager_amount_collection ADD COLUMN ban_team1_confirmed INTEGER NOT NULL DEFAULT 0"); } catch (_) {}
+    try { db.exec("ALTER TABLE wager_amount_collection ADD COLUMN ban_team2_confirmed INTEGER NOT NULL DEFAULT 0"); } catch (_) {}
+    try { db.exec("ALTER TABLE wager_amount_collection ADD COLUMN ban_awaiting INTEGER NOT NULL DEFAULT 0"); } catch (_) {}
 }
 export function initPlayerCollection(db, warId, guild1Id, guild2Id) {
     db.prepare('INSERT OR REPLACE INTO war_player_collection (war_id, guild1_id, guild2_id, guild1_players, guild2_players, step) VALUES (?, ?, ?, ?, ?, ?)').run(warId, guild1Id, guild2Id, '[]', '[]', 1);
@@ -192,6 +205,26 @@ export function confirmWagerTeam(db, wagerId, team) {
     const col = team === 1 ? 'team1_confirmed' : 'team2_confirmed';
     db.prepare(`UPDATE wager_amount_collection SET ${col} = 1 WHERE wager_id = ?`).run(wagerId);
     return db.prepare('SELECT team1_confirmed, team2_confirmed FROM wager_amount_collection WHERE wager_id = ?').get(wagerId);
+}
+export function setWagerRules(db, wagerId, rulesType) {
+    db.prepare('UPDATE wager_amount_collection SET rules_type = ? WHERE wager_id = ?').run(rulesType, wagerId);
+}
+export function getWagerCollectionByChannelForBan(db, channelId) {
+    return db.prepare("SELECT * FROM wager_amount_collection WHERE channel_id = ? AND ban_awaiting = 1").get(channelId) || null;
+}
+export function setWagerBan(db, wagerId, banContent, banConfirmMsgId) {
+    db.prepare('UPDATE wager_amount_collection SET ban_content = ?, ban_confirm_msg_id = ?, ban_awaiting = 0 WHERE wager_id = ?').run(banContent, banConfirmMsgId, wagerId);
+}
+export function resetWagerBan(db, wagerId) {
+    db.prepare('UPDATE wager_amount_collection SET ban_content = NULL, ban_confirm_msg_id = NULL, ban_team1_confirmed = 0, ban_team2_confirmed = 0, ban_awaiting = 1 WHERE wager_id = ?').run(wagerId);
+}
+export function startWagerBanCollection(db, wagerId) {
+    db.prepare('UPDATE wager_amount_collection SET ban_awaiting = 1, ban_content = NULL, ban_confirm_msg_id = NULL, ban_team1_confirmed = 0, ban_team2_confirmed = 0 WHERE wager_id = ?').run(wagerId);
+}
+export function confirmWagerBanTeam(db, wagerId, team) {
+    const col = team === 1 ? 'ban_team1_confirmed' : 'ban_team2_confirmed';
+    db.prepare(`UPDATE wager_amount_collection SET ${col} = 1 WHERE wager_id = ?`).run(wagerId);
+    return db.prepare('SELECT ban_team1_confirmed, ban_team2_confirmed FROM wager_amount_collection WHERE wager_id = ?').get(wagerId);
 }
 export function getSetting(db, key) {
     return db.prepare('SELECT value FROM bot_settings WHERE key = ?').get(key)?.value || '';

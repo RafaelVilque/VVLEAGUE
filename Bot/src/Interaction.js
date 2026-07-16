@@ -1,6 +1,6 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, ContainerBuilder, EmbedBuilder, ModalBuilder, MessageFlags, OverwriteType, PermissionFlagsBits, SeparatorBuilder, SeparatorSpacingSize, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, TextInputBuilder, TextInputStyle, TextDisplayBuilder, UserSelectMenuBuilder, } from 'discord.js';
 import { loadCommands } from './commands.js';
-import { addMemberToRole, addGuildLoss, addGuildWin, acceptWar, canAddUserToRole, createWar, createInvite, dodgeWar, finishWar, getGuildById, getInviteById, getMembersByRole, getPendingInviteForTarget, getRoleLabel, isUserInRole, refreshGuildPanel, removeMemberFromRole, setInviteStatus, validateInviteForAction, getWarById, createWager, getWagerById, getActiveWagerForUser, recordWagerAcceptance, markWagerAccepted, dodgeWager, closeWager, getSetting, applyGuildElo, applyPlayerElo, setCooldown, isOnCooldown, getCooldown, initPlayerCollection, getPlayerCollection, setCollectionPlayers, initWagerAmountCollection, getWagerAmountCollection, getWagerAmountCollectionByChannel, setWagerAmount, resetWagerAmount, confirmWagerTeam, } from './database.js';
+import { addMemberToRole, addGuildLoss, addGuildWin, acceptWar, canAddUserToRole, createWar, createInvite, dodgeWar, finishWar, getGuildById, getInviteById, getMembersByRole, getPendingInviteForTarget, getRoleLabel, isUserInRole, refreshGuildPanel, removeMemberFromRole, setInviteStatus, validateInviteForAction, getWarById, createWager, getWagerById, getActiveWagerForUser, recordWagerAcceptance, markWagerAccepted, dodgeWager, closeWager, getSetting, applyGuildElo, applyPlayerElo, setCooldown, isOnCooldown, getCooldown, initPlayerCollection, getPlayerCollection, setCollectionPlayers, initWagerAmountCollection, getWagerAmountCollection, getWagerAmountCollectionByChannel, setWagerAmount, resetWagerAmount, confirmWagerTeam, setWagerRules, getWagerCollectionByChannelForBan, setWagerBan, resetWagerBan, startWagerBanCollection, confirmWagerBanTeam, } from './database.js';
 const ADD_ACTION_MAP = {
     ADD_CO_LEADER: 'CO_LEADER',
     ADD_MANAGER: 'MANAGER',
@@ -1479,6 +1479,16 @@ export async function handleInteractions(interaction, client, db, commands) {
                 const result = confirmWagerTeam(db, wagerId, isTeam1 ? 1 : 2);
                 if (result.team1_confirmed && result.team2_confirmed) {
                     await interaction.update({ content: `✅ Both teams agreed — the wager is **${col.amount}**.`, embeds: [], components: [] });
+                    const rulesEmbed = new EmbedBuilder()
+                        .setColor(0x5BADFF)
+                        .setTitle('📋 Match Rules')
+                        .setDescription('Please select the rules for this match:');
+                    const rulesRow = new ActionRowBuilder().addComponents(
+                        new ButtonBuilder().setCustomId(`wg_rules_default|${wagerId}`).setLabel('Default Rules').setStyle(ButtonStyle.Primary),
+                        new ButtonBuilder().setCustomId(`wg_rules_bans|${wagerId}`).setLabel('Mutual Bans').setStyle(ButtonStyle.Secondary),
+                        new ButtonBuilder().setCustomId(`wg_rules_default_bans|${wagerId}`).setLabel('Default Rules + Mutual Bans').setStyle(ButtonStyle.Success),
+                    );
+                    await interaction.channel.send({ embeds: [rulesEmbed], components: [rulesRow] });
                 } else {
                     const waiting = isTeam1 ? 'Waiting for the other team to confirm.' : 'Waiting for the challenger team to confirm.';
                     await interaction.reply({ content: `✅ You confirmed the wager. ${waiting}`, flags: MessageFlags.Ephemeral });
@@ -1495,6 +1505,85 @@ export async function handleInteractions(interaction, client, db, commands) {
                 if (!isParticipant) { await interaction.reply({ content: '❌ You are not a participant in this wager.', flags: MessageFlags.Ephemeral }); return; }
                 resetWagerAmount(db, wagerId);
                 await interaction.update({ content: '❌ Wager amount rejected.\n\n💰 **What is the wager?** Type it in the chat below.', embeds: [], components: [] });
+                return;
+            }
+            if (customId.startsWith('wg_rules_default|')) {
+                const [, wagerIdRaw] = parseCustomId(customId);
+                const wagerId = Number(wagerIdRaw);
+                const col = getWagerAmountCollection(db, wagerId);
+                if (!col) { await interaction.reply({ content: '❌ Wager not found.', flags: MessageFlags.Ephemeral }); return; }
+                const isParticipant = [col.challenger1_id, col.challenger2_id, col.challenged1_id, col.challenged2_id].includes(interaction.user.id);
+                if (!isParticipant) { await interaction.reply({ content: '❌ You are not a participant in this wager.', flags: MessageFlags.Ephemeral }); return; }
+                setWagerRules(db, wagerId, 'default');
+                const embed = new EmbedBuilder()
+                    .setColor(0x5BADFF)
+                    .setTitle('✅ Default Rules Selected')
+                    .setDescription('**Default Rules:** No Skeying, No Mode Pops, Aura is allowed.');
+                await interaction.update({ embeds: [embed], components: [] });
+                return;
+            }
+            if (customId.startsWith('wg_rules_bans|')) {
+                const [, wagerIdRaw] = parseCustomId(customId);
+                const wagerId = Number(wagerIdRaw);
+                const col = getWagerAmountCollection(db, wagerId);
+                if (!col) { await interaction.reply({ content: '❌ Wager not found.', flags: MessageFlags.Ephemeral }); return; }
+                const isParticipant = [col.challenger1_id, col.challenger2_id, col.challenged1_id, col.challenged2_id].includes(interaction.user.id);
+                if (!isParticipant) { await interaction.reply({ content: '❌ You are not a participant in this wager.', flags: MessageFlags.Ephemeral }); return; }
+                setWagerRules(db, wagerId, 'bans');
+                startWagerBanCollection(db, wagerId);
+                await interaction.update({ embeds: [], components: [],
+                    content: '🔨 **Mutual Bans selected.**\n\n**What would you like to ban?** Type it in the chat below.' });
+                return;
+            }
+            if (customId.startsWith('wg_rules_default_bans|')) {
+                const [, wagerIdRaw] = parseCustomId(customId);
+                const wagerId = Number(wagerIdRaw);
+                const col = getWagerAmountCollection(db, wagerId);
+                if (!col) { await interaction.reply({ content: '❌ Wager not found.', flags: MessageFlags.Ephemeral }); return; }
+                const isParticipant = [col.challenger1_id, col.challenger2_id, col.challenged1_id, col.challenged2_id].includes(interaction.user.id);
+                if (!isParticipant) { await interaction.reply({ content: '❌ You are not a participant in this wager.', flags: MessageFlags.Ephemeral }); return; }
+                setWagerRules(db, wagerId, 'default_bans');
+                startWagerBanCollection(db, wagerId);
+                await interaction.update({ embeds: [], components: [],
+                    content: '📋 **Default Rules + Mutual Bans selected.**\nDefault Rules: No Skeying, No Mode Pops, Aura is allowed.\n\n**What would you like to ban?** Type it in the chat below.' });
+                return;
+            }
+            if (customId.startsWith('wg_ban_confirm|')) {
+                const [, wagerIdRaw] = parseCustomId(customId);
+                const wagerId = Number(wagerIdRaw);
+                const col = getWagerAmountCollection(db, wagerId);
+                if (!col) { await interaction.reply({ content: '❌ Wager not found.', flags: MessageFlags.Ephemeral }); return; }
+                const userId = interaction.user.id;
+                const isTeam1 = [col.challenger1_id, col.challenger2_id].includes(userId);
+                const isTeam2 = [col.challenged1_id, col.challenged2_id].includes(userId);
+                if (!isTeam1 && !isTeam2) { await interaction.reply({ content: '❌ You are not a participant in this wager.', flags: MessageFlags.Ephemeral }); return; }
+                const result = confirmWagerBanTeam(db, wagerId, isTeam1 ? 1 : 2);
+                if (result.ban_team1_confirmed && result.ban_team2_confirmed) {
+                    const rulesLabel = col.rules_type === 'default_bans'
+                        ? 'Default Rules + Mutual Bans'
+                        : 'Mutual Bans';
+                    const embed = new EmbedBuilder()
+                        .setColor(0x5BADFF)
+                        .setTitle(`✅ ${rulesLabel} Confirmed`)
+                        .setDescription(col.rules_type === 'default_bans'
+                            ? `**Default Rules:** No Skeying, No Mode Pops, Aura is allowed.\n**Mutual Ban:** ${col.ban_content}`
+                            : `**Mutual Ban:** ${col.ban_content}`);
+                    await interaction.update({ embeds: [embed], components: [] });
+                } else {
+                    const waiting = isTeam1 ? 'Waiting for the other team to confirm.' : 'Waiting for the challenger team to confirm.';
+                    await interaction.reply({ content: `✅ You confirmed the ban. ${waiting}`, flags: MessageFlags.Ephemeral });
+                }
+                return;
+            }
+            if (customId.startsWith('wg_ban_reject|')) {
+                const [, wagerIdRaw] = parseCustomId(customId);
+                const wagerId = Number(wagerIdRaw);
+                const col = getWagerAmountCollection(db, wagerId);
+                if (!col) { await interaction.reply({ content: '❌ Wager not found.', flags: MessageFlags.Ephemeral }); return; }
+                const isParticipant = [col.challenger1_id, col.challenger2_id, col.challenged1_id, col.challenged2_id].includes(interaction.user.id);
+                if (!isParticipant) { await interaction.reply({ content: '❌ You are not a participant in this wager.', flags: MessageFlags.Ephemeral }); return; }
+                resetWagerBan(db, wagerId);
+                await interaction.update({ content: '❌ Ban rejected.\n\n**What would you like to ban?** Type it in the chat below.', embeds: [], components: [] });
                 return;
             }
             if (customId.startsWith('wg_dodge|')) {
@@ -3949,15 +4038,40 @@ export async function handleInteractions(interaction, client, db, commands) {
 }
 export async function handleWagerAmountMessage(message, db) {
     if (!message.channelId || message.author.bot) return;
+
+    // Check ban collection first (higher priority if both awaiting somehow, ban_awaiting wins)
+    const banCol = getWagerCollectionByChannelForBan(db, message.channelId);
+    if (banCol) {
+        const participants = [banCol.challenger1_id, banCol.challenger2_id, banCol.challenged1_id, banCol.challenged2_id].filter(Boolean);
+        if (!participants.includes(message.author.id)) return;
+        const rulesLabel = banCol.rules_type === 'default_bans' ? 'Default Rules + Mutual Bans' : 'Mutual Bans';
+        const description = banCol.rules_type === 'default_bans'
+            ? `**Default Rules:** No Skeying, No Mode Pops, Aura is allowed.\n**Mutual Ban:** ${message.content}`
+            : `🔨 **Mutual Ban:** ${message.content}`;
+        const embed = new EmbedBuilder()
+            .setColor(0x5BADFF)
+            .setTitle(`📋 ${rulesLabel}`)
+            .setDescription(description)
+            .setFooter({ text: "If this isn't the right ban, please click ❌ and answer the question correctly." });
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId(`wg_ban_confirm|${banCol.wager_id}`).setEmoji('✅').setStyle(ButtonStyle.Success),
+            new ButtonBuilder().setCustomId(`wg_ban_reject|${banCol.wager_id}`).setEmoji('❌').setStyle(ButtonStyle.Danger),
+        );
+        const sent = await message.channel.send({ embeds: [embed], components: [row] });
+        setWagerBan(db, banCol.wager_id, message.content, sent.id);
+        await message.delete().catch(() => {});
+        return;
+    }
+
+    // Check wager amount collection
     const col = getWagerAmountCollectionByChannel(db, message.channelId);
     if (!col) return;
     const participants = [col.challenger1_id, col.challenger2_id, col.challenged1_id, col.challenged2_id].filter(Boolean);
     if (!participants.includes(message.author.id)) return;
-    // Embed the wager amount with confirm/reject buttons
     const embed = new EmbedBuilder()
         .setColor(0x5BADFF)
         .setDescription(`💰 **Wager:** ${message.content}`)
-        .setFooter({ text: 'If this isn\'t the wager, please click ❌ and answer the question correctly.' });
+        .setFooter({ text: "If this isn't the wager, please click ❌ and answer the question correctly." });
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId(`wg_amount_confirm|${col.wager_id}`).setEmoji('✅').setStyle(ButtonStyle.Success),
         new ButtonBuilder().setCustomId(`wg_amount_reject|${col.wager_id}`).setEmoji('❌').setStyle(ButtonStyle.Danger),
