@@ -1,6 +1,6 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, ContainerBuilder, EmbedBuilder, ModalBuilder, MessageFlags, OverwriteType, PermissionFlagsBits, SeparatorBuilder, SeparatorSpacingSize, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, TextInputBuilder, TextInputStyle, TextDisplayBuilder, UserSelectMenuBuilder, } from 'discord.js';
 import { loadCommands } from './commands.js';
-import { addMemberToRole, addGuildLoss, addGuildWin, acceptWar, canAddUserToRole, createWar, createInvite, dodgeWar, finishWar, getGuildById, getInviteById, getMembersByRole, getPendingInviteForTarget, getRoleLabel, isUserInRole, refreshGuildPanel, removeMemberFromRole, setInviteStatus, validateInviteForAction, getWarById, createWager, getWagerById, getActiveWagerForUser, recordWagerAcceptance, markWagerAccepted, dodgeWager, closeWager, getSetting, applyGuildElo, applyPlayerElo, setCooldown, isOnCooldown, getCooldown, initPlayerCollection, getPlayerCollection, setCollectionPlayers, } from './database.js';
+import { addMemberToRole, addGuildLoss, addGuildWin, acceptWar, canAddUserToRole, createWar, createInvite, dodgeWar, finishWar, getGuildById, getInviteById, getMembersByRole, getPendingInviteForTarget, getRoleLabel, isUserInRole, refreshGuildPanel, removeMemberFromRole, setInviteStatus, validateInviteForAction, getWarById, createWager, getWagerById, getActiveWagerForUser, recordWagerAcceptance, markWagerAccepted, dodgeWager, closeWager, getSetting, applyGuildElo, applyPlayerElo, setCooldown, isOnCooldown, getCooldown, initPlayerCollection, getPlayerCollection, setCollectionPlayers, initWagerAmountCollection, getWagerAmountCollection, getWagerAmountCollectionByChannel, setWagerAmount, resetWagerAmount, confirmWagerTeam, } from './database.js';
 const ADD_ACTION_MAP = {
     ADD_CO_LEADER: 'CO_LEADER',
     ADD_MANAGER: 'MANAGER',
@@ -1411,6 +1411,11 @@ export async function handleInteractions(interaction, client, db, commands) {
                     embeds: [],
                     components: [acceptDisabledRow],
                 });
+                // Init wager amount collection and ask for the wager
+                if (interaction.channelId) {
+                    initWagerAmountCollection(db, wager.id, interaction.channelId, wager.challenger1Id, wager.challenger2Id, wager.challenged1Id, wager.challenged2Id);
+                    await interaction.channel?.send({ content: '💰 **What is the wager?** Type it in the chat below.' });
+                }
                 return;
             }
             if (customId.startsWith('wg_finalize_open|')) {
@@ -1460,6 +1465,36 @@ export async function handleInteractions(interaction, client, db, commands) {
                     components: [new ActionRowBuilder().addComponents(winnerSelect)],
                     flags: MessageFlags.Ephemeral,
                 });
+                return;
+            }
+            if (customId.startsWith('wg_amount_confirm|')) {
+                const [, wagerIdRaw] = parseCustomId(customId);
+                const wagerId = Number(wagerIdRaw);
+                const col = getWagerAmountCollection(db, wagerId);
+                if (!col) { await interaction.reply({ content: '❌ No wager amount pending.', flags: MessageFlags.Ephemeral }); return; }
+                const userId = interaction.user.id;
+                const isTeam1 = [col.challenger1_id, col.challenger2_id].includes(userId);
+                const isTeam2 = [col.challenged1_id, col.challenged2_id].includes(userId);
+                if (!isTeam1 && !isTeam2) { await interaction.reply({ content: '❌ You are not a participant in this wager.', flags: MessageFlags.Ephemeral }); return; }
+                const result = confirmWagerTeam(db, wagerId, isTeam1 ? 1 : 2);
+                if (result.team1_confirmed && result.team2_confirmed) {
+                    await interaction.update({ content: `✅ Both teams agreed — the wager is **${col.amount}**.`, embeds: [], components: [] });
+                } else {
+                    const waiting = isTeam1 ? 'Waiting for the other team to confirm.' : 'Waiting for the challenger team to confirm.';
+                    await interaction.reply({ content: `✅ You confirmed the wager. ${waiting}`, flags: MessageFlags.Ephemeral });
+                }
+                return;
+            }
+            if (customId.startsWith('wg_amount_reject|')) {
+                const [, wagerIdRaw] = parseCustomId(customId);
+                const wagerId = Number(wagerIdRaw);
+                const col = getWagerAmountCollection(db, wagerId);
+                if (!col) { await interaction.reply({ content: '❌ No wager amount pending.', flags: MessageFlags.Ephemeral }); return; }
+                const userId = interaction.user.id;
+                const isParticipant = [col.challenger1_id, col.challenger2_id, col.challenged1_id, col.challenged2_id].includes(userId);
+                if (!isParticipant) { await interaction.reply({ content: '❌ You are not a participant in this wager.', flags: MessageFlags.Ephemeral }); return; }
+                resetWagerAmount(db, wagerId);
+                await interaction.update({ content: '❌ Wager amount rejected.\n\n💰 **What is the wager?** Type it in the chat below.', embeds: [], components: [] });
                 return;
             }
             if (customId.startsWith('wg_dodge|')) {
@@ -3911,6 +3946,25 @@ export async function handleInteractions(interaction, client, db, commands) {
             }
         }
     }
+}
+export async function handleWagerAmountMessage(message, db) {
+    if (!message.channelId || message.author.bot) return;
+    const col = getWagerAmountCollectionByChannel(db, message.channelId);
+    if (!col) return;
+    const participants = [col.challenger1_id, col.challenger2_id, col.challenged1_id, col.challenged2_id].filter(Boolean);
+    if (!participants.includes(message.author.id)) return;
+    // Embed the wager amount with confirm/reject buttons
+    const embed = new EmbedBuilder()
+        .setColor(0x5BADFF)
+        .setDescription(`💰 **Wager:** ${message.content}`)
+        .setFooter({ text: 'If this isn\'t the wager, please click ❌ and answer the question correctly.' });
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId(`wg_amount_confirm|${col.wager_id}`).setEmoji('✅').setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId(`wg_amount_reject|${col.wager_id}`).setEmoji('❌').setStyle(ButtonStyle.Danger),
+    );
+    const sent = await message.channel.send({ embeds: [embed], components: [row] });
+    setWagerAmount(db, col.wager_id, message.content, sent.id);
+    await message.delete().catch(() => {});
 }
 function sanitizeWagerChannelName(name) {
     return name
