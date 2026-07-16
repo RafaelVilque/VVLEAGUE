@@ -1,6 +1,6 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, ContainerBuilder, EmbedBuilder, ModalBuilder, MessageFlags, OverwriteType, PermissionFlagsBits, SeparatorBuilder, SeparatorSpacingSize, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, TextInputBuilder, TextInputStyle, TextDisplayBuilder, UserSelectMenuBuilder, } from 'discord.js';
 import { loadCommands } from './commands.js';
-import { addMemberToRole, addGuildLoss, addGuildWin, acceptWar, canAddUserToRole, createWar, createInvite, dodgeWar, finishWar, getGuildById, getInviteById, getMembersByRole, getPendingInviteForTarget, getRoleLabel, isUserInRole, refreshGuildPanel, removeMemberFromRole, setInviteStatus, validateInviteForAction, getWarById, createWager, getWagerById, getActiveWagerForUser, recordWagerAcceptance, markWagerAccepted, dodgeWager, closeWager, getSetting, applyGuildElo, applyPlayerElo, } from './database.js';
+import { addMemberToRole, addGuildLoss, addGuildWin, acceptWar, canAddUserToRole, createWar, createInvite, dodgeWar, finishWar, getGuildById, getInviteById, getMembersByRole, getPendingInviteForTarget, getRoleLabel, isUserInRole, refreshGuildPanel, removeMemberFromRole, setInviteStatus, validateInviteForAction, getWarById, createWager, getWagerById, getActiveWagerForUser, recordWagerAcceptance, markWagerAccepted, dodgeWager, closeWager, getSetting, applyGuildElo, applyPlayerElo, setCooldown, isOnCooldown, getCooldown, } from './database.js';
 const ADD_ACTION_MAP = {
     ADD_CO_LEADER: 'CO_LEADER',
     ADD_MANAGER: 'MANAGER',
@@ -1916,6 +1916,15 @@ export async function handleInteractions(interaction, client, db, commands) {
                     await interaction.update({ content: '❌ Signings are currently closed.', embeds: [], components: [] });
                     return;
                 }
+                // Cooldown check
+                const cooldownDaysSetting = interaction.guildId ? parseInt(getSetting(db, `${interaction.guildId}_signing_cooldown_days`) || '0') : 0;
+                if (cooldownDaysSetting > 0 && isOnCooldown(db, targetUserId, cooldownDaysSetting)) {
+                    const cd = getCooldown(db, targetUserId);
+                    const expiresAt = cd ? new Date(cd.releasedAt.getTime() + cooldownDaysSetting * 24 * 60 * 60 * 1000) : null;
+                    const remaining = expiresAt ? `<t:${Math.floor(expiresAt.getTime() / 1000)}:R>` : 'soon';
+                    await interaction.update({ content: `❌ <@${targetUserId}> is on a signing cooldown and cannot be signed until ${remaining}.`, embeds: [], components: [] });
+                    return;
+                }
                 const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
                 const inviteId = createInvite(db, guildId, targetUserId, roleType, interaction.user.id, expiresAt);
                 const inviteRow = buildInviteDecisionRow(inviteId, roleType, interaction.guildId ?? '');
@@ -2198,6 +2207,7 @@ export async function handleInteractions(interaction, client, db, commands) {
                         await interaction.update({ content: '❌ Unable to remove the selected member.', embeds: [], components: [] });
                         return;
                     }
+                    setCooldown(db, targetUserId, guild?.name || '');
                     await maybeRemoveDiscordRoleByType(interaction, db, targetUserId, roleType);
                     await removeGuildNameRole(client, interaction.guildId ?? undefined, guild, targetUserId);
                     // Sync removal to site
@@ -2330,6 +2340,7 @@ export async function handleInteractions(interaction, client, db, commands) {
                     await interaction.update({ content: '⚠️ Member was already removed.', components: [], embeds: [] });
                     return;
                 }
+                setCooldown(db, targetUserId, guild?.name || '');
                 // Remove type-specific role (CO_LEADER / MANAGER)
                 if (discordGuildId) {
                     const roleId = getDiscordRoleIdForRoleType(roleType, db, discordGuildId);

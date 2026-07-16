@@ -65,6 +65,11 @@ export const data = new SlashCommandBuilder()
     .addChannelOption(o => o.setName('signings_announce_channel')
     .setDescription('Public channel where approved signings are announced')
     .addChannelTypes(ChannelType.GuildText)
+    .setRequired(false))
+    .addIntegerOption(o => o.setName('signing_cooldown_days')
+    .setDescription('How many days a player must wait before being signed after leaving a guild (0 = disabled)')
+    .setMinValue(0)
+    .setMaxValue(365)
     .setRequired(false));
 export async function execute(interaction, db) {
     if (!interaction.memberPermissions?.has('Administrator')) {
@@ -132,6 +137,12 @@ export async function execute(interaction, db) {
     // Public signings announcement channel
     const signingsAnnounce = interaction.options.getChannel('signings_announce_channel');
     save('signings_announce_channel_id', signingsAnnounce?.id ?? null, 'Signings Announce Channel', signingsAnnounce ? `<#${signingsAnnounce.id}>` : '');
+    // Signing cooldown
+    const cooldownDays = interaction.options.getInteger('signing_cooldown_days');
+    if (cooldownDays !== null) {
+        setSetting(db, `${guildId}_signing_cooldown_days`, String(cooldownDays));
+        saved.push(`✅ **Signing Cooldown** → ${cooldownDays === 0 ? 'Disabled' : `${cooldownDays} day(s)`}`);
+    } else { skipped.push('— Signing Cooldown'); }
     if (saved.length === 0) {
         await interaction.editReply({ content: '⚠️ No settings provided. Use the command options to configure the server.', embeds: [] });
         return;
