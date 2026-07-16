@@ -1,6 +1,6 @@
 ﻿import { SlashCommandBuilder } from 'discord.js';
 import { getMemberByDiscordId, releaseMember } from '../siteapi.js';
-import { setCooldown, getSetting, refreshGuildPanel } from '../database.js';
+import { setCooldown, getSetting, refreshGuildPanel, getGuildById } from '../database.js';
 const GUILD_LEADER_ROLE_ID_DEFAULT = '1470554671944040605';
 export const data = new SlashCommandBuilder()
     .setName('release')
@@ -27,8 +27,9 @@ export async function execute(interaction, db) {
         await interaction.editReply('❌ Could not remove you from your guild.');
         return;
     }
-    // Set cooldown
-    setCooldown(db, interaction.user.id);
+    // Set cooldown with guild name
+    const localGuildRecord = localGuildId ? getGuildById(db, localGuildId) : null;
+    setCooldown(db, interaction.user.id, localGuildRecord?.name || memberData.org_name || '');
     // Remove guild role if set
     if (memberData.discord_role_id && interaction.guild) {
         try {

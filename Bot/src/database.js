@@ -131,7 +131,8 @@ function setupBotTables(db) {
     );
     CREATE TABLE IF NOT EXISTS cooldowns (
       discord_id   TEXT PRIMARY KEY,
-      released_at  TEXT NOT NULL
+      released_at  TEXT NOT NULL,
+      guild_name   TEXT NOT NULL DEFAULT ''
     );
   `);
 }
@@ -157,15 +158,26 @@ export function updateSigningStatus(db, id, status, logMessageId) {
         db.prepare('UPDATE signing_requests SET status=? WHERE id=?').run(status, id);
     }
 }
+try { db.exec("ALTER TABLE cooldowns ADD COLUMN guild_name TEXT NOT NULL DEFAULT ''"); } catch (_) {}
 export function getCooldown(db, discordId) {
-    const row = db.prepare('SELECT released_at FROM cooldowns WHERE discord_id = ?').get(discordId);
-    return row ? new Date(row.released_at) : null;
+    const row = db.prepare('SELECT released_at, guild_name FROM cooldowns WHERE discord_id = ?').get(discordId);
+    return row ? { releasedAt: new Date(row.released_at), guildName: row.guild_name || '' } : null;
 }
-export function setCooldown(db, discordId) {
-    db.prepare('INSERT OR REPLACE INTO cooldowns (discord_id, released_at) VALUES (?, ?)').run(discordId, new Date().toISOString());
+export function isOnCooldown(db, discordId, cooldownDays) {
+    if (!cooldownDays || cooldownDays <= 0) return false;
+    const cd = getCooldown(db, discordId);
+    if (!cd) return false;
+    const expiresAt = new Date(cd.releasedAt.getTime() + cooldownDays * 24 * 60 * 60 * 1000);
+    return new Date() < expiresAt;
+}
+export function setCooldown(db, discordId, guildName = '') {
+    db.prepare('INSERT OR REPLACE INTO cooldowns (discord_id, released_at, guild_name) VALUES (?, ?, ?)').run(discordId, new Date().toISOString(), guildName);
 }
 export function clearCooldown(db, discordId) {
     db.prepare('DELETE FROM cooldowns WHERE discord_id = ?').run(discordId);
+}
+export function getAllCooldowns(db) {
+    return db.prepare('SELECT discord_id, released_at, guild_name FROM cooldowns').all();
 }
 function ensureInviteColumns(db) {
     const columns = db.prepare('PRAGMA table_info(Invites)').all();
