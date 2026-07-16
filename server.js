@@ -304,6 +304,13 @@ if (warCols.find(c => c.name === 'wager' && c.type === 'INTEGER')) {
 // Migrate: add stats to war_logs and wager_records (safe after recreation above)
 try { db.exec('ALTER TABLE war_logs ADD COLUMN stats TEXT DEFAULT ""'); } catch(e) {}
 try { db.exec('ALTER TABLE wager_records ADD COLUMN stats TEXT DEFAULT ""'); } catch(e) {}
+// Site settings table (ELO per kill/death etc.)
+db.exec(`CREATE TABLE IF NOT EXISTS site_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAULT '')`);
+// Ensure default ELO stat settings exist
+const _eloKill = db.prepare("SELECT value FROM site_settings WHERE key='stat_elo_per_kill'").get();
+if (!_eloKill) db.prepare("INSERT INTO site_settings (key,value) VALUES ('stat_elo_per_kill','2.5')").run();
+const _eloDeath = db.prepare("SELECT value FROM site_settings WHERE key='stat_elo_per_death'").get();
+if (!_eloDeath) db.prepare("INSERT INTO site_settings (key,value) VALUES ('stat_elo_per_death','-2.5')").run();
 // Migrate: bot integration columns
 try { db.exec("ALTER TABLE org_members ADD COLUMN discord_id TEXT DEFAULT ''"); } catch(e) {}
 try { db.exec("ALTER TABLE orgs ADD COLUMN discord_role_id TEXT DEFAULT ''"); } catch(e) {}
@@ -858,14 +865,43 @@ app.put('/api/bot/orgs/:tag/founded', requireBotAuth, (req, res) => {
   res.json({ ok: true });
 });
 
-app.post('/api/bot/logs/war', requireBotAuth, (req, res) => {
-  const { date, org1, org2, score1, score2, winner, region, elo_org1, elo_org2, stats } = req.body;
-  if (!date || !org1 || !org2) return res.status(400).json({ error: 'date, org1, org2 required' });
+// Site settings (ELO per kill/death)
+app.get('/api/settings/stats', (req, res) => {
+  const kill  = db.prepare("SELECT value FROM site_settings WHERE key='stat_elo_per_kill'").get()?.value ?? '2.5';
+  const death = db.prepare("SELECT value FROM site_settings WHERE key='stat_elo_per_death'").get()?.value ?? '-2.5';
+  res.json({ elo_per_kill: parseFloat(kill), elo_per_death: parseFloat(death) });
+});
+app.put('/api/settings/stats', requireAdmin, (req, res) => {
+  const { elo_per_kill, elo_per_death } = req.body;
+  if (elo_per_kill !== undefined) db.prepare("INSERT OR REPLACE INTO site_settings (key,value) VALUES ('stat_elo_per_kill',?)").run(String(elo_per_kill));
+  if (elo_per_death !== undefined) db.prepare("INSERT OR REPLACE INTO site_settings (key,value) VALUES ('stat_elo_per_death',?)").run(String(elo_per_death));
+  res.json({ ok: true });
+});
+
+// Bot wager log creation
+app.post('/api/bot/logs/wager', requireBotAuth, (req, res) => {
+  const { date, challenger, challenged, amount, winner, season, stats } = req.body;
+  if (!date || !challenger || !challenged) return res.status(400).json({ error: 'date, challenger, challenged required' });
   const statsJson = Array.isArray(stats) && stats.length > 0 ? JSON.stringify(stats) : '';
   const r = db.prepare(
-    'INSERT INTO war_logs (date,org1,org2,score1,score2,winner,wager,region,season,notes,elo_org1,elo_org2,stats) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)'
-  ).run(date, org1.toUpperCase(), org2.toUpperCase(), score1||0, score2||0, winner||'', '', region||'NA', '', '', elo_org1??null, elo_org2??null, statsJson);
+    'INSERT INTO wager_records (date,challenger,challenged,amount,winner,status,paid,season,notes,stats) VALUES (?,?,?,?,?,?,?,?,?,?)'
+  ).run(date, challenger, challenged, amount||'', winner||'', 'settled', 0, season||'', '', statsJson);
   res.json({ id: r.lastInsertRowid });
+});
+
+app.post('/api/bot/logs/war', requireBotAuth, (req, res) => {
+  const { date, org1, org2, score1, score2, winner, region, season, elo_org1, elo_org2, stats } = req.body;
+  if (!date || !org1 || !org2) return res.status(400).json({ error: 'date, org1, org2 required' });
+  console.log(`[bot/logs/war] received org1=${org1} org2=${org2} statsIsArray=${Array.isArray(stats)} statsLen=${Array.isArray(stats)?stats.length:'N/A'}`);
+  const statsJson = Array.isArray(stats) && stats.length > 0 ? JSON.stringify(stats) : '';
+  console.log(`[bot/logs/war] statsJson length=${statsJson.length}`);
+  const r = db.prepare(
+    'INSERT INTO war_logs (date,org1,org2,score1,score2,winner,wager,region,season,notes,elo_org1,elo_org2,stats) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)'
+  ).run(date, org1.toUpperCase(), org2.toUpperCase(), score1||0, score2||0, winner||'', '', region||'NA', season||'', '', elo_org1??null, elo_org2??null, statsJson);
+  const stored = db.prepare('SELECT stats FROM war_logs WHERE id=?').get(r.lastInsertRowid);
+  const storedLen = stored?.stats?.length ?? 0;
+  console.log(`[bot/logs/war] inserted id=${r.lastInsertRowid} storedStats length=${storedLen}`);
+  res.json({ id: r.lastInsertRowid, stats_stored: storedLen > 0 });
 });
 
 // ============================================================

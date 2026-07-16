@@ -84,6 +84,8 @@ let seasonFilter = 'ALL';
 let wagerStatus  = 'ALL';
 let awardsSeasonSel = null;
 let _logStats    = [];
+let _statsSettings = { elo_per_kill: 2.5, elo_per_death: -2.5 };
+let _logOrg1 = '', _logOrg2 = '';
 
 // Dynamic data from API
 let orgsData      = [];
@@ -825,7 +827,7 @@ function refreshAdminButtons() {
     addWarLogBtn: 'logs', addSeasonLogBtn: 'logs',
     addWagerBtn: 'wager',
     addAwardBtn: 'awards',
-    editHomeRulesBtn: 'all', editLogsRulesBtn: 'all', editEloInfoBtn: 'all',
+    editHomeRulesBtn: 'all', editLogsRulesBtn: 'all', editEloInfoBtn: 'all', eloStatsSettingsBtn: 'all',
     addOrgBtn: 'orgs', addPlayerBtn: 'orgs', adjustEloBtn: 'orgs',
     addScheduleBtn: 'schedule',
     newBracketBtn: 'brackets',
@@ -959,7 +961,7 @@ async function loadWarLogs() {
     const eloHtml = (r.elo_org1 == null && r.elo_org2 == null) ? '—' :
       `<span class="${r.elo_org1>0?'stat-wins':r.elo_org1<0?'stat-losses':''}">${r.elo_org1!=null?(r.elo_org1>0?'+':'')+r.elo_org1:'—'}</span>&nbsp;/&nbsp;<span class="${r.elo_org2>0?'stat-wins':r.elo_org2<0?'stat-losses':''}">${r.elo_org2!=null?(r.elo_org2>0?'+':'')+r.elo_org2:'—'}</span>`;
     const statsBtn = stats.length ? `<button class="tbl-btn stats-toggle" onclick="toggleLogStats(this)">▼ STATS</button>` : '';
-    const statsSubrow = stats.length ? `<tr class="log-stats-row" style="display:none;"><td colspan="15">${buildStatsSubrow(stats)}</td></tr>` : '';
+    const statsSubrow = stats.length ? `<tr class="log-stats-row" style="display:none;"><td colspan="15">${buildStatsSubrow(stats, r.org1, r.org2)}</td></tr>` : '';
     return `<tr>
       <td>${r.date}</td>
       <td style="color:var(--blue);font-weight:600;">${r.org1} vs ${r.org2}</td>
@@ -1013,7 +1015,7 @@ async function loadSeasonLogs() {
     const _sDel   = hasPerm('logs_delete') ? `<button class="tbl-btn del" onclick="confirmDelete('season',${r.id})">✕</button>` : '';
     const actBtns = (_sEdit||_sDel) ? `<td>${_sEdit}${_sDel}</td>` : '';
     const statsBtn = stats.length ? `<button class="tbl-btn stats-toggle" onclick="toggleLogStats(this)">▼ STATS</button>` : '';
-    const statsSubrow = stats.length ? `<tr class="log-stats-row" style="display:none;"><td colspan="15">${buildStatsSubrow(stats)}</td></tr>` : '';
+    const statsSubrow = stats.length ? `<tr class="log-stats-row" style="display:none;"><td colspan="15">${buildStatsSubrow(stats, r.org1, r.org2)}</td></tr>` : '';
     return `<tr>
       <td>${r.date}</td>
       <td style="color:rgba(160,200,255,.6);font-size:.85rem;">${r.event_name||'—'}</td>
@@ -1055,7 +1057,7 @@ async function loadWagerRecords() {
     const _wDel   = hasPerm('wager_delete') ? `<button class="tbl-btn del" onclick="confirmDelete('wager',${r.id})">✕</button>` : '';
     const actBtns = (_wEdit||_wDel) ? `<td>${_wEdit}${_wDel}</td>` : '';
     const statsBtn = stats.length ? `<button class="tbl-btn stats-toggle" onclick="toggleLogStats(this)">▼ STATS</button>` : '';
-    const statsSubrow = stats.length ? `<tr class="log-stats-row" style="display:none;"><td colspan="15">${buildStatsSubrow(stats)}</td></tr>` : '';
+    const statsSubrow = stats.length ? `<tr class="log-stats-row" style="display:none;"><td colspan="15">${buildStatsSubrow(stats, r.challenger, r.challenged)}</td></tr>` : '';
     return `<tr>
       <td>${r.date}</td>
       <td style="color:var(--blue);font-weight:600;">${r.challenger}</td>
@@ -1079,6 +1081,8 @@ async function loadWagerRecords() {
 function openLogForm(type, existing) {
   const e = existing || {};
   _logStats = Array.isArray(e.stats) ? e.stats.map(s => ({...s})) : [];
+  _logOrg1 = e.org1 || e.challenger || '';
+  _logOrg2 = e.org2 || e.challenged || '';
   const isEdit = !!e.id;
   const title = { war:'WAR LOG', season:'SEASON LOG', wager:'WAGER RECORD' }[type];
   let formHtml = '';
@@ -1142,7 +1146,10 @@ function openLogForm(type, existing) {
     <div style="margin-top:1rem;border-top:1px solid rgba(91,173,255,0.12);padding-top:.8rem;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem;">
         <label class="admin-label" style="margin:0;">MATCH STATS</label>
-        <button class="tbl-btn" onclick="addStatRow()" style="font-size:.7rem;padding:.2rem .6rem;">+ ADD PLAYER</button>
+        <div style="display:flex;gap:.3rem;">
+          <button class="tbl-btn" onclick="addStatRow(1)" style="font-size:.7rem;padding:.2rem .6rem;">+ ORG 1</button>
+          <button class="tbl-btn" onclick="addStatRow(2)" style="font-size:.7rem;padding:.2rem .6rem;">+ ORG 2</button>
+        </div>
       </div>
       <div id="lf_stats_wrap"></div>
     </div>`;
@@ -1187,26 +1194,46 @@ function maybeCloseLogModal(e) { if (e.target===document.getElementById('logForm
 function renderLogStatsTable() {
   const wrap = document.getElementById('lf_stats_wrap');
   if (!wrap) return;
+  const org1El = document.getElementById('lf_org1');
+  const org2El = document.getElementById('lf_org2');
+  if (org1El) _logOrg1 = org1El.options[org1El.selectedIndex]?.text || org1El.value;
+  if (org2El) _logOrg2 = org2El.options[org2El.selectedIndex]?.text || org2El.value;
   if (!_logStats.length) {
     wrap.innerHTML = '<div style="color:rgba(160,200,255,0.3);font-size:.78rem;text-align:center;padding:.4rem 0;">No players added yet</div>';
     return;
   }
-  wrap.innerHTML = `
-    <div class="stats-form-header">
-      <span>PLAYER</span><span>K</span><span>D</span><span>NOTES</span><span></span>
-    </div>
-    ${_logStats.map((s,i) => `
+  const teamGroups = [[],[],[]]; // 0=unassigned, 1=team1, 2=team2
+  _logStats.forEach((s,i) => { const t = s.team || 0; teamGroups[t < 0 || t > 2 ? 0 : t].push({s,i}); });
+  const renderGroup = (label, items) => {
+    if (!items.length) return '';
+    return `
+    <div class="stats-form-group-label">${label}</div>
+    ${items.map(({s,i}) => {
+      const elo = (s.kills != null || s.deaths != null) ? calcStatElo(s.kills, s.deaths) : null;
+      const eloDisplay = elo != null ? `<span class="stats-elo-preview ${elo>0?'stat-wins':elo<0?'stat-losses':''}">${elo>0?'+':''}${elo}</span>` : '<span class="stats-elo-preview" style="opacity:.3">—</span>';
+      return `
     <div class="stats-form-row">
       <input class="admin-input stats-inp" placeholder="Player" value="${(s.player||'').replace(/"/g,'&quot;')}" oninput="_logStats[${i}].player=this.value">
-      <input class="admin-input stats-inp" type="number" min="0" placeholder="K" value="${s.kills??''}" oninput="_logStats[${i}].kills=this.value===''?null:parseInt(this.value)">
-      <input class="admin-input stats-inp" type="number" min="0" placeholder="D" value="${s.deaths??''}" oninput="_logStats[${i}].deaths=this.value===''?null:parseInt(this.value)">
+      <input class="admin-input stats-inp" type="number" min="0" placeholder="K" value="${s.kills??''}" oninput="_logStats[${i}].kills=this.value===''?null:parseInt(this.value)" onchange="renderLogStatsTable()">
+      <input class="admin-input stats-inp" type="number" min="0" placeholder="D" value="${s.deaths??''}" oninput="_logStats[${i}].deaths=this.value===''?null:parseInt(this.value)" onchange="renderLogStatsTable()">
+      ${eloDisplay}
       <input class="admin-input stats-inp" placeholder="Notes" value="${(s.notes||'').replace(/"/g,'&quot;')}" oninput="_logStats[${i}].notes=this.value">
       <button class="tbl-btn del" onclick="removeStatRow(${i})">✕</button>
-    </div>`).join('')}`;
+    </div>`}).join('')}`;
+  };
+  const org1Label = _logOrg1 ? `ORG 1 — ${_logOrg1}` : 'ORG 1';
+  const org2Label = _logOrg2 ? `ORG 2 — ${_logOrg2}` : 'ORG 2';
+  wrap.innerHTML = `
+    <div class="stats-form-header">
+      <span>PLAYER</span><span>K</span><span>D</span><span>ELO</span><span>NOTES</span><span></span>
+    </div>
+    ${renderGroup(org1Label, teamGroups[1])}
+    ${renderGroup(org2Label, teamGroups[2])}
+    ${renderGroup('UNASSIGNED', teamGroups[0])}`;
 }
 
-function addStatRow() {
-  _logStats.push({player:'', kills:null, deaths:null, notes:''});
+function addStatRow(team) {
+  _logStats.push({player:'', kills:null, deaths:null, notes:'', team: team || 0});
   renderLogStatsTable();
 }
 
@@ -1215,15 +1242,32 @@ function removeStatRow(idx) {
   renderLogStatsTable();
 }
 
-function buildStatsSubrow(stats) {
-  return `<div class="log-stats-table">
-    <div class="log-stats-head"><span>PLAYER</span><span>K</span><span>D</span><span>NOTES</span></div>
-    ${stats.map(s=>`<div class="log-stats-data-row">
+function buildStatsSubrow(stats, org1Name, org2Name) {
+  const team1 = stats.filter(s => s.team === 1);
+  const team2 = stats.filter(s => s.team === 2);
+  const unassigned = stats.filter(s => !s.team || (s.team !== 1 && s.team !== 2));
+  const renderRows = items => items.map(s => {
+    const elo = (s.kills != null || s.deaths != null) ? calcStatElo(s.kills, s.deaths) : null;
+    const eloStr = elo != null ? (elo > 0 ? '+' : '') + elo : '—';
+    const eloClass = elo != null ? (elo > 0 ? 'stat-wins' : elo < 0 ? 'stat-losses' : '') : '';
+    return `<div class="log-stats-data-row">
       <span>${s.player||'—'}</span>
       <span class="stat-wins">${s.kills??'—'}</span>
       <span class="stat-losses">${s.deaths??'—'}</span>
+      <span class="${eloClass}">${eloStr}</span>
       <span style="opacity:.6">${s.notes||'—'}</span>
-    </div>`).join('')}
+    </div>`;
+  }).join('');
+  const renderGroup = (label, items, orgName) => {
+    if (!items.length) return '';
+    const header = orgName ? `${label} — ${orgName}` : label;
+    return `<div class="log-stats-group-label">${header}</div>${renderRows(items)}`;
+  };
+  return `<div class="log-stats-table">
+    <div class="log-stats-head"><span>PLAYER</span><span>K</span><span>D</span><span>ELO</span><span>NOTES</span></div>
+    ${team1.length || team2.length
+      ? renderGroup('ORG 1', team1, org1Name) + renderGroup('ORG 2', team2, org2Name) + (unassigned.length ? renderGroup('OTHER', unassigned) : '')
+      : renderRows(unassigned)}
   </div>`;
 }
 
@@ -1700,5 +1744,46 @@ async function deleteAdminUser(id) {
     loadBracketSeasons(),
     loadSchedule(),
     loadEloInfo(),
+    loadStatsSettings(),
   ]);
 })();
+
+async function loadStatsSettings() {
+  try {
+    const s = await apiGet('/settings/stats');
+    _statsSettings = { elo_per_kill: s.elo_per_kill ?? 2.5, elo_per_death: s.elo_per_death ?? -2.5 };
+  } catch { /* keep defaults */ }
+}
+
+function calcStatElo(kills, deaths) {
+  const k = Number(kills) || 0;
+  const d = Number(deaths) || 0;
+  return Math.round((k * _statsSettings.elo_per_kill + d * _statsSettings.elo_per_death) * 10) / 10;
+}
+
+async function openStatsSettings() {
+  const cur = _statsSettings;
+  document.getElementById('logFormContent').innerHTML = `
+    <div class="admin-modal-header" style="margin-bottom:1rem;">
+      <div class="admin-modal-icon">⚙</div>
+      <div class="admin-modal-title">STAT ELO SETTINGS</div>
+    </div>
+    <div class="admin-form-grid-2">
+      <div class="admin-field"><label class="admin-label">ELO PER KILL</label><input id="ss_kill" class="admin-input" type="number" step="0.1" value="${cur.elo_per_kill}"></div>
+      <div class="admin-field"><label class="admin-label">ELO PER DEATH</label><input id="ss_death" class="admin-input" type="number" step="0.1" value="${cur.elo_per_death}"></div>
+    </div>
+    <p style="font-size:.75rem;color:rgba(160,200,255,0.5);margin:.4rem 0 .8rem;">Example: 10 kills × ${cur.elo_per_kill} = <strong>${10*cur.elo_per_kill > 0 ? '+' : ''}${10*cur.elo_per_kill}</strong> ELO</p>
+    <div class="admin-modal-actions">
+      <button class="admin-submit-btn" onclick="saveStatsSettings()">SAVE</button>
+      <button class="admin-cancel-btn" onclick="closeLogForm()">CANCEL</button>
+    </div>`;
+  document.getElementById('logFormModal').classList.add('open');
+}
+
+async function saveStatsSettings() {
+  const kill  = parseFloat(document.getElementById('ss_kill')?.value) || 2.5;
+  const death = parseFloat(document.getElementById('ss_death')?.value) || -2.5;
+  await apiPut('/settings/stats', { elo_per_kill: kill, elo_per_death: death });
+  _statsSettings = { elo_per_kill: kill, elo_per_death: death };
+  closeLogForm();
+}
