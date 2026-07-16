@@ -3629,7 +3629,7 @@ export async function handleInteractions(interaction, client, db, commands) {
                         winnerGuildData?.tag || winnerGuildId,
                         winnerGuildData?.region || loserGuildData?.region || 'NA',
                         winnerEloGain,
-                        loserEloLoss,
+                        -loserEloLoss,
                         warStats.length > 0 ? warStats : null,
                     );
                 } catch (e) { console.warn('Failed to create site war log:', e?.message); }
