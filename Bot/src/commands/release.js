@@ -28,12 +28,16 @@ export async function execute(interaction, db) {
             console.warn('[release] Site API unavailable:', e?.message);
         }
 
-        // Final fallback: match Discord roles against guild names in bot DB
+        // Final fallback: if user has the configured guild_member_role OR a guild name role, detect their guild
         if (!memberData && interaction.guild) {
             const member = await interaction.guild.members.fetch(userId).catch(() => null);
             if (member) {
-                const allGuilds = db.prepare('SELECT * FROM Guilds').all();
-                discordGuildRecord = allGuilds.find(g => member.roles.cache.some(r => r.name === g.name)) || null;
+                const guildMemberRoleId = getSetting(db, `${interaction.guildId}_guild_member_role_id`);
+                const hasGuildMemberRole = guildMemberRoleId && member.roles.cache.has(guildMemberRoleId);
+                if (hasGuildMemberRole || !guildMemberRoleId) {
+                    const allGuilds = db.prepare('SELECT * FROM Guilds').all();
+                    discordGuildRecord = allGuilds.find(g => member.roles.cache.some(r => r.name === g.name)) || null;
+                }
             }
         }
 
@@ -64,11 +68,14 @@ export async function execute(interaction, db) {
     if (interaction.guild) {
         const member = await interaction.guild.members.fetch(userId).catch(() => null);
         if (member) {
-            // Remove guild name role (covers all three lookup paths)
+            // Remove guild name role
             if (guildName) {
                 const nameRole = interaction.guild.roles.cache.find(r => r.name === guildName);
                 if (nameRole) await member.roles.remove(nameRole).catch(() => {});
             }
+            // Remove generic guild member role
+            const guildMemberRoleId = getSetting(db, `${interaction.guild.id}_guild_member_role_id`);
+            if (guildMemberRoleId) await member.roles.remove(guildMemberRoleId).catch(() => {});
             const leaderGuild = db.prepare('SELECT id FROM Guilds WHERE leaderId = ?').get(userId);
             if (leaderGuild) {
                 const leaderRoleId = getSetting(db, `${interaction.guild.id}_guild_leader_role_id`) || GUILD_LEADER_ROLE_ID_DEFAULT;
