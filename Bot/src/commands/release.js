@@ -20,19 +20,30 @@ export async function execute(interaction, db) {
 
     // If not in local DB, check site as fallback (player was signed outside the bot)
     let memberData = null;
+    let discordGuildRecord = null;
     if (!localGuildId) {
         try {
             memberData = await getMemberByDiscordId(userId);
         } catch (e) {
             console.warn('[release] Site API unavailable:', e?.message);
         }
-        if (!memberData) {
+
+        // Final fallback: match Discord roles against guild names in bot DB
+        if (!memberData && interaction.guild) {
+            const member = await interaction.guild.members.fetch(userId).catch(() => null);
+            if (member) {
+                const allGuilds = db.prepare('SELECT * FROM Guilds').all();
+                discordGuildRecord = allGuilds.find(g => member.roles.cache.some(r => r.name === g.name)) || null;
+            }
+        }
+
+        if (!memberData && !discordGuildRecord) {
             await interaction.editReply('❌ You are not registered in any guild.');
             return;
         }
     }
 
-    const guildName = localGuildRecord?.name || memberData?.org_name || '';
+    const guildName = localGuildRecord?.name || discordGuildRecord?.name || memberData?.org_name || '';
 
     // Remove from local bot DB rosters
     if (localGuildId) {
@@ -44,13 +55,16 @@ export async function execute(interaction, db) {
     // Apply cooldown
     setCooldown(db, userId, guildName);
 
-    // Sync removal to site (fire-and-forget)
-    releaseMember(userId).catch(e => console.warn('[release] Site sync failed:', e?.message));
+    // Sync removal to site (fire-and-forget — best effort)
+    if (memberData || discordGuildRecord) {
+        releaseMember(userId).catch(e => console.warn('[release] Site sync failed:', e?.message));
+    }
 
     // Remove Discord roles
     if (interaction.guild) {
         const member = await interaction.guild.members.fetch(userId).catch(() => null);
         if (member) {
+            // Remove guild name role (covers all three lookup paths)
             if (guildName) {
                 const nameRole = interaction.guild.roles.cache.find(r => r.name === guildName);
                 if (nameRole) await member.roles.remove(nameRole).catch(() => {});
