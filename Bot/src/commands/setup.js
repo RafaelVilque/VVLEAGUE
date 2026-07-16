@@ -25,6 +25,9 @@ export const data = new SlashCommandBuilder()
     .addRoleOption(o => o.setName('guild_delete_role')
     .setDescription('Role that can delete a Guild')
     .setRequired(false))
+    .addRoleOption(o => o.setName('guild_member_role')
+    .setDescription('Generic role given to all guild members — allows /release to work even if not in bot DB')
+    .setRequired(false))
     // Channels
     .addChannelOption(o => o.setName('ticket_category')
     .setDescription('Category where wager/war tickets will be opened')
@@ -103,6 +106,8 @@ export async function execute(interaction, db) {
     save('guild_register_role_id', registerRole?.id ?? null, 'Guild Register Role', registerRole ? `<@&${registerRole.id}>` : '');
     const deleteRole = interaction.options.getRole('guild_delete_role');
     save('guild_delete_role_id', deleteRole?.id ?? null, 'Guild Delete Role', deleteRole ? `<@&${deleteRole.id}>` : '');
+    const memberRole = interaction.options.getRole('guild_member_role');
+    save('guild_member_role_id', memberRole?.id ?? null, 'Guild Member Role', memberRole ? `<@&${memberRole.id}>` : '');
     // Ticket category (sets both wager and war category)
     const ticketCategory = interaction.options.getChannel('ticket_category');
     if (ticketCategory) {
