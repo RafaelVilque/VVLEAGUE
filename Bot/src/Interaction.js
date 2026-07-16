@@ -2108,9 +2108,13 @@ export async function handleInteractions(interaction, client, db, commands) {
                             const announceGuild = client.guilds.cache.get(effectiveDiscordGuildId) || await client.guilds.fetch(effectiveDiscordGuildId).catch(() => null);
                             const announceChannel = announceGuild ? (announceGuild.channels.cache.get(announceChannelId) || await announceGuild.channels.fetch(announceChannelId).catch(() => null)) : null;
                             if (announceChannel && 'send' in announceChannel) {
-                                await announceChannel.send({
-                                    content: `🎉 <@${invite.targetUserId}> has been signed to **${dbGuild?.name || invite.guildId}** as a **${getRoleLabel(invite.roleType)}**!`,
-                                }).catch(() => null);
+                                const guildNameRole = announceGuild?.roles.cache.find(r => r.name === (dbGuild?.name || ''));
+                                const guildMention = guildNameRole ? `<@&${guildNameRole.id}>` : `**${dbGuild?.name || invite.guildId}**`;
+                                const announceEmbed = new EmbedBuilder()
+                                    .setTitle('🖊️ Player Signed')
+                                    .setColor(0x5BADFF)
+                                    .setDescription(`<@${invite.targetUserId}> has been signed to ${guildMention} as **${getRoleLabel(invite.roleType)}**`);
+                                await announceChannel.send({ embeds: [announceEmbed] }).catch(() => null);
                             }
                         }
                         catch (e) { console.warn('Failed to send signing announcement:', e?.message); }
@@ -2272,9 +2276,13 @@ export async function handleInteractions(interaction, client, db, commands) {
                     try {
                         const announceChannel = discordGuild.channels.cache.get(announceChannelId) || await discordGuild.channels.fetch(announceChannelId).catch(() => null);
                         if (announceChannel && 'send' in announceChannel) {
-                            await announceChannel.send({
-                                content: `🎉 <@${invite.targetUserId}> has been signed to **${dbGuild?.name || invite.guildId}** as a **${getRoleLabel(invite.roleType)}**!`,
-                            }).catch(() => null);
+                            const guildNameRole = discordGuild.roles.cache.find(r => r.name === (dbGuild?.name || ''));
+                            const guildMention = guildNameRole ? `<@&${guildNameRole.id}>` : `**${dbGuild?.name || invite.guildId}**`;
+                            const announceEmbed = new EmbedBuilder()
+                                .setTitle('🖊️ Player Signed')
+                                .setColor(0x5BADFF)
+                                .setDescription(`<@${invite.targetUserId}> has been signed to ${guildMention} as **${getRoleLabel(invite.roleType)}**`);
+                            await announceChannel.send({ embeds: [announceEmbed] }).catch(() => null);
                         }
                     }
                     catch (e) { console.warn('Failed to send signing announcement:', e?.message); }
