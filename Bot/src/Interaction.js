@@ -1195,7 +1195,7 @@ export async function handleInteractions(interaction, client, db, commands) {
                     const graceTs = Math.floor(graceEnd.getTime() / 1000);
                     dodgeExtra = `\n⏳ **${dodgingGuild.name}** has a **1-day grace period** and cannot be challenged until <t:${graceTs}:F>.`;
                     if (eloPenaltyApplied) {
-                        dodgeExtra += `\n⚠️ **-20 ELO** applied to **${dodgingGuild.name}** for repeat dodge within 3 days.`;
+                        dodgeExtra += `\n⚠️ **-25 ELO** applied to **${dodgingGuild.name}** for repeat dodge within 3 days.`;
                     }
                 }
                 const dodgeSummary = `# WAR DODGE\n<@${interaction.user.id}> used Dodge and closed the war ticket (${openerGuild?.name || 'Unknown'} vs ${opponentGuild?.name || 'Unknown'}).${dodgeExtra}`;
