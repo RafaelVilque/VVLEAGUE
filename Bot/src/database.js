@@ -735,7 +735,7 @@ export function recordGuildDodge(db, guildId, guildName) {
         // Only apply ELO if the grace period of the PRIOR dodge has already expired
         const graceExpired = new Date(priorDodge.grace_until) < new Date();
         if (graceExpired) {
-            db.prepare('UPDATE Guilds SET elo = COALESCE(elo, 1000) - 20 WHERE id = ?').run(guildId);
+            db.prepare('UPDATE Guilds SET elo = COALESCE(elo, 1000) - 25 WHERE id = ?').run(guildId);
             db.prepare('UPDATE guild_dodge_history SET elo_penalty_applied = 1 WHERE id = ?').run(priorDodge.id);
             eloPenaltyApplied = true;
         }

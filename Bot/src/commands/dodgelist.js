@@ -40,7 +40,7 @@ export async function execute(interaction, db) {
             ? `⏳ Grace active — ends <t:${graceTs}:R>`
             : `✅ Grace expired <t:${graceTs}:R>`;
 
-        const eloStr = r.elo_penalty_applied ? '⚠️ -20 ELO applied' : '';
+        const eloStr = r.elo_penalty_applied ? '⚠️ -25 ELO applied' : '';
 
         return `**${r.guild_name || r.guild_id}** — dodged <t:${dodgeTs}:f>\n${graceStr}${eloStr ? ' · ' + eloStr : ''}`;
     });

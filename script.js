@@ -42,9 +42,9 @@ const DEFAULT_ELO_INFO = {
   ],
   gains: [
     {case:'Win vs higher ranked', value:'+32'},
-    {case:'Win vs equal',         value:'+25'},
+    {case:'Win vs equal',         value:'+20'},
     {case:'Win vs lower ranked',  value:'+16'},
-    {case:'Loss',                 value:'−20'},
+    {case:'Loss',                 value:'−25'},
   ],
 };
 
@@ -682,7 +682,7 @@ function openEloInfoEditor() {
       ${info.gains.map((gn,i)=>`
         <div style="display:grid;grid-template-columns:1fr 6rem auto;gap:.4rem;margin-bottom:.3rem;">
           <input class="admin-input" id="ei_gain_case_${i}" value="${gn.case}" placeholder="Descrição">
-          <input class="admin-input" id="ei_gain_val_${i}" value="${gn.value}" placeholder="+25">
+          <input class="admin-input" id="ei_gain_val_${i}" value="${gn.value}" placeholder="+20">
           <button class="tbl-btn del" onclick="removeEloGain(${i})">✕</button>
         </div>`).join('')}
     </div>
@@ -1102,8 +1102,8 @@ function openLogForm(type, existing) {
         <div class="admin-field"><label class="admin-label">WINNER</label>${winSel(e.winner||'')}</div>
         <div class="admin-field"><label class="admin-label">WAGER</label><input id="lf_wager" class="admin-input" value="${e.wager||''}" placeholder="ex: $500, items, custom..."></div>
         <div class="admin-field"><label class="admin-label">REGION</label><select id="lf_region" class="admin-select"><option ${e.region==='NA'?'selected':''}>NA</option><option ${e.region==='EU'?'selected':''}>EU</option><option ${e.region==='ASIA'?'selected':''}>ASIA</option><option ${e.region==='OCE'?'selected':''}>OCE</option><option ${e.region==='SA'?'selected':''}>SA</option></select></div>
-        <div class="admin-field"><label class="admin-label">ELO ORG 1 (ex: +25 or -20)</label><input id="lf_elo1" type="number" class="admin-input" value="${e.elo_org1??''}" placeholder="optional"></div>
-        <div class="admin-field"><label class="admin-label">ELO ORG 2 (ex: +25 or -20)</label><input id="lf_elo2" type="number" class="admin-input" value="${e.elo_org2??''}" placeholder="optional"></div>
+        <div class="admin-field"><label class="admin-label">ELO ORG 1 (ex: +20 or -25)</label><input id="lf_elo1" type="number" class="admin-input" value="${e.elo_org1??''}" placeholder="optional"></div>
+        <div class="admin-field"><label class="admin-label">ELO ORG 2 (ex: +20 or -25)</label><input id="lf_elo2" type="number" class="admin-input" value="${e.elo_org2??''}" placeholder="optional"></div>
         <div class="admin-field"><label class="admin-label">SEASON</label><input id="lf_season" class="admin-input" value="${e.season||'S3'}" placeholder="S1, S2, S3..."></div>
         <div class="admin-field"><label class="admin-label">NOTES</label><input id="lf_notes" class="admin-input" value="${e.notes||''}"></div>
       </div>`;
