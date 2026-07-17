@@ -165,6 +165,14 @@ function setupBotTables(db) {
       step1_msg_id    TEXT,
       step2_msg_id    TEXT
     );
+    CREATE TABLE IF NOT EXISTS guild_dodge_history (
+      id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+      guild_id             TEXT NOT NULL,
+      guild_name           TEXT NOT NULL DEFAULT '',
+      dodged_at            DATETIME DEFAULT CURRENT_TIMESTAMP,
+      grace_until          DATETIME NOT NULL,
+      elo_penalty_applied  INTEGER NOT NULL DEFAULT 0
+    );
   `);
     // Migration: add guild_name to existing cooldowns tables that pre-date this column
     try { db.exec("ALTER TABLE cooldowns ADD COLUMN guild_name TEXT NOT NULL DEFAULT ''"); } catch (_) {}
@@ -711,5 +719,44 @@ export function getPendingTicketsForReminder(db) {
     const pendingWars = db.prepare('SELECT * FROM Wars WHERE status = ? AND createdAt < ? AND expiresAt > ?').all('PENDING', twoHoursAgo, now.toISOString());
     const pendingWagers = db.prepare('SELECT * FROM Wagers WHERE status = ? AND createdAt < ? AND expiresAt > ?').all('PENDING', twoHoursAgo, now.toISOString());
     return { wars: pendingWars, wagers: pendingWagers };
+}
+// ── Dodge History ────────────────────────────────────────────────────────────
+export function recordGuildDodge(db, guildId, guildName) {
+    // Check if there's an earlier dodge within the last 3 days that hasn't had its ELO penalty applied yet
+    const priorDodge = db.prepare(`
+        SELECT * FROM guild_dodge_history
+        WHERE guild_id = ?
+          AND dodged_at > datetime('now', '-3 days')
+          AND elo_penalty_applied = 0
+        ORDER BY dodged_at DESC LIMIT 1
+    `).get(guildId);
+    let eloPenaltyApplied = false;
+    if (priorDodge) {
+        // Only apply ELO if the grace period of the PRIOR dodge has already expired
+        const graceExpired = new Date(priorDodge.grace_until) < new Date();
+        if (graceExpired) {
+            db.prepare('UPDATE Guilds SET elo = COALESCE(elo, 1000) - 20 WHERE id = ?').run(guildId);
+            db.prepare('UPDATE guild_dodge_history SET elo_penalty_applied = 1 WHERE id = ?').run(priorDodge.id);
+            eloPenaltyApplied = true;
+        }
+    }
+    const graceUntil = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    db.prepare('INSERT INTO guild_dodge_history (guild_id, guild_name, grace_until) VALUES (?, ?, ?)').run(guildId, guildName || '', graceUntil);
+    return { eloPenaltyApplied };
+}
+export function getGuildActiveDodge(db, guildId) {
+    return db.prepare(`
+        SELECT * FROM guild_dodge_history
+        WHERE guild_id = ? AND grace_until > datetime('now')
+        ORDER BY grace_until DESC LIMIT 1
+    `).get(guildId) || null;
+}
+export function getAllDodgeRecords(db) {
+    return db.prepare(`
+        SELECT d.*, g.elo as current_elo
+        FROM guild_dodge_history d
+        LEFT JOIN Guilds g ON g.id = d.guild_id
+        ORDER BY d.dodged_at DESC
+    `).all();
 }
 //# sourceMappingURL=database.js.map

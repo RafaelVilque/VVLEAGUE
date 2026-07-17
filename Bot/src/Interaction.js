@@ -1,6 +1,6 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, ContainerBuilder, EmbedBuilder, ModalBuilder, MessageFlags, OverwriteType, PermissionFlagsBits, SeparatorBuilder, SeparatorSpacingSize, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, TextInputBuilder, TextInputStyle, TextDisplayBuilder, UserSelectMenuBuilder, } from 'discord.js';
 import { loadCommands } from './commands.js';
-import { addMemberToRole, addGuildLoss, addGuildWin, acceptWar, canAddUserToRole, createWar, createInvite, dodgeWar, finishWar, getGuildById, getInviteById, getMembersByRole, getPendingInviteForTarget, getRoleLabel, isUserInRole, refreshGuildPanel, removeMemberFromRole, setInviteStatus, validateInviteForAction, getWarById, createWager, getWagerById, getActiveWagerForUser, recordWagerAcceptance, markWagerAccepted, dodgeWager, closeWager, getSetting, applyGuildElo, applyPlayerElo, setCooldown, isOnCooldown, getCooldown, initPlayerCollection, getPlayerCollection, setCollectionPlayers, setPlayerCollectionMsgId, initWagerAmountCollection, getWagerAmountCollection, getWagerAmountCollectionByChannel, setWagerAmount, resetWagerAmount, confirmWagerTeam, setWagerRules, getWagerCollectionByChannelForBan, setWagerBan, resetWagerBan, startWagerBanCollection, confirmWagerBanTeam, recordRulesVote, } from './database.js';
+import { addMemberToRole, addGuildLoss, addGuildWin, acceptWar, canAddUserToRole, createWar, createInvite, dodgeWar, finishWar, getGuildById, getInviteById, getMembersByRole, getPendingInviteForTarget, getRoleLabel, isUserInRole, refreshGuildPanel, removeMemberFromRole, setInviteStatus, validateInviteForAction, getWarById, createWager, getWagerById, getActiveWagerForUser, recordWagerAcceptance, markWagerAccepted, dodgeWager, closeWager, getSetting, applyGuildElo, applyPlayerElo, setCooldown, isOnCooldown, getCooldown, initPlayerCollection, getPlayerCollection, setCollectionPlayers, setPlayerCollectionMsgId, initWagerAmountCollection, getWagerAmountCollection, getWagerAmountCollectionByChannel, setWagerAmount, resetWagerAmount, confirmWagerTeam, setWagerRules, getWagerCollectionByChannelForBan, setWagerBan, resetWagerBan, startWagerBanCollection, confirmWagerBanTeam, recordRulesVote, recordGuildDodge, getGuildActiveDodge, } from './database.js';
 const ADD_ACTION_MAP = {
     ADD_CO_LEADER: 'CO_LEADER',
     ADD_MANAGER: 'MANAGER',
@@ -1184,13 +1184,25 @@ export async function handleInteractions(interaction, client, db, commands) {
                     return;
                 }
                 dodgeWar(db, war.id);
-                const dodgeSummary = `# WAR DODGE\n<@${interaction.user.id}> used Dodge and closed the war ticket (${openerGuild?.name || 'Unknown'} vs ${opponentGuild?.name || 'Unknown'}).`;
+                // Determine which guild is dodging (the guild the user belongs to)
+                const userInOpener = openerGuild && (openerGuild.leaderId === interaction.user.id || openerGuild.coLeaderId === interaction.user.id || db.prepare('SELECT 1 FROM Managers WHERE guildId=? AND userId=?').get(openerGuild.id, interaction.user.id));
+                const dodgingGuild = userInOpener ? openerGuild : (opponentGuild ?? openerGuild);
+                // Apply grace period + ELO penalty logic
+                let dodgeExtra = '';
+                if (dodgingGuild) {
+                    const { eloPenaltyApplied } = recordGuildDodge(db, dodgingGuild.id, dodgingGuild.name);
+                    const graceEnd = new Date(Date.now() + 24 * 60 * 60 * 1000);
+                    const graceTs = Math.floor(graceEnd.getTime() / 1000);
+                    dodgeExtra = `\n⏳ **${dodgingGuild.name}** has a **1-day grace period** and cannot be challenged until <t:${graceTs}:F>.`;
+                    if (eloPenaltyApplied) {
+                        dodgeExtra += `\n⚠️ **-20 ELO** applied to **${dodgingGuild.name}** for repeat dodge within 3 days.`;
+                    }
+                }
+                const dodgeSummary = `# WAR DODGE\n<@${interaction.user.id}> used Dodge and closed the war ticket (${openerGuild?.name || 'Unknown'} vs ${opponentGuild?.name || 'Unknown'}).${dodgeExtra}`;
                 const warDodgeId = getSetting(db, `${interaction.guildId}_war_dodge_channel_id`) || WAR_DODGE_LOGS_CHANNEL_ID;
                 const warDodgeLogsChannel = await interaction.client.channels.fetch(warDodgeId).catch(() => null);
                 if (warDodgeLogsChannel && warDodgeLogsChannel.isTextBased() && 'send' in warDodgeLogsChannel) {
-                    await warDodgeLogsChannel.send({
-                        content: dodgeSummary,
-                    });
+                    await warDodgeLogsChannel.send({ content: dodgeSummary });
                 }
                 const warChannel = interaction.channel
                     ?? (war.channelId ? (interaction.guild?.channels.cache.get(war.channelId) ?? await interaction.guild?.channels.fetch(war.channelId).catch(() => null)) : null);
@@ -2875,6 +2887,21 @@ export async function handleInteractions(interaction, client, db, commands) {
                 if (!starterRole && !isManager) {
                     await interaction.update({
                         content: '❌ You no longer have permission to open this war ticket.',
+                        components: [],
+                        embeds: [],
+                    });
+                    return;
+                }
+                // Check if opponent guild has an active dodge grace period
+                const opponentGrace = getGuildActiveDodge(db, opponentGuild.id);
+                if (opponentGrace) {
+                    const graceEnd = new Date(opponentGrace.grace_until);
+                    const timeLeft = graceEnd.getTime() - Date.now();
+                    const hoursLeft = Math.ceil(timeLeft / (1000 * 60 * 60));
+                    const minsLeft = Math.ceil(timeLeft / (1000 * 60));
+                    const timeStr = hoursLeft >= 1 ? `${hoursLeft}h` : `${minsLeft}m`;
+                    await interaction.update({
+                        content: `⛔ **${opponentGuild.name}** is currently in a **dodge grace period** and cannot be challenged for another **${timeStr}**.\n\nThis grace period expires <t:${Math.floor(graceEnd.getTime() / 1000)}:R>.`,
                         components: [],
                         embeds: [],
                     });
