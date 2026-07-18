@@ -1,4 +1,4 @@
-import {
+﻿import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
@@ -218,7 +218,7 @@ async function createWarTicketChannel(interaction: any, db: any, guildA: any, gu
     )
     .addTextDisplayComponents(
       new TextDisplayBuilder().setContent(
-        '\nℹ️ Waiting for confirmation from the opponent team (Leader/Co-leader).\n\nUse the buttons below:\n• **Accept War** — confirm the war\n• **Dodge** — cancel the war'
+        '\nâ„¹ï¸ Waiting for confirmation from the opponent team (Leader/Co-leader).\n\nUse the buttons below:\nâ€¢ **Accept War** â€” confirm the war\nâ€¢ **Dodge** â€” cancel the war'
       )
     );
 
@@ -662,7 +662,7 @@ async function canUseOwnershipTransfer(interaction: any, db: any, guildId: strin
   );
 }
 
-async function replyPermissionError(interaction: any, message = '❌ You do not have permission to use this panel action.'): Promise<void> {
+async function replyPermissionError(interaction: any, message = 'âŒ You do not have permission to use this panel action.'): Promise<void> {
   if (interaction.deferred || interaction.replied) {
     await interaction.editReply({
       content: message,
@@ -744,7 +744,7 @@ function buildInviteEmbed(
 function buildRemovalEmbed(roleType: GuildRoleType, guildName: string): EmbedBuilder {
   return new EmbedBuilder()
     .setColor('#2a8900')
-    .setTitle('❌ Role removed')
+    .setTitle('âŒ Role removed')
     .setDescription(`You are no longer part of **${getRoleLabel(roleType)}** in guild **${guildName}**.`);
 }
 
@@ -808,7 +808,7 @@ function buildGuildPanelEmbedForInteraction(db: any, guildId: string): EmbedBuil
   const subsCount = db.prepare('SELECT COUNT(*) as count FROM SubRosters WHERE guildId = ?').get(guild.id)?.count || 0;
 
   return new EmbedBuilder()
-    .setTitle(`🏰 ${guild.name}`)
+    .setTitle(`ðŸ° ${guild.name}`)
     .setColor('#2a8900')
     .addFields(
       { name: 'Leader', value: `<@${guild.leaderId}>`, inline: true },
@@ -831,7 +831,7 @@ async function handleAdminWinModal(interaction: any, db: any) {
     const [, guildId] = parseCustomId(customId);
     if (!guildId) {
       await interaction.editReply({
-        content: '❌ Invalid guild ID.',
+        content: 'âŒ Invalid guild ID.',
       });
       return;
     }
@@ -842,7 +842,7 @@ async function handleAdminWinModal(interaction: any, db: any) {
 
     if (!reason) {
       await interaction.editReply({
-        content: '❌ Reason is required.',
+        content: 'âŒ Reason is required.',
       });
       return;
     }
@@ -850,7 +850,7 @@ async function handleAdminWinModal(interaction: any, db: any) {
     const guild = getGuildById(db, guildId);
     if (!guild) {
       await interaction.editReply({
-        content: '❌ Guild not found.',
+        content: 'âŒ Guild not found.',
       });
       return;
     }
@@ -865,7 +865,7 @@ async function handleAdminWinModal(interaction: any, db: any) {
       const parsedWins = parseInt(winsValue, 10);
       if (isNaN(parsedWins) || parsedWins < 0) {
         await interaction.editReply({
-          content: '❌ Wins must be a non-negative number.',
+          content: 'âŒ Wins must be a non-negative number.',
         });
         return;
       }
@@ -876,7 +876,7 @@ async function handleAdminWinModal(interaction: any, db: any) {
       const parsedLosses = parseInt(lossesValue, 10);
       if (isNaN(parsedLosses) || parsedLosses < 0) {
         await interaction.editReply({
-          content: '❌ Losses must be a non-negative number.',
+          content: 'âŒ Losses must be a non-negative number.',
         });
         return;
       }
@@ -889,14 +889,14 @@ async function handleAdminWinModal(interaction: any, db: any) {
     // Log the action
     const logChannel = await interaction.client.channels.fetch('1470554772678512794').catch(() => null);
     if (logChannel && logChannel.isTextBased()) {
-      await logChannel.send(`📊 Admin W/L Change: Guild "${guild.name}" W/L changed from ${currentWins}/${currentLosses} to ${newWins}/${newLosses} by <@${interaction.user.id}>. Reason: ${reason}`);
+      await logChannel.send(`ðŸ“Š Admin W/L Change: Guild "${guild.name}" W/L changed from ${currentWins}/${currentLosses} to ${newWins}/${newLosses} by <@${interaction.user.id}>. Reason: ${reason}`);
     }
 
     // Refresh guild panel
     await refreshGuildPanel(interaction.client, db, guildId);
 
     await interaction.editReply({
-      content: `✅ Updated ${guild.name}: W/L changed from ${currentWins}/${currentLosses} to ${newWins}/${newLosses}.`,
+      content: `âœ… Updated ${guild.name}: W/L changed from ${currentWins}/${currentLosses} to ${newWins}/${newLosses}.`,
     });
     return;
   }
@@ -916,7 +916,7 @@ export async function handleInteractions(
           await interaction.deferReply({ flags: 64 });
         } catch (e: any) {
           if (e?.code !== 40060) throw e;
-          // 40060: already acknowledged — mark as deferred so editReply works
+          // 40060: already acknowledged â€” mark as deferred so editReply works
           Object.defineProperty(interaction, 'deferred', { value: true, writable: true });
         }
       }
@@ -925,8 +925,8 @@ export async function handleInteractions(
 
     if (interaction.isChatInputCommand()) {
       if (!commands) {
-        console.error('[handleInteractions] commands Map is undefined — bot still loading');
-        await interaction.editReply({ content: '⚠️ O bot ainda está inicializando. Tente novamente em instantes.' });
+        console.error('[handleInteractions] commands Map is undefined â€” bot still loading');
+        await interaction.editReply({ content: 'âš ï¸ O bot ainda estÃ¡ inicializando. Tente novamente em instantes.' });
         return;
       }
 
@@ -981,7 +981,7 @@ export async function handleInteractions(
         const canOpenWar = hasWarPermissionFromRole || !!actorGuild;
         if (!canOpenWar) {
           await interaction.reply({
-            content: '❌ Only Guild Leader, Guild Co-Leader, or Manager Guild can open a War Ticket.',
+            content: 'âŒ Only Guild Leader, Guild Co-Leader, or Manager Guild can open a War Ticket.',
             flags: MessageFlags.Ephemeral,
           });
           return;
@@ -989,7 +989,7 @@ export async function handleInteractions(
 
         if (!actorGuild) {
           await interaction.reply({
-            content: '❌ You are not registered as Leader, Co-Leader, or Manager in any guild.',
+            content: 'âŒ You are not registered as Leader, Co-Leader, or Manager in any guild.',
             flags: MessageFlags.Ephemeral,
           });
           return;
@@ -998,7 +998,7 @@ export async function handleInteractions(
         const guilds = db.prepare('SELECT * FROM Guilds WHERE id != ? ORDER BY name ASC').all(actorGuild.id);
         if (!guilds || guilds.length === 0) {
           await interaction.reply({
-            content: '❌ No opponent guilds are available right now.',
+            content: 'âŒ No opponent guilds are available right now.',
             flags: MessageFlags.Ephemeral,
           });
           return;
@@ -1057,7 +1057,7 @@ export async function handleInteractions(
         const page = Number(pageRaw) || 1;
         if (!actorGuildId || page < 1) {
           await interaction.update({
-            content: '❌ Invalid page.',
+            content: 'âŒ Invalid page.',
             embeds: [],
             components: [],
           });
@@ -1067,7 +1067,7 @@ export async function handleInteractions(
         const guilds = db.prepare('SELECT * FROM Guilds WHERE id != ? ORDER BY name ASC').all(actorGuildId);
         if (!guilds || guilds.length === 0) {
           await interaction.update({
-            content: '❌ No opponent guilds are available right now.',
+            content: 'âŒ No opponent guilds are available right now.',
             embeds: [],
             components: [],
           });
@@ -1077,7 +1077,7 @@ export async function handleInteractions(
         const totalPages = Math.max(1, Math.ceil(guilds.length / 25));
         if (page > totalPages) {
           await interaction.update({
-            content: '❌ Invalid page.',
+            content: 'âŒ Invalid page.',
             embeds: [],
             components: [],
           });
@@ -1136,7 +1136,7 @@ export async function handleInteractions(
         const totalPages = Math.max(1, Math.ceil(guilds.length / 25));
         if (page < 1 || page > totalPages) {
           await interaction.update({
-            content: '❌ Invalid page.',
+            content: 'âŒ Invalid page.',
             embeds: [],
             components: [],
           });
@@ -1149,7 +1149,7 @@ export async function handleInteractions(
             .setLabel(guild.name)
             .setDescription(`Region: ${guild.region} | Leader: ${guild.leaderId}`)
             .setValue(guild.id)
-            .setEmoji('🏰')
+            .setEmoji('ðŸ°')
         );
 
         const selectMenu = new StringSelectMenuBuilder()
@@ -1177,8 +1177,8 @@ export async function handleInteractions(
         }
 
         const pageEmbed = new EmbedBuilder()
-          .setTitle('🏰 Registered Guilds')
-          .setDescription(`📊 Total guilds: **${guilds.length}**\n\nSelect a guild from the menu below to open its management panel.\nPage ${page}/${totalPages}.`)
+          .setTitle('ðŸ° Registered Guilds')
+          .setDescription(`ðŸ“Š Total guilds: **${guilds.length}**\n\nSelect a guild from the menu below to open its management panel.\nPage ${page}/${totalPages}.`)
           .setColor('#2a8900');
 
         await interaction.update({
@@ -1196,7 +1196,7 @@ export async function handleInteractions(
         const totalPages = Math.max(1, Math.ceil(guilds.length / 25));
         if (page < 1 || page > totalPages) {
           await interaction.update({
-            content: '❌ Invalid page.',
+            content: 'âŒ Invalid page.',
             embeds: [],
             components: [],
           });
@@ -1209,7 +1209,7 @@ export async function handleInteractions(
             .setLabel(guild.name)
             .setDescription(`Leader: ${guild.leaderId} | Region: ${guild.region}`)
             .setValue(guild.id)
-            .setEmoji('🏰')
+            .setEmoji('ðŸ°')
         );
 
         const selectMenu = new StringSelectMenuBuilder()
@@ -1237,7 +1237,7 @@ export async function handleInteractions(
         }
 
         await interaction.update({
-          content: '🗑️ **Select a guild to delete:**',
+          content: 'ðŸ—‘ï¸ **Select a guild to delete:**',
           components,
           embeds: [],
         });
@@ -1249,7 +1249,7 @@ export async function handleInteractions(
         const page = Number(pageRaw) || 1;
         if (!guildId) {
           await interaction.update({
-            content: '❌ Invalid page.',
+            content: 'âŒ Invalid page.',
             embeds: [],
             components: [],
           });
@@ -1261,7 +1261,7 @@ export async function handleInteractions(
         const totalPages = Math.max(1, Math.ceil(allCandidates.length / 25));
         if (page < 1 || page > totalPages) {
           await interaction.update({
-            content: '❌ Invalid page.',
+            content: 'âŒ Invalid page.',
             embeds: [],
             components: [],
           });
@@ -1319,7 +1319,7 @@ export async function handleInteractions(
         const page = Number(pageRaw) || 1;
         if (!guildId || !roleType) {
           await interaction.update({
-            content: '❌ Invalid page.',
+            content: 'âŒ Invalid page.',
             embeds: [],
             components: [],
           });
@@ -1339,7 +1339,7 @@ export async function handleInteractions(
         const totalPages = Math.max(1, Math.ceil(members.length / 25));
         if (page < 1 || page > totalPages) {
           await interaction.update({
-            content: '❌ Invalid page.',
+            content: 'âŒ Invalid page.',
             embeds: [],
             components: [],
           });
@@ -1401,7 +1401,7 @@ export async function handleInteractions(
 
         if (!war || war.status !== 'PENDING') {
           await interaction.followUp({
-            content: '❌ This war is no longer pending.',
+            content: 'âŒ This war is no longer pending.',
             flags: MessageFlags.Ephemeral,
           });
           return;
@@ -1413,7 +1413,7 @@ export async function handleInteractions(
 
         if (!actorRole) {
           await interaction.followUp({
-            content: '❌ Only the Leader or Co-Leader of the opponent guild can accept this war.',
+            content: 'âŒ Only the Leader or Co-Leader of the opponent guild can accept this war.',
             flags: MessageFlags.Ephemeral,
           });
           return;
@@ -1433,7 +1433,7 @@ export async function handleInteractions(
           )
           .addTextDisplayComponents(
             new TextDisplayBuilder().setContent(
-              `✅ War accepted by <@${interaction.user.id}>.\n\nHoster team can proceed with the match details.`
+              `âœ… War accepted by <@${interaction.user.id}>.\n\nHoster team can proceed with the match details.`
             )
           );
 
@@ -1475,7 +1475,7 @@ export async function handleInteractions(
           )
           .addTextDisplayComponents(
             new TextDisplayBuilder().setContent(
-              'ℹ️ The Hoster team can finalize the war.\n\nUse the button below to start finalization and choose the winning guild.'
+              'â„¹ï¸ The Hoster team can finalize the war.\n\nUse the button below to start finalization and choose the winning guild.'
             )
           )
           .addActionRowComponents(finalizeRow);
@@ -1496,7 +1496,7 @@ export async function handleInteractions(
 
         if (!war || !['PENDING', 'ACCEPTED'].includes(war.status)) {
           await interaction.followUp({
-            content: '❌ This war can no longer be dodged.',
+            content: 'âŒ This war can no longer be dodged.',
             flags: MessageFlags.Ephemeral,
           });
           return;
@@ -1513,7 +1513,7 @@ export async function handleInteractions(
 
         if (!isHosterTeam && !isGuildLeader) {
           await interaction.followUp({
-            content: '❌ Only guild leaders, co-leaders, Hoster, Junior Hoster, or Event Hoster can use Dodge.',
+            content: 'âŒ Only guild leaders, co-leaders, Hoster, Junior Hoster, or Event Hoster can use Dodge.',
             flags: MessageFlags.Ephemeral,
           });
           return;
@@ -1521,7 +1521,7 @@ export async function handleInteractions(
 
         dodgeWar(db, war.id);
 
-        const dodgeSummary = `⚠️ <@${interaction.user.id}> used Dodge and closed the war ticket (${openerGuild?.name || 'Unknown'} vs ${opponentGuild?.name || 'Unknown'}).`;
+        const dodgeSummary = `âš ï¸ <@${interaction.user.id}> used Dodge and closed the war ticket (${openerGuild?.name || 'Unknown'} vs ${opponentGuild?.name || 'Unknown'}).`;
 
         const warDodgeId = getSetting(db, `${interaction.guildId}_war_dodge_channel_id`) || WAR_DODGE_LOGS_CHANNEL_ID;
         const warDodgeLogsChannel = await interaction.client.channels.fetch(warDodgeId).catch(() => null);
@@ -1532,7 +1532,7 @@ export async function handleInteractions(
         }
 
         await interaction.editReply({
-          content: `${dodgeSummary}\n\n⏳ Canal será deletado em 5 segundos...`,
+          content: `${dodgeSummary}\n\nâ³ Canal serÃ¡ deletado em 5 segundos...`,
           embeds: [],
           components: [],
           allowedMentions: { users: [interaction.user.id] },
@@ -1558,7 +1558,7 @@ export async function handleInteractions(
         const [, winnerGuildId, loserGuildId, warIdRaw] = parseCustomId(customId);
         const member = await interaction.guild?.members.fetch(interaction.user.id).catch(() => null);
         if (!canMemberFinalizeTicket(member, db, interaction.guildId)) {
-          await interaction.reply({ content: '❌ Sem permissão para aplicar ELO.', flags: MessageFlags.Ephemeral });
+          await interaction.reply({ content: 'âŒ Sem permissÃ£o para aplicar ELO.', flags: MessageFlags.Ephemeral });
           return;
         }
         const eloModal = new ModalBuilder()
@@ -1570,7 +1570,7 @@ export async function handleInteractions(
                 .setCustomId('winner_elo_gain')
                 .setLabel('Pontos ganhos pelo ganhador')
                 .setStyle(TextInputStyle.Short)
-                .setPlaceholder('ex: 25')
+                .setPlaceholder('ex: 20')
                 .setRequired(true)
                 .setMaxLength(6)
             ),
@@ -1579,7 +1579,7 @@ export async function handleInteractions(
                 .setCustomId('loser_elo_loss')
                 .setLabel('Pontos removidos do perdedor')
                 .setStyle(TextInputStyle.Short)
-                .setPlaceholder('ex: 20')
+                .setPlaceholder('ex: 25')
                 .setRequired(true)
                 .setMaxLength(6)
             )
@@ -1595,7 +1595,7 @@ export async function handleInteractions(
 
         if (!war || !['PENDING', 'ACCEPTED'].includes(war.status)) {
           await interaction.reply({
-            content: '❌ This war is not available for finalization.',
+            content: 'âŒ This war is not available for finalization.',
             flags: MessageFlags.Ephemeral,
           });
           return;
@@ -1606,7 +1606,7 @@ export async function handleInteractions(
 
         if (!canFinalize) {
           await interaction.reply({
-            content: '❌ You do not have permission to finalize this war. Configure the role with `/setup hoster_role`.',
+            content: 'âŒ You do not have permission to finalize this war. Configure the role with `/setup hoster_role`.',
             flags: MessageFlags.Ephemeral,
           });
           return;
@@ -1686,7 +1686,7 @@ export async function handleInteractions(
 
         if (!wager || wager.status !== 'PENDING') {
           await interaction.followUp({
-            content: '❌ This wager is no longer pending.',
+            content: 'âŒ This wager is no longer pending.',
             flags: MessageFlags.Ephemeral,
           });
           return;
@@ -1699,8 +1699,8 @@ export async function handleInteractions(
         if (!requiredAcceptors.includes(interaction.user.id)) {
           await interaction.followUp({
             content: wager.type === '1V1'
-              ? '❌ Only the challenged player can accept this wager.'
-              : '❌ Only the challenged duo can accept this wager.',
+              ? 'âŒ Only the challenged player can accept this wager.'
+              : 'âŒ Only the challenged duo can accept this wager.',
             flags: MessageFlags.Ephemeral,
           });
           return;
@@ -1720,7 +1720,7 @@ export async function handleInteractions(
 
         if (acceptedCount < requiredAcceptors.length) {
           await interaction.editReply({
-            content: `⏳ Wager pending acceptance: **${acceptedCount}/${requiredAcceptors.length}** challenged players accepted.`,
+            content: `â³ Wager pending acceptance: **${acceptedCount}/${requiredAcceptors.length}** challenged players accepted.`,
             components: interaction.message.components,
             embeds: [],
           });
@@ -1752,7 +1752,7 @@ export async function handleInteractions(
         );
 
         await interaction.editReply({
-          content: '✅ Wager accepted. Chat unlocked.',
+          content: 'âœ… Wager accepted. Chat unlocked.',
           embeds: [],
           components: [acceptDisabledRow],
         });
@@ -1766,7 +1766,7 @@ export async function handleInteractions(
 
         if (!wager || wager.status !== 'ACCEPTED') {
           await interaction.reply({
-            content: '❌ This wager is not available for finalization.',
+            content: 'âŒ This wager is not available for finalization.',
             flags: MessageFlags.Ephemeral,
           });
           return;
@@ -1777,7 +1777,7 @@ export async function handleInteractions(
 
         if (!canFinalize) {
           await interaction.reply({
-            content: '❌ You do not have permission to finalize this wager. Configure the role with `/setup hoster_role`.',
+            content: 'âŒ You do not have permission to finalize this wager. Configure the role with `/setup hoster_role`.',
             flags: MessageFlags.Ephemeral,
           });
           return;
@@ -1815,7 +1815,7 @@ export async function handleInteractions(
 
         if (!wager || !['PENDING', 'ACCEPTED'].includes(wager.status)) {
           await interaction.followUp({
-            content: '❌ This wager cannot be dodged now.',
+            content: 'âŒ This wager cannot be dodged now.',
             flags: MessageFlags.Ephemeral,
           });
           return;
@@ -1828,7 +1828,7 @@ export async function handleInteractions(
 
         if (!isWagerOpener && !isChallenged && !isHosterTeam) {
           await interaction.followUp({
-            content: '❌ Only wager participants, Hoster, Junior Hoster, or Event Hoster can use Dodge.',
+            content: 'âŒ Only wager participants, Hoster, Junior Hoster, or Event Hoster can use Dodge.',
             flags: MessageFlags.Ephemeral,
           });
           return;
@@ -1879,7 +1879,7 @@ export async function handleInteractions(
 
         if (!wager || !['PENDING', 'ACCEPTED'].includes(wager.status)) {
           await interaction.followUp({
-            content: '❌ This wager is already closed.',
+            content: 'âŒ This wager is already closed.',
             flags: MessageFlags.Ephemeral,
           });
           return;
@@ -1890,7 +1890,7 @@ export async function handleInteractions(
 
         if (!canClose) {
           await interaction.followUp({
-            content: '❌ Only Hoster can close this ticket.',
+            content: 'âŒ Only Hoster can close this ticket.',
             flags: MessageFlags.Ephemeral,
           });
           return;
@@ -1898,7 +1898,7 @@ export async function handleInteractions(
 
         closeWager(db, wager.id);
         await interaction.editReply({
-          content: '✅ Ticket closed by hoster.',
+          content: 'âœ… Ticket closed by hoster.',
           components: [],
           embeds: [],
         });
@@ -1917,7 +1917,7 @@ export async function handleInteractions(
 
         if (!war || !winnerGuildId || !parsedScore || !['PENDING', 'ACCEPTED'].includes(war.status)) {
           await interaction.reply({
-            content: '❌ This war is not available for finalization.',
+            content: 'âŒ This war is not available for finalization.',
             flags: MessageFlags.Ephemeral,
           });
           return;
@@ -1925,7 +1925,7 @@ export async function handleInteractions(
 
         if (![war.openerGuildId, war.opponentGuildId].includes(winnerGuildId)) {
           await interaction.reply({
-            content: '❌ Invalid winner selected.',
+            content: 'âŒ Invalid winner selected.',
             flags: MessageFlags.Ephemeral,
           });
           return;
@@ -1936,7 +1936,7 @@ export async function handleInteractions(
 
         if (!canFinalize) {
           await interaction.reply({
-            content: '❌ You do not have permission to finalize this war. Configure the role with `/setup hoster_role`.',
+            content: 'âŒ You do not have permission to finalize this war. Configure the role with `/setup hoster_role`.',
             flags: MessageFlags.Ephemeral,
           });
           return;
@@ -1951,7 +1951,7 @@ export async function handleInteractions(
                 .setCustomId('winner_elo_gain')
                 .setLabel('Pontos ganhos pelo ganhador')
                 .setStyle(TextInputStyle.Short)
-                .setPlaceholder('ex: 25')
+                .setPlaceholder('ex: 20')
                 .setRequired(true)
                 .setMaxLength(6)
             ),
@@ -1960,7 +1960,7 @@ export async function handleInteractions(
                 .setCustomId('loser_elo_loss')
                 .setLabel('Pontos removidos do perdedor')
                 .setStyle(TextInputStyle.Short)
-                .setPlaceholder('ex: 20')
+                .setPlaceholder('ex: 25')
                 .setRequired(true)
                 .setMaxLength(6)
             )
@@ -1978,7 +1978,7 @@ export async function handleInteractions(
 
         if (!war || !winnerGuildId || !parsedScore || !['PENDING', 'ACCEPTED'].includes(war.status)) {
           await interaction.reply({
-            content: '❌ This war is not available for finalization.',
+            content: 'âŒ This war is not available for finalization.',
             flags: MessageFlags.Ephemeral,
           });
           return;
@@ -1989,7 +1989,7 @@ export async function handleInteractions(
 
         if (!canFinalize) {
           await interaction.reply({
-            content: '❌ You do not have permission to finalize this war. Configure the role with `/setup hoster_role`.',
+            content: 'âŒ You do not have permission to finalize this war. Configure the role with `/setup hoster_role`.',
             flags: MessageFlags.Ephemeral,
           });
           return;
@@ -2013,7 +2013,7 @@ export async function handleInteractions(
                 .setCustomId('winner_elo_gain')
                 .setLabel('Pontos ganhos pelo ganhador')
                 .setStyle(TextInputStyle.Short)
-                .setPlaceholder('ex: 25')
+                .setPlaceholder('ex: 20')
                 .setRequired(true)
                 .setMaxLength(6)
             ),
@@ -2022,7 +2022,7 @@ export async function handleInteractions(
                 .setCustomId('loser_elo_loss')
                 .setLabel('Pontos removidos do perdedor')
                 .setStyle(TextInputStyle.Short)
-                .setPlaceholder('ex: 20')
+                .setPlaceholder('ex: 25')
                 .setRequired(true)
                 .setMaxLength(6)
             )
@@ -2040,7 +2040,7 @@ export async function handleInteractions(
 
         if (!war || !winnerGuildId || !parsedScore || !['PENDING', 'ACCEPTED'].includes(war.status)) {
           await interaction.reply({
-            content: '❌ This war is not available for finalization.',
+            content: 'âŒ This war is not available for finalization.',
             flags: MessageFlags.Ephemeral,
           });
           return;
@@ -2051,7 +2051,7 @@ export async function handleInteractions(
 
         if (!canFinalize) {
           await interaction.reply({
-            content: '❌ You do not have permission to finalize this war. Configure the role with `/setup hoster_role`.',
+            content: 'âŒ You do not have permission to finalize this war. Configure the role with `/setup hoster_role`.',
             flags: MessageFlags.Ephemeral,
           });
           return;
@@ -2206,20 +2206,20 @@ export async function handleInteractions(
         const [, guildId] = parseCustomId(customId);
 
         if (!guildId) {
-          await interaction.update({ content: '❌ Invalid action.', embeds: [], components: [] });
+          await interaction.update({ content: 'âŒ Invalid action.', embeds: [], components: [] });
           return;
         }
 
         const actorRole = await getGuildActorRoleWithPanelAdmin(interaction, db, guildId, interaction.user.id);
         if (!actorRole) {
-          await replyPermissionError(interaction, '❌ You are not registered in this guild panel.');
+          await replyPermissionError(interaction, 'âŒ You are not registered in this guild panel.');
           return;
         }
 
         const panelEmbed = buildGuildPanelEmbedForInteraction(db, guildId);
         if (!panelEmbed) {
           await interaction.update({
-            content: '❌ Guild not found.',
+            content: 'âŒ Guild not found.',
             embeds: [],
             components: [],
           });
@@ -2238,19 +2238,19 @@ export async function handleInteractions(
         const [, guildId, roleType] = parseCustomId(customId);
 
         if (!guildId || !roleType) {
-          await interaction.update({ content: '❌ Invalid action.', embeds: [], components: [] });
+          await interaction.update({ content: 'âŒ Invalid action.', embeds: [], components: [] });
           return;
         }
 
         const castRoleType = roleType as GuildRoleType;
         const actorRole = await getGuildActorRoleWithPanelAdmin(interaction, db, guildId, interaction.user.id);
         if (!actorRole) {
-          await replyPermissionError(interaction, '❌ You are not registered in this guild panel.');
+          await replyPermissionError(interaction, 'âŒ You are not registered in this guild panel.');
           return;
         }
 
         if (!canManageRoleType(actorRole, castRoleType)) {
-          await replyPermissionError(interaction, `❌ You cannot manage role **${getRoleLabel(castRoleType)}**.`);
+          await replyPermissionError(interaction, `âŒ You cannot manage role **${getRoleLabel(castRoleType)}**.`);
           return;
         }
 
@@ -2280,13 +2280,13 @@ export async function handleInteractions(
         const [, guildId] = parseCustomId(customId);
 
         if (!guildId) {
-          await interaction.update({ content: '❌ Invalid action.', embeds: [], components: [] });
+          await interaction.update({ content: 'âŒ Invalid action.', embeds: [], components: [] });
           return;
         }
 
         const actorRole = await getGuildActorRoleWithPanelAdmin(interaction, db, guildId, interaction.user.id);
         if (!actorRole) {
-          await replyPermissionError(interaction, '❌ You are not registered in this guild panel.');
+          await replyPermissionError(interaction, 'âŒ You are not registered in this guild panel.');
           return;
         }
 
@@ -2318,19 +2318,19 @@ export async function handleInteractions(
         const [, guildId] = parseCustomId(customId);
 
         if (!guildId) {
-          await interaction.update({ content: '❌ Invalid action.', embeds: [], components: [] });
+          await interaction.update({ content: 'âŒ Invalid action.', embeds: [], components: [] });
           return;
         }
 
         const canTransfer = await canUseOwnershipTransfer(interaction, db, guildId, interaction.user.id);
         if (!canTransfer) {
-          await replyPermissionError(interaction, '❌ Only Founder, Head Moderator, Developer, or this guild leader can transfer ownership.');
+          await replyPermissionError(interaction, 'âŒ Only Founder, Head Moderator, Developer, or this guild leader can transfer ownership.');
           return;
         }
 
         const guild = getGuildById(db, guildId);
         if (!guild) {
-          await interaction.update({ content: '❌ Guild not found.', embeds: [], components: [] });
+          await interaction.update({ content: 'âŒ Guild not found.', embeds: [], components: [] });
           return;
         }
 
@@ -2396,18 +2396,18 @@ export async function handleInteractions(
         const [, guildId, roleType, targetUserId] = parseCustomId(customId);
 
         if (!guildId || !roleType || !targetUserId) {
-          await interaction.update({ content: '❌ Invalid action.', embeds: [], components: [] });
+          await interaction.update({ content: 'âŒ Invalid action.', embeds: [], components: [] });
           return;
         }
 
         const actorRole = await getGuildActorRoleWithPanelAdmin(interaction, db, guildId, interaction.user.id);
         if (!actorRole) {
-          await replyPermissionError(interaction, '❌ You are not registered in this guild panel.');
+          await replyPermissionError(interaction, 'âŒ You are not registered in this guild panel.');
           return;
         }
 
         if (!canManageRoleType(actorRole, roleType as GuildRoleType)) {
-          await replyPermissionError(interaction, `❌ You cannot manage role **${getRoleLabel(roleType as GuildRoleType)}**.`);
+          await replyPermissionError(interaction, `âŒ You cannot manage role **${getRoleLabel(roleType as GuildRoleType)}**.`);
           return;
         }
 
@@ -2431,7 +2431,7 @@ export async function handleInteractions(
 
         if (!canAddUserToRole(db, guildId, roleType as GuildRoleType)) {
           await interaction.update({
-            content: `❌ The ${getRoleLabel(roleType as GuildRoleType)} role has reached its limit.`,
+            content: `âŒ The ${getRoleLabel(roleType as GuildRoleType)} role has reached its limit.`,
             embeds: [],
             components: [],
           });
@@ -2476,7 +2476,7 @@ export async function handleInteractions(
 
         await interaction.update({
           content: sentByDm
-            ? `✅ Invite sent via DM to <@${targetUserId}>.`
+            ? `âœ… Invite sent via DM to <@${targetUserId}>.`
             : ` DM unavailable (${dmFailureReason}). Invite posted in chat mentioning <@${targetUserId}>.`,
           embeds: [],
           components: [],
@@ -2491,7 +2491,7 @@ export async function handleInteractions(
 
         if (!validation.invite) {
           await interaction.reply({
-            content: `❌ ${validation.reason || 'Invalid invite.'}`,
+            content: `âŒ ${validation.reason || 'Invalid invite.'}`,
             flags: MessageFlags.Ephemeral,
           });
           return;
@@ -2501,7 +2501,7 @@ export async function handleInteractions(
 
         if (invite.targetUserId !== interaction.user.id) {
           await interaction.reply({
-            content: '❌ Only the invited user can respond to this invitation.',
+            content: 'âŒ Only the invited user can respond to this invitation.',
             flags: MessageFlags.Ephemeral,
           });
           return;
@@ -2510,7 +2510,7 @@ export async function handleInteractions(
         if (action === 'gp_invite_decline') {
           setInviteStatus(db, inviteId, 'DECLINED');
           await interaction.update({
-            content: '❌ Invitation declined.',
+            content: 'âŒ Invitation declined.',
             components: [],
           });
           return;
@@ -2519,7 +2519,7 @@ export async function handleInteractions(
         if (!canAddUserToRole(db, invite.guildId, invite.roleType as GuildRoleType)) {
           setInviteStatus(db, inviteId, 'DECLINED');
           await interaction.update({
-            content: `❌ Unable to accept: ${getRoleLabel(invite.roleType as GuildRoleType)} has reached its limit.`,
+            content: `âŒ Unable to accept: ${getRoleLabel(invite.roleType as GuildRoleType)} has reached its limit.`,
             components: [],
           });
           return;
@@ -2538,7 +2538,7 @@ export async function handleInteractions(
         if (!added) {
           setInviteStatus(db, inviteId, 'DECLINED');
           await interaction.update({
-            content: '❌ Unable to complete role assignment.',
+            content: 'âŒ Unable to complete role assignment.',
             components: [],
           });
           return;
@@ -2556,16 +2556,16 @@ export async function handleInteractions(
           const roleAssigned = await assignDiscordRoleById(client, discordGuildId, invite.targetUserId, discordRoleId);
           if (!roleAssigned) {
             if (configuredRoleId) {
-              // Role was explicitly configured but failed — block acceptance
+              // Role was explicitly configured but failed â€” block acceptance
               removeMemberFromRole(db, invite.guildId, invite.targetUserId, inviteRoleType);
               setInviteStatus(db, inviteId, 'DECLINED');
               await interaction.update({
-                content: '❌ Unable to accept invitation: failed to assign Discord role. Contact an admin.',
+                content: 'âŒ Unable to accept invitation: failed to assign Discord role. Contact an admin.',
                 components: [],
               });
               return;
             }
-            // No role configured — Discord role is optional, continue anyway
+            // No role configured â€” Discord role is optional, continue anyway
             console.warn(`Discord role ${discordRoleId} not found for invite ${inviteId}; continuing without it.`);
           }
         }
@@ -2574,7 +2574,7 @@ export async function handleInteractions(
         await refreshGuildPanel(client, db, invite.guildId).catch(() => {});
 
         await interaction.update({
-          content: `✅ Invitation accepted for **${getRoleLabel(invite.roleType as GuildRoleType)}**.`,
+          content: `âœ… Invitation accepted for **${getRoleLabel(invite.roleType as GuildRoleType)}**.`,
           components: [],
         });
         return;
@@ -2584,25 +2584,25 @@ export async function handleInteractions(
         const [, guildId, roleType, targetUserId] = parseCustomId(customId);
 
         if (!guildId || !roleType || !targetUserId) {
-          await interaction.update({ content: '❌ Invalid action.', embeds: [], components: [] });
+          await interaction.update({ content: 'âŒ Invalid action.', embeds: [], components: [] });
           return;
         }
 
         const actorRole = await getGuildActorRoleWithPanelAdmin(interaction, db, guildId, interaction.user.id);
         if (!actorRole) {
-          await replyPermissionError(interaction, '❌ You are not registered in this guild panel.');
+          await replyPermissionError(interaction, 'âŒ You are not registered in this guild panel.');
           return;
         }
 
         if (!canManageRoleType(actorRole, roleType as GuildRoleType)) {
-          await replyPermissionError(interaction, `❌ You cannot manage role **${getRoleLabel(roleType as GuildRoleType)}**.`);
+          await replyPermissionError(interaction, `âŒ You cannot manage role **${getRoleLabel(roleType as GuildRoleType)}**.`);
           return;
         }
 
         const guild = getGuildById(db, guildId);
         if (guild?.leaderId === targetUserId) {
           await interaction.update({
-            content: '❌ The guild leader cannot be removed from this panel.',
+            content: 'âŒ The guild leader cannot be removed from this panel.',
             embeds: [],
             components: [],
           });
@@ -2612,7 +2612,7 @@ export async function handleInteractions(
         const removed = removeMemberFromRole(db, guildId, targetUserId, roleType as GuildRoleType);
         if (!removed) {
           await interaction.update({
-            content: '❌ Unable to remove the selected member.',
+            content: 'âŒ Unable to remove the selected member.',
             embeds: [],
             components: [],
           });
@@ -2629,7 +2629,7 @@ export async function handleInteractions(
 
         await refreshGuildPanel(client, db, guildId).catch(() => {});
         await interaction.update({
-          content: `✅ <@${targetUserId}> was removed from **${getRoleLabel(roleType as GuildRoleType)}** and the panel was updated.`,
+          content: `âœ… <@${targetUserId}> was removed from **${getRoleLabel(roleType as GuildRoleType)}** and the panel was updated.`,
           embeds: [],
           components: [],
         });
@@ -2640,19 +2640,19 @@ export async function handleInteractions(
         const [, guildId, targetUserId] = parseCustomId(customId);
 
         if (!guildId || !targetUserId) {
-          await interaction.update({ content: '❌ Invalid action.', embeds: [], components: [] });
+          await interaction.update({ content: 'âŒ Invalid action.', embeds: [], components: [] });
           return;
         }
 
         const canTransfer = await canUseOwnershipTransfer(interaction, db, guildId, interaction.user.id);
         if (!canTransfer) {
-          await replyPermissionError(interaction, '❌ Only Founder, Head Moderator, Developer, or this guild leader can transfer ownership.');
+          await replyPermissionError(interaction, 'âŒ Only Founder, Head Moderator, Developer, or this guild leader can transfer ownership.');
           return;
         }
 
         const guild = getGuildById(db, guildId);
         if (!guild) {
-          await interaction.update({ content: '❌ Guild not found.', embeds: [], components: [] });
+          await interaction.update({ content: 'âŒ Guild not found.', embeds: [], components: [] });
           return;
         }
 
@@ -2668,7 +2668,7 @@ export async function handleInteractions(
         const registeredMemberIds = getRegisteredGuildMemberIds(db, guildId);
         if (!registeredMemberIds.includes(targetUserId)) {
           await interaction.update({
-            content: '❌ The selected user is not a registered member of this guild.',
+            content: 'âŒ The selected user is not a registered member of this guild.',
             embeds: [],
             components: [],
           });
@@ -2688,7 +2688,7 @@ export async function handleInteractions(
           db.prepare('UPDATE Guilds SET leaderId = ?, coLeaderId = ? WHERE id = ?')
             .run(previousLeaderId, previousCoLeaderId, guildId);
           await interaction.update({
-            content: '❌ Failed to assign the Guild Leader role on Discord. Ownership transfer canceled.',
+            content: 'âŒ Failed to assign the Guild Leader role on Discord. Ownership transfer canceled.',
             embeds: [],
             components: [],
           });
@@ -2699,7 +2699,7 @@ export async function handleInteractions(
         await refreshGuildPanel(client, db, guildId).catch(() => {});
 
         await interaction.update({
-          content: `✅ Ownership transferred successfully to <@${targetUserId}>.`,
+          content: `âœ… Ownership transferred successfully to <@${targetUserId}>.`,
           embeds: [],
           components: [],
         });
@@ -2711,13 +2711,13 @@ export async function handleInteractions(
 
         const [, guildId] = parseCustomId(customId);
         if (!guildId) {
-          await interaction.followUp({ content: '❌ Invalid action.', flags: MessageFlags.Ephemeral });
+          await interaction.followUp({ content: 'âŒ Invalid action.', flags: MessageFlags.Ephemeral });
           return;
         }
 
         const guild = getGuildById(db, guildId);
         if (!guild) {
-          await interaction.followUp({ content: '❌ Guild not found.', flags: MessageFlags.Ephemeral });
+          await interaction.followUp({ content: 'âŒ Guild not found.', flags: MessageFlags.Ephemeral });
           return;
         }
 
@@ -2725,7 +2725,7 @@ export async function handleInteractions(
         if (guild.leaderId === userId) {
           if (!guild.coLeaderId) {
             await interaction.followUp({
-              content: '❌ You are the guild leader and must transfer ownership before leaving. Use Ownership Transfer first.',
+              content: 'âŒ You are the guild leader and must transfer ownership before leaving. Use Ownership Transfer first.',
               flags: MessageFlags.Ephemeral,
             });
             return;
@@ -2742,7 +2742,7 @@ export async function handleInteractions(
           await refreshGuildPanel(client, db, guildId).catch(() => {});
 
           await interaction.followUp({
-            content: '✅ You left the guild. Ownership transferred to the former co-leader.',
+            content: 'âœ… You left the guild. Ownership transferred to the former co-leader.',
             flags: MessageFlags.Ephemeral,
           });
           return;
@@ -2752,7 +2752,7 @@ export async function handleInteractions(
           removeMemberFromRole(db, guildId, userId, 'CO_LEADER');
           await maybeRemoveDiscordRoleByType(interaction, db, userId, 'CO_LEADER');
           await refreshGuildPanel(client, db, guildId).catch(() => {});
-          await interaction.followUp({ content: '✅ You left co-leader role.', flags: MessageFlags.Ephemeral });
+          await interaction.followUp({ content: 'âœ… You left co-leader role.', flags: MessageFlags.Ephemeral });
           return;
         }
 
@@ -2760,31 +2760,31 @@ export async function handleInteractions(
           removeMemberFromRole(db, guildId, userId, 'MANAGER');
           await maybeRemoveDiscordRoleByType(interaction, db, userId, 'MANAGER');
           await refreshGuildPanel(client, db, guildId).catch(() => {});
-          await interaction.followUp({ content: '✅ You were removed from Manager and left the guild.', flags: MessageFlags.Ephemeral });
+          await interaction.followUp({ content: 'âœ… You were removed from Manager and left the guild.', flags: MessageFlags.Ephemeral });
           return;
         }
 
         if (db.prepare('SELECT 1 FROM MainRosters WHERE guildId = ? AND userId = ?').get(guildId, userId)) {
           removeMemberFromRole(db, guildId, userId, 'MAIN');
           await refreshGuildPanel(client, db, guildId).catch(() => {});
-          await interaction.followUp({ content: '✅ You left the main roster.', flags: MessageFlags.Ephemeral });
+          await interaction.followUp({ content: 'âœ… You left the main roster.', flags: MessageFlags.Ephemeral });
           return;
         }
 
         if (db.prepare('SELECT 1 FROM SubRosters WHERE guildId = ? AND userId = ?').get(guildId, userId)) {
           removeMemberFromRole(db, guildId, userId, 'SUB');
           await refreshGuildPanel(client, db, guildId).catch(() => {});
-          await interaction.followUp({ content: '✅ You left the sub roster.', flags: MessageFlags.Ephemeral });
+          await interaction.followUp({ content: 'âœ… You left the sub roster.', flags: MessageFlags.Ephemeral });
           return;
         }
 
-        await interaction.followUp({ content: '❌ You are not a member of this guild (or already left).', flags: MessageFlags.Ephemeral });
+        await interaction.followUp({ content: 'âŒ You are not a member of this guild (or already left).', flags: MessageFlags.Ephemeral });
         return;
       }
 
       if (customId.startsWith('gp_cancel_action|')) {
         await interaction.update({
-          content: '❎ Action canceled.',
+          content: 'âŽ Action canceled.',
           components: [],
           embeds: [],
         });
@@ -2792,7 +2792,7 @@ export async function handleInteractions(
       }
     }
 
-    // ── Signing flow buttons ──────────────────────────────────────
+    // â”€â”€ Signing flow buttons â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if (interaction.isButton() && interaction.customId.startsWith('sign_')) {
       const parts = interaction.customId.split('_');
       const action = parts[1]; // accept | decline | approve | reject
@@ -2801,27 +2801,27 @@ export async function handleInteractions(
       const { signMember, getAllOrgs } = await import('./siteapi.js');
 
       const req = getSigningRequest(db, signingId);
-      if (!req) { await interaction.reply({ content: '❌ Signing request not found or expired.', ephemeral: true }); return; }
+      if (!req) { await interaction.reply({ content: 'âŒ Signing request not found or expired.', ephemeral: true }); return; }
 
       if (action === 'accept') {
         if (interaction.user.id !== req.target_discord_id) {
-          await interaction.reply({ content: '❌ This signing offer is not for you.', ephemeral: true }); return;
+          await interaction.reply({ content: 'âŒ This signing offer is not for you.', ephemeral: true }); return;
         }
         if (req.status !== 'PENDING_PLAYER') {
-          await interaction.reply({ content: '❌ This offer has already been responded to.', ephemeral: true }); return;
+          await interaction.reply({ content: 'âŒ This offer has already been responded to.', ephemeral: true }); return;
         }
         // Send to log channel
         const logChannelId = getSetting(db, 'log_channel_id');
         if (!logChannelId) {
-          await interaction.reply({ content: '❌ No log channel set. Ask staff to use /setlogchannel.', ephemeral: true }); return;
+          await interaction.reply({ content: 'âŒ No log channel set. Ask staff to use /setlogchannel.', ephemeral: true }); return;
         }
         const logChannel = await client.channels.fetch(logChannelId).catch(() => null);
         if (!logChannel || !logChannel.isTextBased() || !('send' in logChannel)) {
-          await interaction.reply({ content: '❌ Log channel not accessible.', ephemeral: true }); return;
+          await interaction.reply({ content: 'âŒ Log channel not accessible.', ephemeral: true }); return;
         }
         const { EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } = await import('discord.js');
         const embed = new EmbedBuilder()
-          .setTitle('⏳ Signing Request — Pending Staff Approval')
+          .setTitle('â³ Signing Request â€” Pending Staff Approval')
           .setColor(0xF5F07A)
           .addFields(
             { name: 'Guild', value: `${req.org_tag}`, inline: true },
@@ -2835,14 +2835,14 @@ export async function handleInteractions(
         );
         const logMsg = await (logChannel as any).send({ embeds: [embed], components: [row] });
         updateSigningStatus(db, signingId, 'PENDING_STAFF', logMsg.id);
-        await interaction.update({ content: '✅ You accepted the signing offer. A staff member will review it.', components: [], embeds: [] });
+        await interaction.update({ content: 'âœ… You accepted the signing offer. A staff member will review it.', components: [], embeds: [] });
 
       } else if (action === 'decline') {
         if (interaction.user.id !== req.target_discord_id) {
-          await interaction.reply({ content: '❌ This signing offer is not for you.', ephemeral: true }); return;
+          await interaction.reply({ content: 'âŒ This signing offer is not for you.', ephemeral: true }); return;
         }
         updateSigningStatus(db, signingId, 'DECLINED');
-        await interaction.update({ content: '❌ You declined the signing offer.', components: [], embeds: [] });
+        await interaction.update({ content: 'âŒ You declined the signing offer.', components: [], embeds: [] });
 
       } else if (action === 'approve') {
         // Staff approving
@@ -2850,16 +2850,16 @@ export async function handleInteractions(
         if (staffRoleId && interaction.guild) {
           const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
           if (!member?.roles.cache.has(staffRoleId)) {
-            await interaction.reply({ content: '❌ You are not staff.', ephemeral: true }); return;
+            await interaction.reply({ content: 'âŒ You are not staff.', ephemeral: true }); return;
           }
         }
         if (req.status !== 'PENDING_STAFF') {
-          await interaction.reply({ content: '❌ Already handled.', ephemeral: true }); return;
+          await interaction.reply({ content: 'âŒ Already handled.', ephemeral: true }); return;
         }
         try {
           await signMember(req.org_id, req.target_discord_id, req.target_name, req.role);
         } catch (e: any) {
-          await interaction.reply({ content: `❌ Could not add to site: ${e.message}`, ephemeral: true }); return;
+          await interaction.reply({ content: `âŒ Could not add to site: ${e.message}`, ephemeral: true }); return;
         }
         updateSigningStatus(db, signingId, 'APPROVED');
         // Give guild role
@@ -2876,33 +2876,33 @@ export async function handleInteractions(
           const pubChannel = await client.channels.fetch(pubChannelId).catch(() => null);
           if (pubChannel && pubChannel.isTextBased() && 'send' in pubChannel) {
             const pubEmbed = new EmbedBuilder()
-              .setTitle('📝 New Signing')
+              .setTitle('ðŸ“ New Signing')
               .setColor(0x2a8900)
               .setDescription(`<@${req.target_discord_id}> has been signed to **${req.org_tag}** as **${req.role}**!`);
             await (pubChannel as any).send({ embeds: [pubEmbed] });
           }
         }
-        await interaction.update({ content: `✅ Signing approved. ${req.target_name} added to ${req.org_tag}.`, components: [], embeds: [] });
+        await interaction.update({ content: `âœ… Signing approved. ${req.target_name} added to ${req.org_tag}.`, components: [], embeds: [] });
 
       } else if (action === 'reject') {
         const staffRoleId = getSetting(db, 'staff_role_id');
         if (staffRoleId && interaction.guild) {
           const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
           if (!member?.roles.cache.has(staffRoleId)) {
-            await interaction.reply({ content: '❌ You are not staff.', ephemeral: true }); return;
+            await interaction.reply({ content: 'âŒ You are not staff.', ephemeral: true }); return;
           }
         }
         updateSigningStatus(db, signingId, 'REJECTED');
         // DM the player
         try {
           const user = await client.users.fetch(req.target_discord_id);
-          await user.send(`❌ Your signing to **${req.org_tag}** was rejected by staff.`);
+          await user.send(`âŒ Your signing to **${req.org_tag}** was rejected by staff.`);
         } catch { /* ignore */ }
-        await interaction.update({ content: `❌ Signing rejected.`, components: [], embeds: [] });
+        await interaction.update({ content: `âŒ Signing rejected.`, components: [], embeds: [] });
       }
       return;
     }
-    // ── End signing flow ──────────────────────────────────────────
+    // â”€â”€ End signing flow â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     if (interaction.isStringSelectMenu()) {
       const customId = interaction.customId;
@@ -2915,7 +2915,7 @@ export async function handleInteractions(
 
         if (!actorGuild || !opponentGuild) {
           await interaction.update({
-            content: '❌ Invalid guild selection.',
+            content: 'âŒ Invalid guild selection.',
             components: [],
             embeds: [],
           });
@@ -2929,7 +2929,7 @@ export async function handleInteractions(
 
         if (!starterRole && !isManager) {
           await interaction.update({
-            content: '❌ You no longer have permission to open this war ticket.',
+            content: 'âŒ You no longer have permission to open this war ticket.',
             components: [],
             embeds: [],
           });
@@ -2939,7 +2939,7 @@ export async function handleInteractions(
         const warChannel = await createWarTicketChannel(interaction, db, actorGuild, opponentGuild);
         if (!warChannel) {
           await interaction.update({
-            content: '❌ Failed to create war ticket channel. Check bot permissions and category setup.',
+            content: 'âŒ Failed to create war ticket channel. Check bot permissions and category setup.',
             components: [],
             embeds: [],
           });
@@ -2947,7 +2947,7 @@ export async function handleInteractions(
         }
 
         await interaction.update({
-          content: `✅ War ticket created successfully! Check <#${warChannel.id}>`,
+          content: `âœ… War ticket created successfully! Check <#${warChannel.id}>`,
           components: [],
           embeds: [],
         });
@@ -2962,7 +2962,7 @@ export async function handleInteractions(
 
         if (!war || !['PENDING', 'ACCEPTED'].includes(war.status)) {
           await interaction.update({
-            content: '❌ This war is not available for finalization.',
+            content: 'âŒ This war is not available for finalization.',
             components: [],
             embeds: [],
           });
@@ -2971,7 +2971,7 @@ export async function handleInteractions(
 
         if (![war.openerGuildId, war.opponentGuildId].includes(winnerGuildId)) {
           await interaction.update({
-            content: '❌ Invalid winner selected.',
+            content: 'âŒ Invalid winner selected.',
             components: [],
             embeds: [],
           });
@@ -2983,7 +2983,7 @@ export async function handleInteractions(
 
         if (!canFinalize) {
           await interaction.update({
-            content: '❌ You do not have permission to finalize this war. Configure the role with `/setup hoster_role`.',
+            content: 'âŒ You do not have permission to finalize this war. Configure the role with `/setup hoster_role`.',
             components: [],
             embeds: [],
           });
@@ -3021,7 +3021,7 @@ export async function handleInteractions(
 
         if (!winnerGuildId) {
           await interaction.update({
-            content: '❌ Invalid winner selected.',
+            content: 'âŒ Invalid winner selected.',
             components: [],
             embeds: [],
           });
@@ -3030,7 +3030,7 @@ export async function handleInteractions(
 
         if (!war || !['PENDING', 'ACCEPTED'].includes(war.status)) {
           await interaction.update({
-            content: '❌ This war is not available for finalization.',
+            content: 'âŒ This war is not available for finalization.',
             components: [],
             embeds: [],
           });
@@ -3039,7 +3039,7 @@ export async function handleInteractions(
 
         if (![war.openerGuildId, war.opponentGuildId].includes(winnerGuildId)) {
           await interaction.update({
-            content: '❌ Invalid winner selected.',
+            content: 'âŒ Invalid winner selected.',
             components: [],
             embeds: [],
           });
@@ -3048,7 +3048,7 @@ export async function handleInteractions(
 
         if (!parsedScore) {
           await interaction.update({
-            content: '❌ Invalid score selected.',
+            content: 'âŒ Invalid score selected.',
             components: [],
             embeds: [],
           });
@@ -3060,7 +3060,7 @@ export async function handleInteractions(
 
         if (!canFinalize) {
           await interaction.update({
-            content: '❌ You do not have permission to finalize this war. Configure the role with `/setup hoster_role`.',
+            content: 'âŒ You do not have permission to finalize this war. Configure the role with `/setup hoster_role`.',
             components: [],
             embeds: [],
           });
@@ -3099,7 +3099,7 @@ export async function handleInteractions(
 
         if (!wager || wager.status !== 'ACCEPTED') {
           await interaction.update({
-            content: '❌ This wager is not available for finalization.',
+            content: 'âŒ This wager is not available for finalization.',
             components: [],
             embeds: [],
           });
@@ -3108,7 +3108,7 @@ export async function handleInteractions(
 
         if (!['CHALLENGER', 'CHALLENGED'].includes(winnerSide)) {
           await interaction.update({
-            content: '❌ Invalid winner selected.',
+            content: 'âŒ Invalid winner selected.',
             components: [],
             embeds: [],
           });
@@ -3120,7 +3120,7 @@ export async function handleInteractions(
 
         if (!canFinalize) {
           await interaction.update({
-            content: '❌ You do not have permission to finalize this wager. Configure the role with `/setup hoster_role`.',
+            content: 'âŒ You do not have permission to finalize this wager. Configure the role with `/setup hoster_role`.',
             components: [],
             embeds: [],
           });
@@ -3145,7 +3145,7 @@ export async function handleInteractions(
                 .setCustomId('winner_elo_gain')
                 .setLabel('Pontos ELO ganhos pelo ganhador')
                 .setStyle(TextInputStyle.Short)
-                .setPlaceholder('ex: 25')
+                .setPlaceholder('ex: 20')
                 .setRequired(true)
                 .setMaxLength(6)
             ),
@@ -3154,7 +3154,7 @@ export async function handleInteractions(
                 .setCustomId('loser_elo_loss')
                 .setLabel('Pontos ELO removidos do perdedor')
                 .setStyle(TextInputStyle.Short)
-                .setPlaceholder('ex: 20')
+                .setPlaceholder('ex: 25')
                 .setRequired(true)
                 .setMaxLength(6)
             )
@@ -3168,13 +3168,13 @@ export async function handleInteractions(
         const [, guildId] = parseCustomId(customId);
 
         if (!guildId) {
-          await interaction.update({ content: '❌ Invalid action.', embeds: [], components: [] });
+          await interaction.update({ content: 'âŒ Invalid action.', embeds: [], components: [] });
           return;
         }
 
         const actorRole = await getGuildActorRoleWithPanelAdmin(interaction, db, guildId, interaction.user.id);
         if (!actorRole) {
-          await replyPermissionError(interaction, '❌ You are not registered in this guild panel.');
+          await replyPermissionError(interaction, 'âŒ You are not registered in this guild panel.');
           return;
         }
 
@@ -3214,7 +3214,7 @@ export async function handleInteractions(
         }
 
         if (!canManageRoleType(actorRole, roleType)) {
-          await replyPermissionError(interaction, `❌ You cannot manage role **${getRoleLabel(roleType)}**.`);
+          await replyPermissionError(interaction, `âŒ You cannot manage role **${getRoleLabel(roleType)}**.`);
           return;
         }
 
@@ -3241,7 +3241,7 @@ export async function handleInteractions(
         const [, guildId] = parseCustomId(customId);
 
         if (!guildId) {
-          await interaction.update({ content: '❌ Invalid action.', embeds: [], components: [] });
+          await interaction.update({ content: 'âŒ Invalid action.', embeds: [], components: [] });
           return;
         }
 
@@ -3249,12 +3249,12 @@ export async function handleInteractions(
 
         const actorRole = await getGuildActorRoleWithPanelAdmin(interaction, db, guildId, interaction.user.id);
         if (!actorRole) {
-          await replyPermissionError(interaction, '❌ You are not registered in this guild panel.');
+          await replyPermissionError(interaction, 'âŒ You are not registered in this guild panel.');
           return;
         }
 
         if (!canManageRoleType(actorRole, roleType)) {
-          await replyPermissionError(interaction, `❌ You cannot manage role **${getRoleLabel(roleType)}**.`);
+          await replyPermissionError(interaction, `âŒ You cannot manage role **${getRoleLabel(roleType)}**.`);
           return;
         }
 
@@ -3322,18 +3322,18 @@ export async function handleInteractions(
         const targetUserId = interaction.values[0];
 
         if (!guildId || !roleType || !targetUserId) {
-          await interaction.update({ content: '❌ Invalid action.', embeds: [], components: [] });
+          await interaction.update({ content: 'âŒ Invalid action.', embeds: [], components: [] });
           return;
         }
 
         const actorRole = await getGuildActorRoleWithPanelAdmin(interaction, db, guildId, interaction.user.id);
         if (!actorRole) {
-          await replyPermissionError(interaction, '❌ You are not registered in this guild panel.');
+          await replyPermissionError(interaction, 'âŒ You are not registered in this guild panel.');
           return;
         }
 
         if (!canManageRoleType(actorRole, roleType as GuildRoleType)) {
-          await replyPermissionError(interaction, `❌ You cannot manage role **${getRoleLabel(roleType as GuildRoleType)}**.`);
+          await replyPermissionError(interaction, `âŒ You cannot manage role **${getRoleLabel(roleType as GuildRoleType)}**.`);
           return;
         }
 
@@ -3361,19 +3361,19 @@ export async function handleInteractions(
         const targetUserId = interaction.values[0];
 
         if (!guildId || !targetUserId) {
-          await interaction.update({ content: '❌ Invalid action.', embeds: [], components: [] });
+          await interaction.update({ content: 'âŒ Invalid action.', embeds: [], components: [] });
           return;
         }
 
         const canTransfer = await canUseOwnershipTransfer(interaction, db, guildId, interaction.user.id);
         if (!canTransfer) {
-          await replyPermissionError(interaction, '❌ Only Founder, Head Moderator, Developer, or this guild leader can transfer ownership.');
+          await replyPermissionError(interaction, 'âŒ Only Founder, Head Moderator, Developer, or this guild leader can transfer ownership.');
           return;
         }
 
         const guild = getGuildById(db, guildId);
         if (!guild) {
-          await interaction.update({ content: '❌ Guild not found.', embeds: [], components: [] });
+          await interaction.update({ content: 'âŒ Guild not found.', embeds: [], components: [] });
           return;
         }
 
@@ -3389,7 +3389,7 @@ export async function handleInteractions(
         const registeredMemberIds = getRegisteredGuildMemberIds(db, guildId);
         if (!registeredMemberIds.includes(targetUserId)) {
           await interaction.update({
-            content: '❌ The selected user is not a registered member of this guild.',
+            content: 'âŒ The selected user is not a registered member of this guild.',
             components: [buildBackToPanelRow(guildId)],
             embeds: [],
           });
@@ -3427,7 +3427,7 @@ export async function handleInteractions(
 
         if (!challengedId || challengedId === challengerId) {
           await interaction.editReply({
-            content: '❌ Invalid opponent selection.',
+            content: 'âŒ Invalid opponent selection.',
             embeds: [],
             components: [],
           });
@@ -3437,7 +3437,7 @@ export async function handleInteractions(
         const challengedMember = await interaction.guild?.members.fetch(challengedId).catch(() => null);
         if (!challengedMember || challengedMember.user.bot) {
           await interaction.editReply({
-            content: '❌ You must select a valid member (not a bot).',
+            content: 'âŒ You must select a valid member (not a bot).',
             embeds: [],
             components: [],
           });
@@ -3452,7 +3452,7 @@ export async function handleInteractions(
         const ticketChannel = await createWagerTicketChannel(interaction, ticketName, [challengerId, challengedId], db);
         if (!ticketChannel) {
           await interaction.editReply({
-            content: '❌ Failed to create wager ticket channel. Check bot permissions and category setup.',
+            content: 'âŒ Failed to create wager ticket channel. Check bot permissions and category setup.',
             embeds: [],
             components: [],
           });
@@ -3500,7 +3500,7 @@ export async function handleInteractions(
         await panelMessage.edit({ components: [actionRow] });
 
         await interaction.editReply({
-          content: `✅ 1v1 wager ticket created: <#${ticketChannel.id}>`,
+          content: `âœ… 1v1 wager ticket created: <#${ticketChannel.id}>`,
           embeds: [],
           components: [],
         });
@@ -3513,7 +3513,7 @@ export async function handleInteractions(
 
         if (!partnerId || partnerId === challengerId) {
           await interaction.update({
-            content: '❌ Invalid teammate selection.',
+            content: 'âŒ Invalid teammate selection.',
             embeds: [],
             components: [],
           });
@@ -3523,7 +3523,7 @@ export async function handleInteractions(
         const partnerMember = await interaction.guild?.members.fetch(partnerId).catch(() => null);
         if (!partnerMember || partnerMember.user.bot) {
           await interaction.update({
-            content: '❌ You must select a valid teammate (not a bot).',
+            content: 'âŒ You must select a valid teammate (not a bot).',
             embeds: [],
             components: [],
           });
@@ -3557,7 +3557,7 @@ export async function handleInteractions(
 
         if (!challenger1Id || !challenger2Id || !challenged1Id || !challenged2Id) {
           await interaction.editReply({
-            content: '❌ Invalid 2v2 selection data.',
+            content: 'âŒ Invalid 2v2 selection data.',
             embeds: [],
             components: [],
           });
@@ -3567,7 +3567,7 @@ export async function handleInteractions(
         const uniqueIds = new Set([challenger1Id, challenger2Id, challenged1Id, challenged2Id]);
         if (uniqueIds.size !== 4) {
           await interaction.editReply({
-            content: '❌ The four players must be different users.',
+            content: 'âŒ The four players must be different users.',
             embeds: [],
             components: [],
           });
@@ -3582,7 +3582,7 @@ export async function handleInteractions(
 
         if (members.some(member => !member || member.user.bot)) {
           await interaction.editReply({
-            content: '❌ All selected players must be valid members (not bots).',
+            content: 'âŒ All selected players must be valid members (not bots).',
             embeds: [],
             components: [],
           });
@@ -3599,7 +3599,7 @@ export async function handleInteractions(
 
         if (!ticketChannel) {
           await interaction.editReply({
-            content: '❌ Failed to create wager ticket channel. Check bot permissions and category setup.',
+            content: 'âŒ Failed to create wager ticket channel. Check bot permissions and category setup.',
             embeds: [],
             components: [],
           });
@@ -3647,7 +3647,7 @@ export async function handleInteractions(
         await panelMessage.edit({ components: [actionRow] });
 
         await interaction.editReply({
-          content: `✅ 2v2 wager ticket created: <#${ticketChannel.id}>`,
+          content: `âœ… 2v2 wager ticket created: <#${ticketChannel.id}>`,
           embeds: [],
           components: [],
         });
@@ -3659,24 +3659,24 @@ export async function handleInteractions(
         const targetUserId = interaction.values[0];
 
         if (!guildId || !roleType || !targetUserId) {
-          await interaction.update({ content: '❌ Invalid action.', embeds: [], components: [] });
+          await interaction.update({ content: 'âŒ Invalid action.', embeds: [], components: [] });
           return;
         }
 
         const actorRole = await getGuildActorRoleWithPanelAdmin(interaction, db, guildId, interaction.user.id);
         if (!actorRole) {
-          await replyPermissionError(interaction, '❌ You are not registered in this guild panel.');
+          await replyPermissionError(interaction, 'âŒ You are not registered in this guild panel.');
           return;
         }
 
         if (!canManageRoleType(actorRole, roleType as GuildRoleType)) {
-          await replyPermissionError(interaction, `❌ You cannot manage role **${getRoleLabel(roleType as GuildRoleType)}**.`);
+          await replyPermissionError(interaction, `âŒ You cannot manage role **${getRoleLabel(roleType as GuildRoleType)}**.`);
           return;
         }
 
         if (targetUserId === interaction.user.id) {
           await interaction.update({
-            content: '❌ You cannot invite yourself through this flow.',
+            content: 'âŒ You cannot invite yourself through this flow.',
             components: [],
             embeds: [],
           });
@@ -3716,9 +3716,9 @@ export async function handleInteractions(
         try {
           const { createOrg } = await import('./siteapi.js');
           await createOrg(tag, name, region, logo || undefined);
-          await interaction.editReply(`✅ Guild **${name}** [${tag}] registered on the site!`);
+          await interaction.editReply(`âœ… Guild **${name}** [${tag}] registered on the site!`);
         } catch (e: any) {
-          await interaction.editReply(`❌ ${e.message}`);
+          await interaction.editReply(`âŒ ${e.message}`);
         }
         return;
       }
@@ -3734,7 +3734,7 @@ export async function handleInteractions(
 
         if (!actorGuildId || !opponentGuildName) {
           await interaction.editReply({
-            content: '❌ Invalid input.',
+            content: 'âŒ Invalid input.',
           });
           return;
         }
@@ -3744,14 +3744,14 @@ export async function handleInteractions(
 
         if (!actorGuild) {
           await interaction.editReply({
-            content: '❌ Your guild data could not be found.',
+            content: 'âŒ Your guild data could not be found.',
           });
           return;
         }
 
         if (!opponentGuild) {
           await interaction.editReply({
-            content: `❌ Guild "${opponentGuildName}" not found or is your own guild.`,
+            content: `âŒ Guild "${opponentGuildName}" not found or is your own guild.`,
           });
           return;
         }
@@ -3763,7 +3763,7 @@ export async function handleInteractions(
 
         if (!starterRole && !isManager) {
           await interaction.editReply({
-            content: '❌ You no longer have permission to open this war ticket.',
+            content: 'âŒ You no longer have permission to open this war ticket.',
           });
           return;
         }
@@ -3771,13 +3771,13 @@ export async function handleInteractions(
         const warChannel = await createWarTicketChannel(interaction, db, actorGuild, opponentGuild);
         if (!warChannel) {
           await interaction.editReply({
-            content: '❌ Failed to create war ticket channel. Check bot permissions and category setup.',
+            content: 'âŒ Failed to create war ticket channel. Check bot permissions and category setup.',
           });
           return;
         }
 
         await interaction.editReply({
-          content: `✅ War ticket created successfully! Check <#${warChannel.id}>`,
+          content: `âœ… War ticket created successfully! Check <#${warChannel.id}>`,
         });
         return;
       }
@@ -3794,14 +3794,14 @@ export async function handleInteractions(
 
         if (!wager || wager.status !== 'ACCEPTED') {
           await interaction.editReply({
-            content: '❌ This wager is not available for finalization.',
+            content: 'âŒ This wager is not available for finalization.',
           });
           return;
         }
 
         if (!['CHALLENGER', 'CHALLENGED'].includes(winnerSide || '')) {
           await interaction.editReply({
-            content: '❌ Invalid winner selected.',
+            content: 'âŒ Invalid winner selected.',
           });
           return;
         }
@@ -3811,14 +3811,14 @@ export async function handleInteractions(
 
         if (!canFinalize) {
           await interaction.editReply({
-            content: '❌ You do not have permission to finalize this wager. Configure the role with `/setup hoster_role`.',
+            content: 'âŒ You do not have permission to finalize this wager. Configure the role with `/setup hoster_role`.',
           });
           return;
         }
 
         if (!clipsLink || !isValidClipLink(clipsLink)) {
           await interaction.editReply({
-            content: '❌ Invalid link. Please provide a valid URL starting with http:// or https://',
+            content: 'âŒ Invalid link. Please provide a valid URL starting with http:// or https://',
           });
           return;
         }
@@ -3826,7 +3826,7 @@ export async function handleInteractions(
         const winnerEloGain = parseInt(winnerEloGainRaw || '', 10);
         const loserEloLoss = parseInt(loserEloLossRaw || '', 10);
         if (isNaN(winnerEloGain) || winnerEloGain < 0 || isNaN(loserEloLoss) || loserEloLoss < 0) {
-          await interaction.editReply({ content: '❌ Pontos de ELO inválidos. Use números inteiros positivos.' });
+          await interaction.editReply({ content: 'âŒ Pontos de ELO invÃ¡lidos. Use nÃºmeros inteiros positivos.' });
           return;
         }
 
@@ -3862,7 +3862,7 @@ export async function handleInteractions(
         }
 
         await interaction.followUp({
-          content: `✅ Wager finalizado. Ganhador: ${winnerTeam} | Clips: ${clipsLink}\n📊 ELO: +${winnerEloGain} / -${loserEloLoss}. Fechando ticket...`,
+          content: `âœ… Wager finalizado. Ganhador: ${winnerTeam} | Clips: ${clipsLink}\nðŸ“Š ELO: +${winnerEloGain} / -${loserEloLoss}. Fechando ticket...`,
           flags: MessageFlags.Ephemeral,
         });
 
@@ -3882,14 +3882,14 @@ export async function handleInteractions(
 
         if (!war || !winnerGuildId || !parsedScore || !['PENDING', 'ACCEPTED'].includes(war.status)) {
           await interaction.editReply({
-            content: '❌ This war is not available for finalization.',
+            content: 'âŒ This war is not available for finalization.',
           });
           return;
         }
 
         if (![war.openerGuildId, war.opponentGuildId].includes(winnerGuildId)) {
           await interaction.editReply({
-            content: '❌ Invalid winner selected.',
+            content: 'âŒ Invalid winner selected.',
           });
           return;
         }
@@ -3899,7 +3899,7 @@ export async function handleInteractions(
 
         if (!canFinalize) {
           await interaction.editReply({
-            content: '❌ You do not have permission to finalize this war. Configure the role with `/setup hoster_role`.',
+            content: 'âŒ You do not have permission to finalize this war. Configure the role with `/setup hoster_role`.',
           });
           return;
         }
@@ -3913,14 +3913,14 @@ export async function handleInteractions(
         if (roundSummary) {
           if (totalRounds <= 2) {
             await interaction.editReply({
-              content: '❌ Round summary is only used for wars with more than 2 total rounds.',
+              content: 'âŒ Round summary is only used for wars with more than 2 total rounds.',
             });
             return;
           }
         } else {
           if (totalRounds > 2) {
             await interaction.editReply({
-              content: '❌ Please provide a round details summary for wars longer than 2 rounds.',
+              content: 'âŒ Please provide a round details summary for wars longer than 2 rounds.',
             });
             return;
           }
@@ -3934,7 +3934,7 @@ export async function handleInteractions(
 
             if (winnerDowns < 0 || loserDowns < 0) {
               await interaction.editReply({
-                content: `❌ Invalid downs value for round ${round}. Must be non-negative numbers.`,
+                content: `âŒ Invalid downs value for round ${round}. Must be non-negative numbers.`,
               });
               return;
             }
@@ -3952,7 +3952,7 @@ export async function handleInteractions(
           if (clipLink) {
             if (!isValidClipLink(clipLink)) {
               await interaction.editReply({
-                content: `❌ Invalid clip link ${i}. Please provide a valid URL starting with http:// or https://`,
+                content: `âŒ Invalid clip link ${i}. Please provide a valid URL starting with http:// or https://`,
               });
               return;
             }
@@ -3987,7 +3987,7 @@ export async function handleInteractions(
         );
         await interaction.editReply({
           content:
-            `✅ War finalizada. Ganhador: **${winnerGuild?.name || 'Unknown'}** | ` +
+            `âœ… War finalizada. Ganhador: **${winnerGuild?.name || 'Unknown'}** | ` +
             `Score: **${winnerScore}-${loserScore}**${clipsText}.\nClique em **Aplicar ELO** para definir os pontos.`,
           components: [eloRow],
         });
@@ -4011,14 +4011,14 @@ export async function handleInteractions(
 
         if (!war || !winnerGuildId || !parsedScore || !['PENDING', 'ACCEPTED'].includes(war.status)) {
           await interaction.editReply({
-            content: '❌ This war is not available for finalization.',
+            content: 'âŒ This war is not available for finalization.',
           });
           return;
         }
 
         if (![war.openerGuildId, war.opponentGuildId].includes(winnerGuildId)) {
           await interaction.editReply({
-            content: '❌ Invalid winner selected.',
+            content: 'âŒ Invalid winner selected.',
           });
           return;
         }
@@ -4028,14 +4028,14 @@ export async function handleInteractions(
 
         if (!canFinalize) {
           await interaction.editReply({
-            content: '❌ You do not have permission to finalize this war. Configure the role with `/setup hoster_role`.',
+            content: 'âŒ You do not have permission to finalize this war. Configure the role with `/setup hoster_role`.',
           });
           return;
         }
 
         if (!clipsLinkRaw || !isValidClipLink(clipsLinkRaw)) {
           await interaction.editReply({
-            content: '❌ Invalid link. Please provide a valid URL starting with http:// or https://',
+            content: 'âŒ Invalid link. Please provide a valid URL starting with http:// or https://',
           });
           return;
         }
@@ -4043,7 +4043,7 @@ export async function handleInteractions(
         const winnerEloGain = parseInt(winnerEloGainRaw || '', 10);
         const loserEloLoss = parseInt(loserEloLossRaw || '', 10);
         if (isNaN(winnerEloGain) || winnerEloGain < 0 || isNaN(loserEloLoss) || loserEloLoss < 0) {
-          await interaction.editReply({ content: '❌ Pontos de ELO inválidos. Use números inteiros positivos.' });
+          await interaction.editReply({ content: 'âŒ Pontos de ELO invÃ¡lidos. Use nÃºmeros inteiros positivos.' });
           return;
         }
 
@@ -4065,7 +4065,7 @@ export async function handleInteractions(
         await refreshGuildPanel(client, db, loserGuildId).catch(() => {});
 
         await interaction.editReply({
-          content: `✅ War finalizada. Ganhador: **${winnerGuild?.name || 'Unknown'}** | Score: **${winnerScore}-${loserScore}** | Clips: ${clipsLinkRaw}\n📊 ELO: +${winnerEloGain} / -${loserEloLoss}. Fechando ticket...`,
+          content: `âœ… War finalizada. Ganhador: **${winnerGuild?.name || 'Unknown'}** | Score: **${winnerScore}-${loserScore}** | Clips: ${clipsLinkRaw}\nðŸ“Š ELO: +${winnerEloGain} / -${loserEloLoss}. Fechando ticket...`,
         });
 
         if (interaction.channel && 'delete' in interaction.channel) {
@@ -4084,25 +4084,25 @@ export async function handleInteractions(
         const parsedScore = parseWarScore(scoreValue || '');
 
         if (!war || !winnerGuildId || !parsedScore || !['PENDING', 'ACCEPTED'].includes(war.status)) {
-          await interaction.editReply({ content: '❌ Esta war não está disponível para finalização.' });
+          await interaction.editReply({ content: 'âŒ Esta war nÃ£o estÃ¡ disponÃ­vel para finalizaÃ§Ã£o.' });
           return;
         }
 
         if (![war.openerGuildId, war.opponentGuildId].includes(winnerGuildId)) {
-          await interaction.editReply({ content: '❌ Ganhador inválido.' });
+          await interaction.editReply({ content: 'âŒ Ganhador invÃ¡lido.' });
           return;
         }
 
         const member = await interaction.guild?.members.fetch(interaction.user.id).catch(() => null);
         if (!canMemberFinalizeTicket(member, db, interaction.guildId)) {
-          await interaction.editReply({ content: '❌ Sem permissão para finalizar. Configure com `/setup hoster_role`.' });
+          await interaction.editReply({ content: 'âŒ Sem permissÃ£o para finalizar. Configure com `/setup hoster_role`.' });
           return;
         }
 
         const winnerEloGain = parseInt(interaction.fields.getTextInputValue('winner_elo_gain')?.trim() || '', 10);
         const loserEloLoss = parseInt(interaction.fields.getTextInputValue('loser_elo_loss')?.trim() || '', 10);
         if (isNaN(winnerEloGain) || winnerEloGain < 0 || isNaN(loserEloLoss) || loserEloLoss < 0) {
-          await interaction.editReply({ content: '❌ Pontos de ELO inválidos. Use números inteiros positivos.' });
+          await interaction.editReply({ content: 'âŒ Pontos de ELO invÃ¡lidos. Use nÃºmeros inteiros positivos.' });
           return;
         }
 
@@ -4115,7 +4115,7 @@ export async function handleInteractions(
         await refreshGuildPanel(client, db, loserGuildId).catch(() => {});
 
         await interaction.editReply({
-          content: `✅ War finalizada. Ganhador: **${winnerGuild?.name || 'Unknown'}** | Score: **${winnerScore}-${loserScore}**\n📊 ELO: +${winnerEloGain} / -${loserEloLoss}. Fechando ticket...`,
+          content: `âœ… War finalizada. Ganhador: **${winnerGuild?.name || 'Unknown'}** | Score: **${winnerScore}-${loserScore}**\nðŸ“Š ELO: +${winnerEloGain} / -${loserEloLoss}. Fechando ticket...`,
         });
 
         if (interaction.channel && 'delete' in interaction.channel) {
@@ -4132,14 +4132,14 @@ export async function handleInteractions(
         const warId = Number(warIdRaw);
 
         if (!winnerGuildId || !loserGuildId) {
-          await interaction.editReply({ content: '❌ Dados inválidos.' });
+          await interaction.editReply({ content: 'âŒ Dados invÃ¡lidos.' });
           return;
         }
 
         const winnerEloGain = parseInt(interaction.fields.getTextInputValue('winner_elo_gain')?.trim() || '', 10);
         const loserEloLoss = parseInt(interaction.fields.getTextInputValue('loser_elo_loss')?.trim() || '', 10);
         if (isNaN(winnerEloGain) || winnerEloGain < 0 || isNaN(loserEloLoss) || loserEloLoss < 0) {
-          await interaction.editReply({ content: '❌ Pontos de ELO inválidos. Use números inteiros positivos.' });
+          await interaction.editReply({ content: 'âŒ Pontos de ELO invÃ¡lidos. Use nÃºmeros inteiros positivos.' });
           return;
         }
 
@@ -4148,7 +4148,7 @@ export async function handleInteractions(
         await refreshGuildPanel(client, db, loserGuildId).catch(() => {});
 
         await interaction.editReply({
-          content: `✅ ELO aplicado! Ganhador: +${winnerEloGain} | Perdedor: -${loserEloLoss}`,
+          content: `âœ… ELO aplicado! Ganhador: +${winnerEloGain} | Perdedor: -${loserEloLoss}`,
         });
         return;
       }
@@ -4158,9 +4158,9 @@ export async function handleInteractions(
     if (discordCode === 10062 || discordCode === 'InteractionAlreadyReplied') {
       return;
     }
-    // 40060: another bot instance already acknowledged this interaction — nothing to do
+    // 40060: another bot instance already acknowledged this interaction â€” nothing to do
     if (discordCode === 40060) {
-      console.warn(`[40060] Interaction ${(interaction as any)?.id} already acked by another instance — skipping.`);
+      console.warn(`[40060] Interaction ${(interaction as any)?.id} already acked by another instance â€” skipping.`);
       return;
     }
     console.error('Error while handling interaction:', error);
@@ -4184,11 +4184,11 @@ export async function handleInteractions(
       try {
         if (interaction.replied) {
           await interaction.editReply({
-            content: '❌ An unexpected error occurred while processing your request.',
+            content: 'âŒ An unexpected error occurred while processing your request.',
           });
         } else {
           await interaction.reply({
-            content: '❌ An unexpected error occurred while processing your request.',
+            content: 'âŒ An unexpected error occurred while processing your request.',
             flags: MessageFlags.Ephemeral,
           });
         }
@@ -4200,7 +4200,7 @@ export async function handleInteractions(
           try {
             if (interaction && typeof interaction.followUp === 'function') {
               await interaction.followUp({
-                content: '❌ An unexpected error occurred while processing your request.',
+                content: 'âŒ An unexpected error occurred while processing your request.',
                 flags: MessageFlags.Ephemeral,
               });
             }
@@ -4327,7 +4327,7 @@ async function unlockWagerTicketChat(interaction: any, channel: any, participant
   const mentionRoles = mentionSetting ? mentionSetting.split(',').filter(Boolean) : getHosterRoleIds(db, channel.guildId);
   const mentionStr = mentionRoles.map((r: string) => `<@&${r}>`).join(' ');
   await channel.send({
-    content: `✅ Wager accepted. Chat unlocked. ${mentionStr}`,
+    content: `âœ… Wager accepted. Chat unlocked. ${mentionStr}`,
     allowedMentions: { roles: mentionRoles },
   }).catch(() => null);
 }
