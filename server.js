@@ -461,14 +461,44 @@ function syncWarStatsToPlayerLB(stats, winner, org1, org2, elo_org1, elo_org2) {
     const existing  = db.prepare('SELECT * FROM players WHERE LOWER(name) = LOWER(?)').get(name);
     if (existing) {
       db.prepare('UPDATE players SET elo=?,wins=?,losses=? WHERE id=?').run(
-        (existing.elo || 1000) + eloDelta,
+        (existing.elo ?? 0) + eloDelta,
         (existing.wins   || 0) + (isWin  ? 1 : 0),
         (existing.losses || 0) + (isLoss ? 1 : 0),
         existing.id
       );
     } else {
       db.prepare('INSERT INTO players (name,org,elo,wins,losses) VALUES (?,?,?,?,?)').run(
-        name, playerOrg, 1000 + eloDelta, isWin ? 1 : 0, isLoss ? 1 : 0
+        name, playerOrg, eloDelta, isWin ? 1 : 0, isLoss ? 1 : 0
+      );
+    }
+  }
+}
+
+function reverseWarStatsFromPlayerLB(stats, winner, org1, org2, elo_org1, elo_org2) {
+  if (!Array.isArray(stats) || !stats.length) return;
+  const killVal  = parseFloat(db.prepare("SELECT value FROM site_settings WHERE key='stat_elo_per_kill'").get()?.value  ?? '2.5');
+  const deathVal = parseFloat(db.prepare("SELECT value FROM site_settings WHERE key='stat_elo_per_death'").get()?.value ?? '-2.5');
+  for (const s of stats) {
+    const name = (s.player || '').trim();
+    if (!name) continue;
+    const kills   = parseInt(s.kills)  || 0;
+    const deaths  = parseInt(s.deaths) || 0;
+    const kdDelta = Math.round(kills * killVal + deaths * deathVal);
+    const guildElo = s.team === 1 ? (parseInt(elo_org1) || 0) : s.team === 2 ? (parseInt(elo_org2) || 0) : 0;
+    const eloDelta = kdDelta + guildElo;
+    let wasWin = false, wasLoss = false;
+    if (winner && s.team) {
+      if      (s.team === 1 && winner === org1) wasWin  = true;
+      else if (s.team === 2 && winner === org2) wasWin  = true;
+      else if (s.team === 1 || s.team === 2)    wasLoss = true;
+    }
+    const existing = db.prepare('SELECT * FROM players WHERE LOWER(name) = LOWER(?)').get(name);
+    if (existing) {
+      db.prepare('UPDATE players SET elo=?,wins=?,losses=? WHERE id=?').run(
+        (existing.elo ?? 0) - eloDelta,
+        Math.max(0, (existing.wins   || 0) - (wasWin  ? 1 : 0)),
+        Math.max(0, (existing.losses || 0) - (wasLoss ? 1 : 0)),
+        existing.id
       );
     }
   }
@@ -489,11 +519,16 @@ app.post('/api/logs/war', requireAdmin, requirePerm('logs'), (req, res) => {
 
 app.put('/api/logs/war/:id', requireAdmin, requirePerm('logs'), (req, res) => {
   const { date, org1, org2, score1, score2, winner, wager, region, season, notes, elo_org1, elo_org2, stats } = req.body;
-  const existing = db.prepare('SELECT stats_synced FROM war_logs WHERE id=?').get(req.params.id);
+  const oldLog = db.prepare('SELECT * FROM war_logs WHERE id=?').get(req.params.id);
+  // Reverse previous sync before applying new data
+  if (oldLog?.stats_synced) {
+    const oldStats = oldLog.stats ? JSON.parse(oldLog.stats) : [];
+    reverseWarStatsFromPlayerLB(oldStats, oldLog.winner, oldLog.org1, oldLog.org2, oldLog.elo_org1, oldLog.elo_org2);
+  }
   db.prepare(
-    'UPDATE war_logs SET date=?,org1=?,org2=?,score1=?,score2=?,winner=?,wager=?,region=?,season=?,notes=?,elo_org1=?,elo_org2=?,stats=? WHERE id=?'
+    'UPDATE war_logs SET date=?,org1=?,org2=?,score1=?,score2=?,winner=?,wager=?,region=?,season=?,notes=?,elo_org1=?,elo_org2=?,stats=?,stats_synced=0 WHERE id=?'
   ).run(date, org1, org2, score1||0, score2||0, winner||'', wager||'', region||'NA', season||'S3', notes||'', elo_org1??null, elo_org2??null, stats ? JSON.stringify(stats) : '', req.params.id);
-  if (Array.isArray(stats) && stats.length && !existing?.stats_synced) {
+  if (Array.isArray(stats) && stats.length) {
     syncWarStatsToPlayerLB(stats, winner || '', org1, org2, elo_org1, elo_org2);
     db.prepare('UPDATE war_logs SET stats_synced=1 WHERE id=?').run(req.params.id);
   }
