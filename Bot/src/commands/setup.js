@@ -69,6 +69,14 @@ export const data = new SlashCommandBuilder()
     .setDescription('Public channel where approved signings are announced')
     .addChannelTypes(ChannelType.GuildText)
     .setRequired(false))
+    .addChannelOption(o => o.setName('signing_cooldown_notify_channel')
+    .setDescription('Channel where players are pinged when their signing cooldown expires')
+    .addChannelTypes(ChannelType.GuildText)
+    .setRequired(false))
+    .addChannelOption(o => o.setName('dodge_notify_channel')
+    .setDescription('Channel where guilds are pinged when their dodge grace period expires')
+    .addChannelTypes(ChannelType.GuildText)
+    .setRequired(false))
     .addIntegerOption(o => o.setName('signing_cooldown_days')
     .setDescription('How many days a player must wait before being signed after leaving a guild (0 = disabled)')
     .setMinValue(0)
@@ -142,6 +150,12 @@ export async function execute(interaction, db) {
     // Public signings announcement channel
     const signingsAnnounce = interaction.options.getChannel('signings_announce_channel');
     save('signings_announce_channel_id', signingsAnnounce?.id ?? null, 'Signings Announce Channel', signingsAnnounce ? `<#${signingsAnnounce.id}>` : '');
+    // Signing cooldown expiry notification channel
+    const cooldownNotifyCh = interaction.options.getChannel('signing_cooldown_notify_channel');
+    save('signing_cooldown_notify_channel_id', cooldownNotifyCh?.id ?? null, 'Cooldown Notify Channel', cooldownNotifyCh ? `<#${cooldownNotifyCh.id}>` : '');
+    // Dodge grace period expiry notification channel
+    const dodgeNotifyCh = interaction.options.getChannel('dodge_notify_channel');
+    save('dodge_notify_channel_id', dodgeNotifyCh?.id ?? null, 'Dodge Notify Channel', dodgeNotifyCh ? `<#${dodgeNotifyCh.id}>` : '');
     // Signing cooldown
     const cooldownDays = interaction.options.getInteger('signing_cooldown_days');
     if (cooldownDays !== null) {

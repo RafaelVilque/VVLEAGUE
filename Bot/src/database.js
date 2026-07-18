@@ -187,6 +187,11 @@ function setupBotTables(db) {
     try { db.exec("ALTER TABLE wager_amount_collection ADD COLUMN rules_vote_team2 TEXT"); } catch (_) {}
     try { db.exec("ALTER TABLE war_player_collection ADD COLUMN step1_msg_id TEXT"); } catch (_) {}
     try { db.exec("ALTER TABLE war_player_collection ADD COLUMN step2_msg_id TEXT"); } catch (_) {}
+    // Signing cooldown notifications
+    try { db.exec("ALTER TABLE cooldowns ADD COLUMN notify_at TEXT"); } catch (_) {}
+    try { db.exec("ALTER TABLE cooldowns ADD COLUMN notify_sent INTEGER NOT NULL DEFAULT 0"); } catch (_) {}
+    // Dodge grace period notifications
+    try { db.exec("ALTER TABLE guild_dodge_history ADD COLUMN notify_sent INTEGER NOT NULL DEFAULT 0"); } catch (_) {}
 }
 export function initPlayerCollection(db, warId, guild1Id, guild2Id) {
     db.prepare('INSERT OR REPLACE INTO war_player_collection (war_id, guild1_id, guild2_id, guild1_players, guild2_players, step) VALUES (?, ?, ?, ?, ?, ?)').run(warId, guild1Id, guild2Id, '[]', '[]', 1);
@@ -281,11 +286,12 @@ export function isOnCooldown(db, discordId, cooldownDays) {
     if (!cooldownDays || cooldownDays <= 0) return false;
     const cd = getCooldown(db, discordId);
     if (!cd) return false;
-    const expiresAt = new Date(cd.releasedAt.getTime() + cooldownDays * 24 * 60 * 60 * 1000);
+    const expiresAt = new Date(cd.releasedAt.getTime() + cooldownDays * 5 * 60 * 1000);
     return new Date() < expiresAt;
 }
-export function setCooldown(db, discordId, guildName = '') {
-    db.prepare('INSERT OR REPLACE INTO cooldowns (discord_id, released_at, guild_name) VALUES (?, ?, ?)').run(discordId, new Date().toISOString(), guildName);
+export function setCooldown(db, discordId, guildName = '', notifyAt = null) {
+    db.prepare('INSERT OR REPLACE INTO cooldowns (discord_id, released_at, guild_name, notify_at, notify_sent) VALUES (?, ?, ?, ?, 0)')
+        .run(discordId, new Date().toISOString(), guildName, notifyAt);
 }
 export function clearCooldown(db, discordId) {
     db.prepare('DELETE FROM cooldowns WHERE discord_id = ?').run(discordId);
@@ -740,7 +746,7 @@ export function recordGuildDodge(db, guildId, guildName) {
             eloPenaltyApplied = true;
         }
     }
-    const graceUntil = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    const graceUntil = new Date(Date.now() + 5 * 60 * 1000).toISOString();
     db.prepare('INSERT INTO guild_dodge_history (guild_id, guild_name, grace_until) VALUES (?, ?, ?)').run(guildId, guildName || '', graceUntil);
     return { eloPenaltyApplied };
 }
@@ -758,5 +764,21 @@ export function getAllDodgeRecords(db) {
         LEFT JOIN Guilds g ON g.id = d.guild_id
         ORDER BY d.dodged_at DESC
     `).all();
+}
+export function getExpiredCooldownsToNotify(db) {
+    return db.prepare(
+        "SELECT * FROM cooldowns WHERE notify_at IS NOT NULL AND notify_at <= datetime('now') AND notify_sent = 0"
+    ).all();
+}
+export function markCooldownNotified(db, discordId) {
+    db.prepare("UPDATE cooldowns SET notify_sent = 1 WHERE discord_id = ?").run(discordId);
+}
+export function getExpiredDodgesToNotify(db) {
+    return db.prepare(
+        "SELECT d.*, g.leaderId FROM guild_dodge_history d LEFT JOIN Guilds g ON g.id = d.guild_id WHERE d.grace_until <= datetime('now') AND d.notify_sent = 0"
+    ).all();
+}
+export function markDodgeNotified(db, id) {
+    db.prepare("UPDATE guild_dodge_history SET notify_sent = 1 WHERE id = ?").run(id);
 }
 //# sourceMappingURL=database.js.map

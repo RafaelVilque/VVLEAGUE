@@ -15,7 +15,7 @@ import { Client, GatewayIntentBits, Partials } from 'discord.js';
 import Database from 'better-sqlite3';
 import { registerCommands, loadCommands } from './commands.js';
 import { handleInteractions, handleWagerAmountMessage } from './Interaction.js';
-import { setupDatabase, checkExpiredTickets, autoDodgeWar, autoDodgeWager, getPendingTicketsForReminder } from './database.js';
+import { setupDatabase, checkExpiredTickets, autoDodgeWar, autoDodgeWager, getPendingTicketsForReminder, getSetting, getExpiredCooldownsToNotify, markCooldownNotified, getExpiredDodgesToNotify, markDodgeNotified } from './database.js';
 import dotenv from 'dotenv';
 dotenv.config();
 const TOKEN = process.env.DISCORD_TOKEN;
@@ -59,6 +59,11 @@ client.once('ready', async () => {
             console.error('Error in periodic ticket check:', error);
         }
     }, 60 * 60 * 1000); // Check every hour
+    // Cooldown + dodge grace period notifications — check every 60 seconds
+    setInterval(async () => {
+        try { await sendCooldownNotifications(client, db); } catch (e) { console.error('Cooldown notify error:', e); }
+        try { await sendDodgeNotifications(client, db); } catch (e) { console.error('Dodge notify error:', e); }
+    }, 60 * 1000);
     // Initial check
     setTimeout(async () => {
         try {
@@ -146,6 +151,35 @@ async function sendReminder(client, db, ticket, type) {
         }
         catch (error) {
             // Ignore DM errors
+        }
+    }
+}
+async function sendCooldownNotifications(client, db) {
+    const expired = getExpiredCooldownsToNotify(db);
+    for (const row of expired) {
+        markCooldownNotified(db, row.discord_id);
+        for (const [serverId] of client.guilds.cache) {
+            const channelId = getSetting(db, `${serverId}_signing_cooldown_notify_channel_id`);
+            if (!channelId) continue;
+            const channel = await client.channels.fetch(channelId).catch(() => null);
+            if (!channel?.isTextBased() || !('send' in channel)) continue;
+            await channel.send(`✅ <@${row.discord_id}> your signing cooldown has ended! You can now be signed to a new guild.`).catch(() => null);
+            break;
+        }
+    }
+}
+async function sendDodgeNotifications(client, db) {
+    const expired = getExpiredDodgesToNotify(db);
+    for (const row of expired) {
+        markDodgeNotified(db, row.id);
+        for (const [serverId] of client.guilds.cache) {
+            const channelId = getSetting(db, `${serverId}_dodge_notify_channel_id`);
+            if (!channelId) continue;
+            const channel = await client.channels.fetch(channelId).catch(() => null);
+            if (!channel?.isTextBased() || !('send' in channel)) continue;
+            const leaderMention = row.leaderId ? `<@${row.leaderId}>` : `**${row.guild_name}**`;
+            await channel.send(`✅ ${leaderMention} (**${row.guild_name}**) your dodge grace period has ended! Your guild can now be challenged again.`).catch(() => null);
+            break;
         }
     }
 }
