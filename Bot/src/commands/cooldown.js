@@ -31,7 +31,7 @@ export async function execute(interaction, db) {
     for (const row of rows) {
         const releasedAt = new Date(row.released_at);
         if (cooldownDays > 0) {
-            const expiresAt = new Date(releasedAt.getTime() + cooldownDays * 24 * 60 * 60 * 1000);
+            const expiresAt = new Date(releasedAt.getTime() + cooldownDays * 5 * 60 * 1000);
             if (now >= expiresAt.getTime()) continue; // cooldown already expired
             const expiresTs = Math.floor(expiresAt.getTime() / 1000);
             const guildDisplay = row.guild_name ? `**${row.guild_name}**` : '*Unknown guild*';

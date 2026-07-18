@@ -1191,7 +1191,7 @@ export async function handleInteractions(interaction, client, db, commands) {
                 let dodgeExtra = '';
                 if (dodgingGuild) {
                     const { eloPenaltyApplied } = recordGuildDodge(db, dodgingGuild.id, dodgingGuild.name);
-                    const graceEnd = new Date(Date.now() + 24 * 60 * 60 * 1000);
+                    const graceEnd = new Date(Date.now() + 5 * 60 * 1000);
                     const graceTs = Math.floor(graceEnd.getTime() / 1000);
                     dodgeExtra = `\n⏳ **${dodgingGuild.name}** has a **5-minute grace period** and cannot be challenged until <t:${graceTs}:F>.`;
                     if (eloPenaltyApplied) {
