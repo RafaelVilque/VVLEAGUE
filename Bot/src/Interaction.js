@@ -3845,13 +3845,11 @@ export async function handleInteractions(interaction, client, db, commands) {
                 if (collection) {
                     const g1Raw = collection.guild1_players ? JSON.parse(collection.guild1_players) : [];
                     const g2Raw = collection.guild2_players ? JSON.parse(collection.guild2_players) : [];
-                    // Winner players first, then loser players
                     const winnerIsGuild1 = winnerGuildId === collection.guild1_id;
                     const winnerPlayers = winnerIsGuild1 ? g1Raw : g2Raw;
-                    const loserPlayers = winnerIsGuild1 ? g2Raw : g1Raw;
-                    [...winnerPlayers, ...loserPlayers].forEach(username => {
-                        warStats.push({ player: username, kills: null, deaths: null, notes: '' });
-                    });
+                    const loserPlayers  = winnerIsGuild1 ? g2Raw : g1Raw;
+                    winnerPlayers.forEach(username => warStats.push({ player: username, kills: null, deaths: null, notes: '', team: 1 }));
+                    loserPlayers.forEach(username  => warStats.push({ player: username, kills: null, deaths: null, notes: '', team: 2 }));
                 }
                 console.log(`[wt_quick_modal] war=${war.id} collection=${collection ? 'found' : 'NULL'} warStats=${warStats.length} players:`, JSON.stringify(warStats));
                 // Create war log on site
