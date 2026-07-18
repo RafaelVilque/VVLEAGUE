@@ -1193,7 +1193,7 @@ export async function handleInteractions(interaction, client, db, commands) {
                     const { eloPenaltyApplied } = recordGuildDodge(db, dodgingGuild.id, dodgingGuild.name);
                     const graceEnd = new Date(Date.now() + 24 * 60 * 60 * 1000);
                     const graceTs = Math.floor(graceEnd.getTime() / 1000);
-                    dodgeExtra = `\n⏳ **${dodgingGuild.name}** has a **1-day grace period** and cannot be challenged until <t:${graceTs}:F>.`;
+                    dodgeExtra = `\n⏳ **${dodgingGuild.name}** has a **5-minute grace period** and cannot be challenged until <t:${graceTs}:F>.`;
                     if (eloPenaltyApplied) {
                         dodgeExtra += `\n⚠️ **-25 ELO** applied to **${dodgingGuild.name}** for repeat dodge within 3 days.`;
                     }
@@ -2151,12 +2151,12 @@ export async function handleInteractions(interaction, client, db, commands) {
                 const cooldownDaysSetting = interaction.guildId ? parseInt(getSetting(db, `${interaction.guildId}_signing_cooldown_days`) || '0') : 0;
                 if (cooldownDaysSetting > 0 && isOnCooldown(db, targetUserId, cooldownDaysSetting)) {
                     const cd = getCooldown(db, targetUserId);
-                    const expiresAt = cd ? new Date(cd.releasedAt.getTime() + cooldownDaysSetting * 24 * 60 * 60 * 1000) : null;
+                    const expiresAt = cd ? new Date(cd.releasedAt.getTime() + cooldownDaysSetting * 5 * 60 * 1000) : null;
                     const remaining = expiresAt ? `<t:${Math.floor(expiresAt.getTime() / 1000)}:R>` : 'soon';
                     await interaction.update({ content: `❌ <@${targetUserId}> is on a signing cooldown and cannot be signed until ${remaining}.`, embeds: [], components: [] });
                     return;
                 }
-                const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+                const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
                 const inviteId = createInvite(db, guildId, targetUserId, roleType, interaction.user.id, expiresAt);
                 const inviteRow = buildInviteDecisionRow(inviteId, roleType, interaction.guildId ?? '');
                 const guild = getGuildById(db, guildId);
@@ -2438,7 +2438,9 @@ export async function handleInteractions(interaction, client, db, commands) {
                         await interaction.update({ content: '❌ Unable to remove the selected member.', embeds: [], components: [] });
                         return;
                     }
-                    setCooldown(db, targetUserId, guild?.name || '');
+                    const _cdDays1 = parseInt(getSetting(db, `${interaction.guildId}_signing_cooldown_days`) || '0');
+                    const _cdNotifyAt1 = _cdDays1 > 0 ? new Date(Date.now() + _cdDays1 * 5 * 60 * 1000).toISOString() : null;
+                    setCooldown(db, targetUserId, guild?.name || '', _cdNotifyAt1);
                     await maybeRemoveDiscordRoleByType(interaction, db, targetUserId, roleType);
                     await removeGuildNameRole(client, interaction.guildId ?? undefined, guild, targetUserId);
                     // Sync removal to site
@@ -2571,7 +2573,10 @@ export async function handleInteractions(interaction, client, db, commands) {
                     await interaction.update({ content: '⚠️ Member was already removed.', components: [], embeds: [] });
                     return;
                 }
-                setCooldown(db, targetUserId, guild?.name || '');
+                const _cdServerId = discordGuildId || interaction.guildId;
+                const _cdDays2 = parseInt(getSetting(db, `${_cdServerId}_signing_cooldown_days`) || '0');
+                const _cdNotifyAt2 = _cdDays2 > 0 ? new Date(Date.now() + _cdDays2 * 5 * 60 * 1000).toISOString() : null;
+                setCooldown(db, targetUserId, guild?.name || '', _cdNotifyAt2);
                 // Remove type-specific role (CO_LEADER / MANAGER)
                 if (discordGuildId) {
                     const roleId = getDiscordRoleIdForRoleType(roleType, db, discordGuildId);
