@@ -366,7 +366,7 @@ body::after {
 }
 
 .stats-table th, .leaderboard-table th {
-  background: rgba(91,173,255,0.07);
+  background: rgba(5,9,26,0.97);
   color: var(--yellow);
   font-size: 0.72rem; letter-spacing: 0.18em; text-transform: uppercase;
   padding: 0.65rem 0.7rem;
