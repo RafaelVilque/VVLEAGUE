@@ -305,6 +305,8 @@ if (warCols.find(c => c.name === 'wager' && c.type === 'INTEGER')) {
 try { db.exec('ALTER TABLE war_logs ADD COLUMN stats TEXT DEFAULT ""'); } catch(e) {}
 try { db.exec('ALTER TABLE wager_records ADD COLUMN stats TEXT DEFAULT ""'); } catch(e) {}
 try { db.exec('ALTER TABLE war_logs ADD COLUMN stats_synced INTEGER DEFAULT 0'); } catch(e) {}
+try { db.exec("ALTER TABLE war_logs ADD COLUMN mvp TEXT DEFAULT ''"); } catch(e) {}
+try { db.exec("ALTER TABLE season_logs ADD COLUMN mvp TEXT DEFAULT ''"); } catch(e) {}
 // Site settings table (ELO per kill/death etc.)
 db.exec(`CREATE TABLE IF NOT EXISTS site_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAULT '')`);
 // Ensure default ELO stat settings exist
@@ -505,11 +507,11 @@ function reverseWarStatsFromPlayerLB(stats, winner, org1, org2, elo_org1, elo_or
 }
 
 app.post('/api/logs/war', requireAdmin, requirePerm('logs'), (req, res) => {
-  const { date, org1, org2, score1, score2, winner, wager, region, season, notes, elo_org1, elo_org2, stats } = req.body;
+  const { date, org1, org2, score1, score2, winner, wager, region, season, notes, elo_org1, elo_org2, stats, mvp } = req.body;
   if (!date || !org1 || !org2) return res.status(400).json({ error: 'date, org1, org2 required' });
   const r = db.prepare(
-    'INSERT INTO war_logs (date,org1,org2,score1,score2,winner,wager,region,season,notes,elo_org1,elo_org2,stats) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)'
-  ).run(date, org1, org2, score1||0, score2||0, winner||'', wager||'', region||'NA', season||'S3', notes||'', elo_org1??null, elo_org2??null, stats ? JSON.stringify(stats) : '');
+    'INSERT INTO war_logs (date,org1,org2,score1,score2,winner,wager,region,season,notes,elo_org1,elo_org2,stats,mvp) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+  ).run(date, org1, org2, score1||0, score2||0, winner||'', wager||'', region||'NA', season||'S3', notes||'', elo_org1??null, elo_org2??null, stats ? JSON.stringify(stats) : '', mvp||'');
   if (Array.isArray(stats) && stats.length) {
     syncWarStatsToPlayerLB(stats, winner || '', org1, org2, elo_org1, elo_org2);
     db.prepare('UPDATE war_logs SET stats_synced=1 WHERE id=?').run(r.lastInsertRowid);
@@ -518,7 +520,7 @@ app.post('/api/logs/war', requireAdmin, requirePerm('logs'), (req, res) => {
 });
 
 app.put('/api/logs/war/:id', requireAdmin, requirePerm('logs'), (req, res) => {
-  const { date, org1, org2, score1, score2, winner, wager, region, season, notes, elo_org1, elo_org2, stats } = req.body;
+  const { date, org1, org2, score1, score2, winner, wager, region, season, notes, elo_org1, elo_org2, stats, mvp } = req.body;
   const oldLog = db.prepare('SELECT * FROM war_logs WHERE id=?').get(req.params.id);
   // Reverse previous sync before applying new data
   if (oldLog?.stats_synced) {
@@ -526,8 +528,8 @@ app.put('/api/logs/war/:id', requireAdmin, requirePerm('logs'), (req, res) => {
     reverseWarStatsFromPlayerLB(oldStats, oldLog.winner, oldLog.org1, oldLog.org2, oldLog.elo_org1, oldLog.elo_org2);
   }
   db.prepare(
-    'UPDATE war_logs SET date=?,org1=?,org2=?,score1=?,score2=?,winner=?,wager=?,region=?,season=?,notes=?,elo_org1=?,elo_org2=?,stats=?,stats_synced=0 WHERE id=?'
-  ).run(date, org1, org2, score1||0, score2||0, winner||'', wager||'', region||'NA', season||'S3', notes||'', elo_org1??null, elo_org2??null, stats ? JSON.stringify(stats) : '', req.params.id);
+    'UPDATE war_logs SET date=?,org1=?,org2=?,score1=?,score2=?,winner=?,wager=?,region=?,season=?,notes=?,elo_org1=?,elo_org2=?,stats=?,stats_synced=0,mvp=? WHERE id=?'
+  ).run(date, org1, org2, score1||0, score2||0, winner||'', wager||'', region||'NA', season||'S3', notes||'', elo_org1??null, elo_org2??null, stats ? JSON.stringify(stats) : '', mvp||'', req.params.id);
   if (Array.isArray(stats) && stats.length) {
     syncWarStatsToPlayerLB(stats, winner || '', org1, org2, elo_org1, elo_org2);
     db.prepare('UPDATE war_logs SET stats_synced=1 WHERE id=?').run(req.params.id);
@@ -554,19 +556,19 @@ app.get('/api/logs/season', (req, res) => {
 });
 
 app.post('/api/logs/season', requireAdmin, requirePerm('logs'), (req, res) => {
-  const { season, date, event_name, org1, org2, score1, score2, winner, region, notes, points_winner, points_loser, stats } = req.body;
+  const { season, date, event_name, org1, org2, score1, score2, winner, region, notes, points_winner, points_loser, stats, mvp } = req.body;
   if (!season || !date || !org1 || !org2) return res.status(400).json({ error: 'season, date, org1, org2 required' });
   const r = db.prepare(
-    'INSERT INTO season_logs (season,date,event_name,org1,org2,score1,score2,winner,region,notes,points_winner,points_loser,stats) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)'
-  ).run(season, date, event_name||'', org1, org2, score1||0, score2||0, winner||'', region||'NA', notes||'', points_winner||0, points_loser||0, stats ? JSON.stringify(stats) : '');
+    'INSERT INTO season_logs (season,date,event_name,org1,org2,score1,score2,winner,region,notes,points_winner,points_loser,stats,mvp) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+  ).run(season, date, event_name||'', org1, org2, score1||0, score2||0, winner||'', region||'NA', notes||'', points_winner||0, points_loser||0, stats ? JSON.stringify(stats) : '', mvp||'');
   res.json({ id: r.lastInsertRowid });
 });
 
 app.put('/api/logs/season/:id', requireAdmin, requirePerm('logs'), (req, res) => {
-  const { season, date, event_name, org1, org2, score1, score2, winner, region, notes, points_winner, points_loser, stats } = req.body;
+  const { season, date, event_name, org1, org2, score1, score2, winner, region, notes, points_winner, points_loser, stats, mvp } = req.body;
   db.prepare(
-    'UPDATE season_logs SET season=?,date=?,event_name=?,org1=?,org2=?,score1=?,score2=?,winner=?,region=?,notes=?,points_winner=?,points_loser=?,stats=? WHERE id=?'
-  ).run(season, date, event_name||'', org1, org2, score1||0, score2||0, winner||'', region||'NA', notes||'', points_winner||0, points_loser||0, stats ? JSON.stringify(stats) : '', req.params.id);
+    'UPDATE season_logs SET season=?,date=?,event_name=?,org1=?,org2=?,score1=?,score2=?,winner=?,region=?,notes=?,points_winner=?,points_loser=?,stats=?,mvp=? WHERE id=?'
+  ).run(season, date, event_name||'', org1, org2, score1||0, score2||0, winner||'', region||'NA', notes||'', points_winner||0, points_loser||0, stats ? JSON.stringify(stats) : '', mvp||'', req.params.id);
   res.json({ ok: true });
 });
 
@@ -969,14 +971,14 @@ app.post('/api/bot/logs/wager', requireBotAuth, (req, res) => {
 });
 
 app.post('/api/bot/logs/war', requireBotAuth, (req, res) => {
-  const { date, org1, org2, score1, score2, winner, region, season, elo_org1, elo_org2, stats } = req.body;
+  const { date, org1, org2, score1, score2, winner, region, season, elo_org1, elo_org2, stats, mvp } = req.body;
   if (!date || !org1 || !org2) return res.status(400).json({ error: 'date, org1, org2 required' });
   console.log(`[bot/logs/war] received org1=${org1} org2=${org2} statsIsArray=${Array.isArray(stats)} statsLen=${Array.isArray(stats)?stats.length:'N/A'}`);
   const statsJson = Array.isArray(stats) && stats.length > 0 ? JSON.stringify(stats) : '';
   console.log(`[bot/logs/war] statsJson length=${statsJson.length}`);
   const r = db.prepare(
-    'INSERT INTO war_logs (date,org1,org2,score1,score2,winner,wager,region,season,notes,elo_org1,elo_org2,stats) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)'
-  ).run(date, org1.toUpperCase(), org2.toUpperCase(), score1||0, score2||0, winner||'', '', region||'NA', season||'', '', elo_org1??null, elo_org2??null, statsJson);
+    'INSERT INTO war_logs (date,org1,org2,score1,score2,winner,wager,region,season,notes,elo_org1,elo_org2,stats,mvp) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+  ).run(date, org1.toUpperCase(), org2.toUpperCase(), score1||0, score2||0, winner||'', '', region||'NA', season||'', '', elo_org1??null, elo_org2??null, statsJson, mvp||'');
   const stored = db.prepare('SELECT stats FROM war_logs WHERE id=?').get(r.lastInsertRowid);
   const storedLen = stored?.stats?.length ?? 0;
   console.log(`[bot/logs/war] inserted id=${r.lastInsertRowid} storedStats length=${storedLen}`);

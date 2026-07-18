@@ -975,7 +975,7 @@ async function loadWarLogs() {
     const eloHtml = (r.elo_org1 == null && r.elo_org2 == null) ? '—' :
       `<span class="${r.elo_org1>0?'stat-wins':r.elo_org1<0?'stat-losses':''}">${r.elo_org1!=null?(r.elo_org1>0?'+':'')+r.elo_org1:'—'}</span>&nbsp;/&nbsp;<span class="${r.elo_org2>0?'stat-wins':r.elo_org2<0?'stat-losses':''}">${r.elo_org2!=null?(r.elo_org2>0?'+':'')+r.elo_org2:'—'}</span>`;
     const statsBtn = stats.length ? `<button class="tbl-btn stats-toggle" onclick="toggleLogStats(this)">▼ STATS</button>` : '';
-    const statsSubrow = stats.length ? `<tr class="log-stats-row" style="display:none;"><td colspan="15">${buildStatsSubrow(stats, r.org1, r.org2, r.elo_org1, r.elo_org2)}</td></tr>` : '';
+    const statsSubrow = stats.length ? `<tr class="log-stats-row" style="display:none;"><td colspan="15">${buildStatsSubrow(stats, r.org1, r.org2, r.elo_org1, r.elo_org2, r.mvp)}</td></tr>` : '';
     return `<tr>
       <td>${r.date}</td>
       <td style="color:var(--blue);font-weight:600;">${r.org1} vs ${r.org2}</td>
@@ -1028,7 +1028,7 @@ async function loadSeasonLogs() {
     const _sDel   = hasPerm('logs_delete') ? `<button class="tbl-btn del" onclick="confirmDelete('season',${r.id})">✕</button>` : '';
     const actBtns = (_sEdit||_sDel) ? `<td>${_sEdit}${_sDel}</td>` : '';
     const statsBtn = stats.length ? `<button class="tbl-btn stats-toggle" onclick="toggleLogStats(this)">▼ STATS</button>` : '';
-    const statsSubrow = stats.length ? `<tr class="log-stats-row" style="display:none;"><td colspan="15">${buildStatsSubrow(stats, r.org1, r.org2)}</td></tr>` : '';
+    const statsSubrow = stats.length ? `<tr class="log-stats-row" style="display:none;"><td colspan="15">${buildStatsSubrow(stats, r.org1, r.org2, null, null, r.mvp)}</td></tr>` : '';
     return `<tr>
       <td>${r.date}</td>
       <td style="color:rgba(160,200,255,.6);font-size:.85rem;">${r.event_name||'—'}</td>
@@ -1138,6 +1138,7 @@ function openLogForm(type, existing) {
         <div class="admin-field"><label class="admin-label">ELO ORG 2 (ex: +20 or -25)</label><input id="lf_elo2" type="number" class="admin-input" value="${e.elo_org2??''}" placeholder="optional" oninput="renderLogStatsTable()"></div>
         <div class="admin-field"><label class="admin-label">SEASON</label><input id="lf_season" class="admin-input" value="${e.season||'S3'}" placeholder="S1, S2, S3..."></div>
         <div class="admin-field"><label class="admin-label">NOTES</label><input id="lf_notes" class="admin-input" value="${e.notes||''}"></div>
+        <div class="admin-field"><label class="admin-label">MVP</label><input id="lf_mvp" class="admin-input" value="${(e.mvp||'').replace(/"/g,'&quot;')}" placeholder="Player name (optional)"></div>
       </div>`;
   } else if (type === 'season') {
     const orgSel = (id, val) => `<select id="${id}" class="admin-select">${orgsData.map(o=>`<option value="${o.tag}" ${val===o.tag?'selected':''}>${o.tag} — ${o.name}</option>`).join('')}</select>`;
@@ -1158,6 +1159,7 @@ function openLogForm(type, existing) {
         <div class="admin-field"><label class="admin-label">POINTS LOSER</label><input id="lf_pts_l" type="number" class="admin-input" value="${e.points_loser??0}" placeholder="ex: -100"></div>
         <div class="admin-field"><label class="admin-label">SEASON</label><input id="lf_season" class="admin-input" value="${e.season||'S3'}"></div>
         <div class="admin-field"><label class="admin-label">NOTES</label><input id="lf_notes" class="admin-input" value="${e.notes||''}"></div>
+        <div class="admin-field"><label class="admin-label">MVP</label><input id="lf_mvp" class="admin-input" value="${(e.mvp||'').replace(/"/g,'&quot;')}" placeholder="Player name (optional)"></div>
       </div>`;
   } else {
     formHtml = `
@@ -1204,9 +1206,9 @@ async function saveLogForm(type, id) {
   let body = {};
   if (type === 'war') {
     const elo1raw = g('lf_elo1'), elo2raw = g('lf_elo2');
-    body = { date:g('lf_date'), org1:g('lf_org1'), org2:g('lf_org2'), score1:parseInt(g('lf_s1'))||0, score2:parseInt(g('lf_s2'))||0, winner:g('lf_winner'), region:g('lf_region'), season:g('lf_season'), notes:g('lf_notes'), elo_org1:elo1raw!==''?parseInt(elo1raw):null, elo_org2:elo2raw!==''?parseInt(elo2raw):null };
+    body = { date:g('lf_date'), org1:g('lf_org1'), org2:g('lf_org2'), score1:parseInt(g('lf_s1'))||0, score2:parseInt(g('lf_s2'))||0, winner:g('lf_winner'), region:g('lf_region'), season:g('lf_season'), notes:g('lf_notes'), elo_org1:elo1raw!==''?parseInt(elo1raw):null, elo_org2:elo2raw!==''?parseInt(elo2raw):null, mvp:g('lf_mvp') };
   } else if (type === 'season') {
-    body = { season:g('lf_season'), date:g('lf_date'), event_name:g('lf_event')||'', org1:g('lf_org1'), org2:g('lf_org2'), score1:parseInt(g('lf_s1'))||0, score2:parseInt(g('lf_s2'))||0, winner:g('lf_winner'), region:g('lf_region'), notes:g('lf_notes'), points_winner:parseInt(g('lf_pts_w'))||0, points_loser:parseInt(g('lf_pts_l'))||0 };
+    body = { season:g('lf_season'), date:g('lf_date'), event_name:g('lf_event')||'', org1:g('lf_org1'), org2:g('lf_org2'), score1:parseInt(g('lf_s1'))||0, score2:parseInt(g('lf_s2'))||0, winner:g('lf_winner'), region:g('lf_region'), notes:g('lf_notes'), points_winner:parseInt(g('lf_pts_w'))||0, points_loser:parseInt(g('lf_pts_l'))||0, mvp:g('lf_mvp') };
   } else {
     body = { date:g('lf_date'), challenger:g('lf_challenger'), challenged:g('lf_challenged'), amount:g('lf_amount'), winner:g('lf_winner'), status:g('lf_status'), paid:document.getElementById('lf_paid').checked, season:g('lf_season'), notes:g('lf_notes') };
   }
@@ -1245,7 +1247,7 @@ function captureFormDraft() {
   const fields = {};
   [['date','lf_date'],['org1','lf_org1'],['org2','lf_org2'],['score1','lf_s1'],['score2','lf_s2'],
    ['winner','lf_winner'],['region','lf_region'],['elo_org1','lf_elo1'],
-   ['elo_org2','lf_elo2'],['season','lf_season'],['notes','lf_notes'],['event_name','lf_event'],
+   ['elo_org2','lf_elo2'],['season','lf_season'],['notes','lf_notes'],['mvp','lf_mvp'],['event_name','lf_event'],
    ['points_winner','lf_pts_w'],['points_loser','lf_pts_l'],['challenger','lf_challenger'],
    ['challenged','lf_challenged'],['amount','lf_amount'],['status','lf_status']].forEach(([k,id]) => {
     const v = fv(id);
@@ -1317,7 +1319,8 @@ function removeStatRow(idx) {
   renderLogStatsTable();
 }
 
-function buildStatsSubrow(stats, org1Name, org2Name, elo_org1, elo_org2) {
+function buildStatsSubrow(stats, org1Name, org2Name, elo_org1, elo_org2, mvp) {
+  const mvpName = (mvp || '').trim().toLowerCase();
   const team1 = stats.filter(s => s.team === 1);
   const team2 = stats.filter(s => s.team === 2);
   const unassigned = stats.filter(s => !s.team || (s.team !== 1 && s.team !== 2));
@@ -1327,8 +1330,12 @@ function buildStatsSubrow(stats, org1Name, org2Name, elo_org1, elo_org2) {
     const elo    = kdElo != null ? Math.round((kdElo + g) * 10) / 10 : (g !== 0 ? g : null);
     const eloStr = elo != null ? (elo > 0 ? '+' : '') + elo : '—';
     const eloClass = elo != null ? (elo > 0 ? 'stat-wins' : elo < 0 ? 'stat-losses' : '') : '';
+    const isMvp = mvpName && (s.player||'').trim().toLowerCase() === mvpName;
+    const playerHtml = isMvp
+      ? `<span style="color:#ffd700;font-weight:700;">👑 ${s.player||'—'}</span>`
+      : `<span>${s.player||'—'}</span>`;
     return `<div class="log-stats-data-row">
-      <span>${s.player||'—'}</span>
+      ${playerHtml}
       <span class="stat-wins">${s.kills??'—'}</span>
       <span class="stat-losses">${s.deaths??'—'}</span>
       <span class="${eloClass}">${eloStr}</span>
