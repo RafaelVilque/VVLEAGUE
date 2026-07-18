@@ -931,7 +931,7 @@ app.post('/api/bot/logs/wager', requireBotAuth, (req, res) => {
   const statsJson = Array.isArray(stats) && stats.length > 0 ? JSON.stringify(stats) : '';
   const r = db.prepare(
     'INSERT INTO wager_records (date,challenger,challenged,amount,winner,status,paid,season,notes,stats) VALUES (?,?,?,?,?,?,?,?,?,?)'
-  ).run(date, challenger, challenged, amount||'', winner||'', 'settled', 0, season||'', '', statsJson);
+  ).run(date, challenger, challenged, amount||'', winner||'', 'settled', 1, season||'', '', statsJson);
   res.json({ id: r.lastInsertRowid });
 });
 

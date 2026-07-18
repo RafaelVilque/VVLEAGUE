@@ -3775,11 +3775,15 @@ export async function handleInteractions(interaction, client, db, commands) {
                 // Get agreed wager amount
                 const wagerCol = getWagerAmountCollection(db, wager.id);
                 const wagerAmount = wagerCol?.amount || '';
+                // Build username-based team strings for site log (teamA/teamB use <@ID> for Discord only)
+                const siteTeamA = wagerStats.filter(s => s.team === 1).map(s => s.player).join(' + ');
+                const siteTeamB = wagerStats.filter(s => s.team === 2).map(s => s.player).join(' + ');
+                const siteWinnerTeam = winnerSide === 'CHALLENGER' ? siteTeamA : siteTeamB;
                 // Create site wager log (fire-and-forget)
                 let siteWagerErr = null;
                 try {
                     const { createWagerLog } = await import('./siteapi.js');
-                    await createWagerLog(teamA, teamB, wagerAmount, winnerTeam, seasonRaw, wagerStats);
+                    await createWagerLog(siteTeamA, siteTeamB, wagerAmount, siteWinnerTeam, seasonRaw, wagerStats);
                 } catch (e) {
                     siteWagerErr = e?.message || 'Unknown error';
                     console.error('[wager finalize] site log failed:', siteWagerErr);
