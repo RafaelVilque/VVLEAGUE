@@ -438,7 +438,7 @@ app.get('/api/logs/war', (req, res) => {
   res.json(rows.map(r => ({...r, stats: r.stats ? JSON.parse(r.stats) : []})));
 });
 
-function syncWarStatsToPlayerLB(stats, winner, org1, org2) {
+function syncWarStatsToPlayerLB(stats, winner, org1, org2, elo_org1, elo_org2) {
   if (!Array.isArray(stats) || !stats.length) return;
   const killVal  = parseFloat(db.prepare("SELECT value FROM site_settings WHERE key='stat_elo_per_kill'").get()?.value  ?? '2.5');
   const deathVal = parseFloat(db.prepare("SELECT value FROM site_settings WHERE key='stat_elo_per_death'").get()?.value ?? '-2.5');
@@ -447,7 +447,10 @@ function syncWarStatsToPlayerLB(stats, winner, org1, org2) {
     if (!name) continue;
     const kills    = parseInt(s.kills)  || 0;
     const deaths   = parseInt(s.deaths) || 0;
-    const eloDelta = Math.round(kills * killVal + deaths * deathVal);
+    const kdDelta  = Math.round(kills * killVal + deaths * deathVal);
+    // Guild win/loss ELO added on top of K/D ELO
+    const guildElo = s.team === 1 ? (parseInt(elo_org1) || 0) : s.team === 2 ? (parseInt(elo_org2) || 0) : 0;
+    const eloDelta = kdDelta + guildElo;
     let isWin = false, isLoss = false;
     if (winner && s.team) {
       if      (s.team === 1 && winner === org1) isWin  = true;
@@ -478,7 +481,7 @@ app.post('/api/logs/war', requireAdmin, requirePerm('logs'), (req, res) => {
     'INSERT INTO war_logs (date,org1,org2,score1,score2,winner,wager,region,season,notes,elo_org1,elo_org2,stats) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)'
   ).run(date, org1, org2, score1||0, score2||0, winner||'', wager||'', region||'NA', season||'S3', notes||'', elo_org1??null, elo_org2??null, stats ? JSON.stringify(stats) : '');
   if (Array.isArray(stats) && stats.length) {
-    syncWarStatsToPlayerLB(stats, winner || '', org1, org2);
+    syncWarStatsToPlayerLB(stats, winner || '', org1, org2, elo_org1, elo_org2);
     db.prepare('UPDATE war_logs SET stats_synced=1 WHERE id=?').run(r.lastInsertRowid);
   }
   res.json({ id: r.lastInsertRowid });
@@ -491,7 +494,7 @@ app.put('/api/logs/war/:id', requireAdmin, requirePerm('logs'), (req, res) => {
     'UPDATE war_logs SET date=?,org1=?,org2=?,score1=?,score2=?,winner=?,wager=?,region=?,season=?,notes=?,elo_org1=?,elo_org2=?,stats=? WHERE id=?'
   ).run(date, org1, org2, score1||0, score2||0, winner||'', wager||'', region||'NA', season||'S3', notes||'', elo_org1??null, elo_org2??null, stats ? JSON.stringify(stats) : '', req.params.id);
   if (Array.isArray(stats) && stats.length && !existing?.stats_synced) {
-    syncWarStatsToPlayerLB(stats, winner || '', org1, org2);
+    syncWarStatsToPlayerLB(stats, winner || '', org1, org2, elo_org1, elo_org2);
     db.prepare('UPDATE war_logs SET stats_synced=1 WHERE id=?').run(req.params.id);
   }
   res.json({ ok: true });
@@ -945,7 +948,7 @@ app.post('/api/bot/logs/war', requireBotAuth, (req, res) => {
   const storedLen = stored?.stats?.length ?? 0;
   console.log(`[bot/logs/war] inserted id=${r.lastInsertRowid} storedStats length=${storedLen}`);
   if (Array.isArray(stats) && stats.length) {
-    syncWarStatsToPlayerLB(stats, winner || '', org1.toUpperCase(), org2.toUpperCase());
+    syncWarStatsToPlayerLB(stats, winner || '', org1.toUpperCase(), org2.toUpperCase(), elo_org1, elo_org2);
     db.prepare('UPDATE war_logs SET stats_synced=1 WHERE id=?').run(r.lastInsertRowid);
     console.log(`[bot/logs/war] synced ${stats.length} player(s) to Player-LB`);
   }
