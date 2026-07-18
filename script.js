@@ -1126,8 +1126,8 @@ function openLogForm(type, existing) {
         <div class="admin-field"><label class="admin-label">WINNER</label>${winSel(e.winner||'')}</div>
         <div class="admin-field"><label class="admin-label">WAGER</label><input id="lf_wager" class="admin-input" value="${e.wager||''}" placeholder="ex: $500, items, custom..."></div>
         <div class="admin-field"><label class="admin-label">REGION</label><select id="lf_region" class="admin-select"><option ${e.region==='NA'?'selected':''}>NA</option><option ${e.region==='EU'?'selected':''}>EU</option><option ${e.region==='ASIA'?'selected':''}>ASIA</option><option ${e.region==='OCE'?'selected':''}>OCE</option><option ${e.region==='SA'?'selected':''}>SA</option></select></div>
-        <div class="admin-field"><label class="admin-label">ELO ORG 1 (ex: +20 or -25)</label><input id="lf_elo1" type="number" class="admin-input" value="${e.elo_org1??''}" placeholder="optional"></div>
-        <div class="admin-field"><label class="admin-label">ELO ORG 2 (ex: +20 or -25)</label><input id="lf_elo2" type="number" class="admin-input" value="${e.elo_org2??''}" placeholder="optional"></div>
+        <div class="admin-field"><label class="admin-label">ELO ORG 1 (ex: +20 or -25)</label><input id="lf_elo1" type="number" class="admin-input" value="${e.elo_org1??''}" placeholder="optional" oninput="renderLogStatsTable()"></div>
+        <div class="admin-field"><label class="admin-label">ELO ORG 2 (ex: +20 or -25)</label><input id="lf_elo2" type="number" class="admin-input" value="${e.elo_org2??''}" placeholder="optional" oninput="renderLogStatsTable()"></div>
         <div class="admin-field"><label class="admin-label">SEASON</label><input id="lf_season" class="admin-input" value="${e.season||'S3'}" placeholder="S1, S2, S3..."></div>
         <div class="admin-field"><label class="admin-label">NOTES</label><input id="lf_notes" class="admin-input" value="${e.notes||''}"></div>
       </div>`;
