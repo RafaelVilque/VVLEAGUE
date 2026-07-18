@@ -774,7 +774,7 @@ function renderLeaderboard() {
     const _pEdit = hasPerm('orgs') ? `<button class="tbl-btn" onclick="openPlayerForm(${JSON.stringify(p).replace(/"/g,'&quot;')})">✎</button>` : '';
     const _pDel  = hasPerm('orgs_delete') ? `<button class="tbl-btn del" onclick="confirmDelete('player',${p.id})">✕</button>` : '';
     const adminBtns = (_pEdit||_pDel) ? `<td>${_pEdit}${_pDel}</td>` : '';
-    return `<tr class="${rc}"><td class="lb-rank">${rd}</td><td style="font-weight:600">${p.name}</td><td style="color:rgba(160,200,255,.5);font-size:.85rem;">[${p.org}]</td><td class="lb-elo">${p.elo}</td><td><span class="tier-badge" style="color:${t.color};border:1px solid ${t.color}">${t.label}</span></td><td style="font-size:.85rem;"><span class="stat-wins">${p.wins}W</span>&nbsp;<span style="opacity:.4">/</span>&nbsp;<span class="stat-losses">${p.losses}L</span></td>${adminBtns}</tr>`;
+    return `<tr class="${rc}"><td class="lb-rank">${rd}</td><td style="font-weight:600">${p.name}</td><td style="color:rgba(160,200,255,.5);font-size:.85rem;">[${p.org}]</td><td class="lb-elo">${p.elo}</td><td><span class="tier-badge tier-${t.label.toLowerCase()}" style="color:${t.color}">${t.label}</span></td><td style="font-size:.85rem;"><span class="stat-wins">${p.wins}W</span>&nbsp;<span style="opacity:.4">/</span>&nbsp;<span class="stat-losses">${p.losses}L</span></td>${adminBtns}</tr>`;
   }).join('');
 }
 
