@@ -4156,6 +4156,16 @@ export async function handleInteractions(interaction, client, db, commands) {
         }
     }
 }
+async function isWagerStaffOrParticipant(message, db, participants) {
+    if (participants.includes(message.author.id)) return true;
+    const member = await message.guild?.members.fetch(message.author.id).catch(() => null);
+    if (!member) return false;
+    if (member.permissions.has('Administrator')) return true;
+    const hosterRoleId = getSetting(db, `${message.guildId}_hoster_role_id`);
+    if (hosterRoleId && member.roles.cache.has(hosterRoleId)) return true;
+    const HOSTER_ROLE_IDS_DEFAULT = ['1470554662687215741', '1470554664238845962'];
+    return HOSTER_ROLE_IDS_DEFAULT.some(id => member.roles.cache.has(id));
+}
 export async function handleWagerAmountMessage(message, db) {
     if (!message.channelId || message.author.bot) return;
 
@@ -4163,7 +4173,7 @@ export async function handleWagerAmountMessage(message, db) {
     const banCol = getWagerCollectionByChannelForBan(db, message.channelId);
     if (banCol) {
         const participants = [banCol.challenger1_id, banCol.challenger2_id, banCol.challenged1_id, banCol.challenged2_id].filter(Boolean);
-        if (!participants.includes(message.author.id)) return;
+        if (!await isWagerStaffOrParticipant(message, db, participants)) return;
         const rulesLabel = banCol.rules_type === 'default_bans' ? 'Default Rules + Mutual Bans' : 'Mutual Bans';
         const description = banCol.rules_type === 'default_bans'
             ? `**Default Rules:** No Skeying, No Mode Pops, Aura is allowed.\n**Mutual Ban:** ${message.content}`
@@ -4187,7 +4197,7 @@ export async function handleWagerAmountMessage(message, db) {
     const col = getWagerAmountCollectionByChannel(db, message.channelId);
     if (!col) return;
     const participants = [col.challenger1_id, col.challenger2_id, col.challenged1_id, col.challenged2_id].filter(Boolean);
-    if (!participants.includes(message.author.id)) return;
+    if (!await isWagerStaffOrParticipant(message, db, participants)) return;
     const embed = new EmbedBuilder()
         .setColor(0x5BADFF)
         .setDescription(`ðŸ’° **Wager:** ${message.content}`)
