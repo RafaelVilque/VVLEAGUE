@@ -304,6 +304,7 @@ if (warCols.find(c => c.name === 'wager' && c.type === 'INTEGER')) {
 // Migrate: add stats to war_logs and wager_records (safe after recreation above)
 try { db.exec('ALTER TABLE war_logs ADD COLUMN stats TEXT DEFAULT ""'); } catch(e) {}
 try { db.exec('ALTER TABLE wager_records ADD COLUMN stats TEXT DEFAULT ""'); } catch(e) {}
+try { db.exec('ALTER TABLE war_logs ADD COLUMN stats_synced INTEGER DEFAULT 0'); } catch(e) {}
 // Site settings table (ELO per kill/death etc.)
 db.exec(`CREATE TABLE IF NOT EXISTS site_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAULT '')`);
 // Ensure default ELO stat settings exist
@@ -437,20 +438,62 @@ app.get('/api/logs/war', (req, res) => {
   res.json(rows.map(r => ({...r, stats: r.stats ? JSON.parse(r.stats) : []})));
 });
 
+function syncWarStatsToPlayerLB(stats, winner, org1, org2) {
+  if (!Array.isArray(stats) || !stats.length) return;
+  const killVal  = parseFloat(db.prepare("SELECT value FROM site_settings WHERE key='stat_elo_per_kill'").get()?.value  ?? '2.5');
+  const deathVal = parseFloat(db.prepare("SELECT value FROM site_settings WHERE key='stat_elo_per_death'").get()?.value ?? '-2.5');
+  for (const s of stats) {
+    const name = (s.player || '').trim();
+    if (!name) continue;
+    const kills    = parseInt(s.kills)  || 0;
+    const deaths   = parseInt(s.deaths) || 0;
+    const eloDelta = Math.round(kills * killVal + deaths * deathVal);
+    let isWin = false, isLoss = false;
+    if (winner && s.team) {
+      if      (s.team === 1 && winner === org1) isWin  = true;
+      else if (s.team === 2 && winner === org2) isWin  = true;
+      else if (s.team === 1 || s.team === 2)    isLoss = true;
+    }
+    const playerOrg = s.team === 1 ? (org1 || '') : s.team === 2 ? (org2 || '') : '';
+    const existing  = db.prepare('SELECT * FROM players WHERE LOWER(name) = LOWER(?)').get(name);
+    if (existing) {
+      db.prepare('UPDATE players SET elo=?,wins=?,losses=? WHERE id=?').run(
+        (existing.elo || 1000) + eloDelta,
+        (existing.wins   || 0) + (isWin  ? 1 : 0),
+        (existing.losses || 0) + (isLoss ? 1 : 0),
+        existing.id
+      );
+    } else {
+      db.prepare('INSERT INTO players (name,org,elo,wins,losses) VALUES (?,?,?,?,?)').run(
+        name, playerOrg, 1000 + eloDelta, isWin ? 1 : 0, isLoss ? 1 : 0
+      );
+    }
+  }
+}
+
 app.post('/api/logs/war', requireAdmin, requirePerm('logs'), (req, res) => {
   const { date, org1, org2, score1, score2, winner, wager, region, season, notes, elo_org1, elo_org2, stats } = req.body;
   if (!date || !org1 || !org2) return res.status(400).json({ error: 'date, org1, org2 required' });
   const r = db.prepare(
     'INSERT INTO war_logs (date,org1,org2,score1,score2,winner,wager,region,season,notes,elo_org1,elo_org2,stats) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)'
   ).run(date, org1, org2, score1||0, score2||0, winner||'', wager||'', region||'NA', season||'S3', notes||'', elo_org1??null, elo_org2??null, stats ? JSON.stringify(stats) : '');
+  if (Array.isArray(stats) && stats.length) {
+    syncWarStatsToPlayerLB(stats, winner || '', org1, org2);
+    db.prepare('UPDATE war_logs SET stats_synced=1 WHERE id=?').run(r.lastInsertRowid);
+  }
   res.json({ id: r.lastInsertRowid });
 });
 
 app.put('/api/logs/war/:id', requireAdmin, requirePerm('logs'), (req, res) => {
   const { date, org1, org2, score1, score2, winner, wager, region, season, notes, elo_org1, elo_org2, stats } = req.body;
+  const existing = db.prepare('SELECT stats_synced FROM war_logs WHERE id=?').get(req.params.id);
   db.prepare(
     'UPDATE war_logs SET date=?,org1=?,org2=?,score1=?,score2=?,winner=?,wager=?,region=?,season=?,notes=?,elo_org1=?,elo_org2=?,stats=? WHERE id=?'
   ).run(date, org1, org2, score1||0, score2||0, winner||'', wager||'', region||'NA', season||'S3', notes||'', elo_org1??null, elo_org2??null, stats ? JSON.stringify(stats) : '', req.params.id);
+  if (Array.isArray(stats) && stats.length && !existing?.stats_synced) {
+    syncWarStatsToPlayerLB(stats, winner || '', org1, org2);
+    db.prepare('UPDATE war_logs SET stats_synced=1 WHERE id=?').run(req.params.id);
+  }
   res.json({ ok: true });
 });
 
@@ -901,6 +944,11 @@ app.post('/api/bot/logs/war', requireBotAuth, (req, res) => {
   const stored = db.prepare('SELECT stats FROM war_logs WHERE id=?').get(r.lastInsertRowid);
   const storedLen = stored?.stats?.length ?? 0;
   console.log(`[bot/logs/war] inserted id=${r.lastInsertRowid} storedStats length=${storedLen}`);
+  if (Array.isArray(stats) && stats.length) {
+    syncWarStatsToPlayerLB(stats, winner || '', org1.toUpperCase(), org2.toUpperCase());
+    db.prepare('UPDATE war_logs SET stats_synced=1 WHERE id=?').run(r.lastInsertRowid);
+    console.log(`[bot/logs/war] synced ${stats.length} player(s) to Player-LB`);
+  }
   res.json({ id: r.lastInsertRowid, stats_stored: storedLen > 0 });
 });
 
