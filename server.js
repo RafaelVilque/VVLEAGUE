@@ -745,15 +745,13 @@ function computeOrgStats(tag) {
   const warTotal = db.prepare("SELECT COUNT(*) as c FROM war_logs WHERE org1 = ? OR org2 = ?").get(tag, tag).c;
   const seaWins  = db.prepare("SELECT COUNT(*) as c FROM season_logs WHERE winner = ?").get(tag).c;
   const seaTotal = db.prepare("SELECT COUNT(*) as c FROM season_logs WHERE org1 = ? OR org2 = ?").get(tag, tag).c;
-  const wagerRows = db.prepare("SELECT wager FROM war_logs WHERE org1 = ? OR org2 = ?").all(tag, tag);
-  const wager = wagerRows.reduce((s, r) => s + (parseFloat(r.wager) || 0), 0);
   // Custom points: ELO from war_logs + season log points
   const eloOrg1 = db.prepare("SELECT COALESCE(SUM(elo_org1),0) as s FROM war_logs WHERE org1 = ? AND elo_org1 IS NOT NULL").get(tag).s;
   const eloOrg2 = db.prepare("SELECT COALESCE(SUM(elo_org2),0) as s FROM war_logs WHERE org2 = ? AND elo_org2 IS NOT NULL").get(tag).s;
   const seaPtsWin  = db.prepare("SELECT COALESCE(SUM(points_winner),0) as s FROM season_logs WHERE winner = ?").get(tag).s;
   const seaPtsLose = db.prepare("SELECT COALESCE(SUM(points_loser),0) as s FROM season_logs WHERE (org1 = ? OR org2 = ?) AND winner != ?").get(tag, tag, tag).s;
   const points = eloOrg1 + eloOrg2 + seaPtsWin + seaPtsLose;
-  return { wins: warWins + seaWins, losses: (warTotal - warWins) + (seaTotal - seaWins), wonEvents: seaWins, wager, points };
+  return { wins: warWins + seaWins, losses: (warTotal - warWins) + (seaTotal - seaWins), wonEvents: seaWins, points };
 }
 
 function orgWithStats(o) {

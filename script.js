@@ -110,7 +110,9 @@ async function api(method, path, body) {
   const res = await fetch('/api' + path, opts);
   if (res.status === 401) {
     adminToken = null;
-    try { localStorage.removeItem('adminToken'); } catch(_) {}
+    isAdmin = false;
+    try { sessionStorage.removeItem('vvl_token'); } catch(_) {}
+    setAdminUI(false);
     showSessionExpiredBanner();
     throw new Error('session_expired');
   }
@@ -277,7 +279,6 @@ function renderOrgList() {
 function openOrgModal(id) {
   const o = orgsData.find(x => x.id === id); if (!o) return;
   const wr = o.wins+o.losses > 0 ? ((o.wins/(o.wins+o.losses))*100).toFixed(0)+'%' : '—';
-  const wagerStr = o.wager ? '$'+Number(o.wager).toLocaleString() : '—';
   document.getElementById('modalContent').innerHTML = `
     <div class="modal-org-header">
       ${o.logo_url ? `<img src="${o.logo_url}" alt="${o.tag}" style="width:52px;height:52px;object-fit:contain;border-radius:6px;flex-shrink:0;">` : `<div class="modal-org-avatar">${o.tag.slice(0,2)}</div>`}
@@ -289,7 +290,6 @@ function openOrgModal(id) {
       <div class="modal-stat"><div class="modal-stat-label">Winrate</div><div class="modal-stat-value">${wr}</div></div>
       <div class="modal-stat"><div class="modal-stat-label">Events Won</div><div class="modal-stat-value" style="color:var(--yellow)">${o.wonEvents}</div></div>
       <div class="modal-stat"><div class="modal-stat-label">Members</div><div class="modal-stat-value">${o.members.length}</div></div>
-      <div class="modal-stat"><div class="modal-stat-label">Wager</div><div class="modal-stat-value wager-cell">${wagerStr}</div></div>
     </div>
     <div class="modal-stat" style="margin-bottom:.8rem;"><div class="modal-stat-label">MVP Player</div><div class="modal-stat-value" style="color:var(--yellow);">⭐ ${o.mvp||'—'}</div></div>
     <div class="modal-section-title">ROSTER</div>
@@ -314,13 +314,11 @@ function renderStats() {
     wins:    (a,b) => (b.wins-b.losses)-(a.wins-a.losses),
     events:  (a,b) => b.wonEvents-a.wonEvents,
     members: (a,b) => b.members.length-a.members.length,
-    wager:   (a,b) => (parseFloat(b.wager)||0)-(parseFloat(a.wager)||0),
   };
   const sorted = [...orgsData].sort(sortMap[statsSort]||sortMap.wins);
   document.getElementById('statsBody').innerHTML = sorted.map((o,i) => {
     const r=i+1, rc=r<=3?`rank-${r}`:'', rm=r<=3?['①','②','③'][r-1]:r;
-    const wagerStr = o.wager ? '$'+Number(o.wager).toLocaleString() : '—';
-    return `<tr class="${rc}"><td class="rank-cell">${rm}</td><td class="org-name-cell">${o.name}</td><td><span class="stat-wins">${o.wins}W</span>&nbsp;<span style="opacity:.4">/</span>&nbsp;<span class="stat-losses">${o.losses}L</span></td><td style="color:var(--yellow)">${o.wonEvents}</td><td>${o.members.length}</td><td class="mvp-cell">${o.mvp||'—'}</td><td class="wager-cell">${wagerStr}</td></tr>`;
+    return `<tr class="${rc}"><td class="rank-cell">${rm}</td><td class="org-name-cell">${o.name}</td><td><span class="stat-wins">${o.wins}W</span>&nbsp;<span style="opacity:.4">/</span>&nbsp;<span class="stat-losses">${o.losses}L</span></td><td style="color:var(--yellow)">${o.wonEvents}</td><td>${o.members.length}</td><td class="mvp-cell">${o.mvp||'—'}</td></tr>`;
   }).join('');
 }
 
@@ -776,7 +774,7 @@ function renderLeaderboard() {
     const _pEdit = hasPerm('orgs') ? `<button class="tbl-btn" onclick="openPlayerForm(${JSON.stringify(p).replace(/"/g,'&quot;')})">✎</button>` : '';
     const _pDel  = hasPerm('orgs_delete') ? `<button class="tbl-btn del" onclick="confirmDelete('player',${p.id})">✕</button>` : '';
     const adminBtns = (_pEdit||_pDel) ? `<td>${_pEdit}${_pDel}</td>` : '';
-    return `<tr class="${rc}"><td class="lb-rank">${rd}</td><td style="font-weight:600">${p.name}</td><td style="color:rgba(160,200,255,.5);font-size:.85rem;">[${p.org}]</td><td class="lb-elo">${p.elo}</td><td><span class="tier-badge" style="color:${t.color};border:1px solid ${t.color}66">${t.label}</span></td><td style="font-size:.85rem;"><span class="stat-wins">${p.wins}W</span>&nbsp;<span style="opacity:.4">/</span>&nbsp;<span class="stat-losses">${p.losses}L</span></td>${adminBtns}</tr>`;
+    return `<tr class="${rc}"><td class="lb-rank">${rd}</td><td style="font-weight:600">${p.name}</td><td style="color:rgba(160,200,255,.5);font-size:.85rem;">[${p.org}]</td><td class="lb-elo">${p.elo}</td><td><span class="tier-badge" style="color:${t.color};border:1px solid ${t.color}">${t.label}</span></td><td style="font-size:.85rem;"><span class="stat-wins">${p.wins}W</span>&nbsp;<span style="opacity:.4">/</span>&nbsp;<span class="stat-losses">${p.losses}L</span></td>${adminBtns}</tr>`;
   }).join('');
 }
 
@@ -983,7 +981,6 @@ async function loadWarLogs() {
       <td style="color:var(--blue);font-weight:600;">${r.org1} vs ${r.org2}</td>
       <td><span class="stat-wins">${r.score1}</span>&nbsp;—&nbsp;<span class="stat-losses">${r.score2}</span></td>
       <td style="color:var(--yellow);font-weight:600;">${r.winner||'—'}</td>
-      <td class="wager-cell">${r.wager?(isNaN(r.wager)?r.wager:'$'+Number(r.wager).toLocaleString()):'—'}</td>
       <td style="font-size:.85rem;white-space:nowrap;">${eloHtml}</td>
       <td><span class="org-badge badge-active" style="font-size:.62rem;">${r.region}</span></td>
       <td style="color:rgba(160,200,255,.5)">${r.season}</td>
@@ -1102,8 +1099,20 @@ function openLogForm(type, existing) {
     _logStats = _logDraft.stats.map(s => ({...s}));
   } else {
     _logDraftKey = draftKey;
-    _logDraft    = null;
-    _logStats = Array.isArray(e.stats) ? e.stats.map(s => ({...s})) : [];
+    try {
+      const saved = localStorage.getItem('vvl_draft_' + draftKey);
+      if (saved && !existing) {
+        _logDraft = JSON.parse(saved);
+        e = { ...e, ..._logDraft.fields };
+        _logStats = _logDraft.stats.map(s => ({...s}));
+      } else {
+        _logDraft = null;
+        _logStats = Array.isArray(e.stats) ? e.stats.map(s => ({...s})) : [];
+      }
+    } catch(_) {
+      _logDraft = null;
+      _logStats = Array.isArray(e.stats) ? e.stats.map(s => ({...s})) : [];
+    }
   }
   _logOrg1 = e.org1 || e.challenger || '';
   _logOrg2 = e.org2 || e.challenged || '';
@@ -1124,7 +1133,6 @@ function openLogForm(type, existing) {
       <div class="admin-form-grid-2">
         <div class="admin-field"><label class="admin-label">DATE</label><input id="lf_date" type="date" class="admin-input" value="${e.date||''}"></div>
         <div class="admin-field"><label class="admin-label">WINNER</label>${winSel(e.winner||'')}</div>
-        <div class="admin-field"><label class="admin-label">WAGER</label><input id="lf_wager" class="admin-input" value="${e.wager||''}" placeholder="ex: $500, items, custom..."></div>
         <div class="admin-field"><label class="admin-label">REGION</label><select id="lf_region" class="admin-select"><option ${e.region==='NA'?'selected':''}>NA</option><option ${e.region==='EU'?'selected':''}>EU</option><option ${e.region==='ASIA'?'selected':''}>ASIA</option><option ${e.region==='OCE'?'selected':''}>OCE</option><option ${e.region==='SA'?'selected':''}>SA</option></select></div>
         <div class="admin-field"><label class="admin-label">ELO ORG 1 (ex: +20 or -25)</label><input id="lf_elo1" type="number" class="admin-input" value="${e.elo_org1??''}" placeholder="optional" oninput="renderLogStatsTable()"></div>
         <div class="admin-field"><label class="admin-label">ELO ORG 2 (ex: +20 or -25)</label><input id="lf_elo2" type="number" class="admin-input" value="${e.elo_org2??''}" placeholder="optional" oninput="renderLogStatsTable()"></div>
@@ -1196,7 +1204,7 @@ async function saveLogForm(type, id) {
   let body = {};
   if (type === 'war') {
     const elo1raw = g('lf_elo1'), elo2raw = g('lf_elo2');
-    body = { date:g('lf_date'), org1:g('lf_org1'), org2:g('lf_org2'), score1:parseInt(g('lf_s1'))||0, score2:parseInt(g('lf_s2'))||0, winner:g('lf_winner'), wager:g('lf_wager'), region:g('lf_region'), season:g('lf_season'), notes:g('lf_notes'), elo_org1:elo1raw!==''?parseInt(elo1raw):null, elo_org2:elo2raw!==''?parseInt(elo2raw):null };
+    body = { date:g('lf_date'), org1:g('lf_org1'), org2:g('lf_org2'), score1:parseInt(g('lf_s1'))||0, score2:parseInt(g('lf_s2'))||0, winner:g('lf_winner'), region:g('lf_region'), season:g('lf_season'), notes:g('lf_notes'), elo_org1:elo1raw!==''?parseInt(elo1raw):null, elo_org2:elo2raw!==''?parseInt(elo2raw):null };
   } else if (type === 'season') {
     body = { season:g('lf_season'), date:g('lf_date'), event_name:g('lf_event')||'', org1:g('lf_org1'), org2:g('lf_org2'), score1:parseInt(g('lf_s1'))||0, score2:parseInt(g('lf_s2'))||0, winner:g('lf_winner'), region:g('lf_region'), notes:g('lf_notes'), points_winner:parseInt(g('lf_pts_w'))||0, points_loser:parseInt(g('lf_pts_l'))||0 };
   } else {
@@ -1207,11 +1215,23 @@ async function saveLogForm(type, id) {
   try {
     id ? await apiPut(path+'/'+id, body) : await apiPost(path, body);
   } catch(err) {
-    if (err.message === 'session_expired') return;
+    if (err.message === 'session_expired') {
+      const actions = document.querySelector('#logFormContent .admin-modal-actions');
+      if (actions && !document.getElementById('_lf_exp_msg')) {
+        const msg = document.createElement('div');
+        msg.id = '_lf_exp_msg';
+        msg.style.cssText = 'color:#f87171;font-size:.82rem;font-weight:600;text-align:center;padding:.4rem 0 .1rem;letter-spacing:.06em;';
+        msg.textContent = '⚠ Login expirado — faça login novamente.';
+        actions.before(msg);
+      }
+      return;
+    }
     throw err;
   }
+  const savedDraftKey = _logDraftKey;
   _logDraft = null;
   _logDraftKey = null;
+  try { if (savedDraftKey) localStorage.removeItem('vvl_draft_' + savedDraftKey); } catch(_) {}
   closeLogForm();
   if (type==='war')    { loadWarLogs(); loadOrgs(); }
   if (type==='season') { loadSeasonLogs(); loadOrgs(); }
@@ -1224,14 +1244,17 @@ function captureFormDraft() {
   const fv = id => { const el = document.getElementById(id); return el ? el.value : undefined; };
   const fields = {};
   [['date','lf_date'],['org1','lf_org1'],['org2','lf_org2'],['score1','lf_s1'],['score2','lf_s2'],
-   ['winner','lf_winner'],['wager','lf_wager'],['region','lf_region'],['elo_org1','lf_elo1'],
+   ['winner','lf_winner'],['region','lf_region'],['elo_org1','lf_elo1'],
    ['elo_org2','lf_elo2'],['season','lf_season'],['notes','lf_notes'],['event_name','lf_event'],
    ['points_winner','lf_pts_w'],['points_loser','lf_pts_l'],['challenger','lf_challenger'],
    ['challenged','lf_challenged'],['amount','lf_amount'],['status','lf_status']].forEach(([k,id]) => {
     const v = fv(id);
     if (v !== undefined) fields[k] = v;
   });
+  const paidEl = document.getElementById('lf_paid');
+  if (paidEl) fields.paid = paidEl.checked;
   _logDraft = { fields, stats: _logStats.map(s => ({...s})) };
+  try { localStorage.setItem('vvl_draft_' + _logDraftKey, JSON.stringify(_logDraft)); } catch(_) {}
 }
 function closeLogForm()  {
   captureFormDraft();
