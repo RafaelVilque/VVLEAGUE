@@ -319,8 +319,10 @@ function ensureGuildColumns(db) {
         db.exec('ALTER TABLE Guilds ADD COLUMN losses INTEGER NOT NULL DEFAULT 0');
     }
     if (!existing.has('elo')) {
-        db.exec('ALTER TABLE Guilds ADD COLUMN elo INTEGER NOT NULL DEFAULT 1000');
+        db.exec('ALTER TABLE Guilds ADD COLUMN elo INTEGER NOT NULL DEFAULT 0');
     }
+    // Reset guilds still at the original 1000 default (never earned ELO) to 0
+    try { db.exec('UPDATE Guilds SET elo = 0 WHERE elo = 1000'); } catch(e) {}
     if (!existing.has('tag')) {
         db.exec('ALTER TABLE Guilds ADD COLUMN tag TEXT');
     }
@@ -540,7 +542,7 @@ export function formatGuildPanelDescription(db, guildId) {
     description += `:globe_with_meridians: **Region Stats: ${guild.region}**\n`;
     description += `**Regions:** ${guild.region}\n`;
     description += `:signal_strength: **W/L:** ${guild.wins || 0}/${guild.losses || 0}\n`;
-    description += `:bar_chart: **ELO:** ${guild.elo ?? 1000}\n`;
+    description += `:bar_chart: **ELO:** ${guild.elo ?? 0}\n`;
     description += `━━━━━━━━━━━━━━━━━━━━━━\n`;
     description += `:crossed_swords: **Main Roster (${guild.region})**\n`;
     description += mains.length > 0 ? `${mains.map((m) => `<@${m.userId}>`).join('\n')}\n\n` : 'None\n\n';
@@ -671,8 +673,8 @@ export function addGuildLoss(db, guildId) {
     db.prepare('UPDATE Guilds SET losses = COALESCE(losses, 0) + 1 WHERE id = ?').run(guildId);
 }
 export function applyGuildElo(db, winnerGuildId, winnerGain, loserGuildId, loserLoss, warId) {
-    db.prepare('UPDATE Guilds SET elo = MAX(0, COALESCE(elo, 1000) + ?) WHERE id = ?').run(winnerGain, winnerGuildId);
-    db.prepare('UPDATE Guilds SET elo = MAX(0, COALESCE(elo, 1000) - ?) WHERE id = ?').run(loserLoss, loserGuildId);
+    db.prepare('UPDATE Guilds SET elo = MAX(0, COALESCE(elo, 0) + ?) WHERE id = ?').run(winnerGain, winnerGuildId);
+    db.prepare('UPDATE Guilds SET elo = MAX(0, COALESCE(elo, 0) - ?) WHERE id = ?').run(loserLoss, loserGuildId);
     if (warId != null) {
         db.prepare('UPDATE Wars SET winnerEloChange = ?, loserEloChange = ? WHERE id = ?').run(winnerGain, loserLoss, warId);
     }
