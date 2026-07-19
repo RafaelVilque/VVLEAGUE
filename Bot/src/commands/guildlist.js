@@ -25,7 +25,7 @@ export async function execute(interaction, db) {
             : ALLOWED_GUILD_PANEL_ROLE_IDS_DEFAULT.some(roleId => actorMember.roles.cache.has(roleId))));
         if (!canUseGuildList) {
             await interaction.editReply({
-                content: '❌ Você não tem permissão. Configure o cargo com `/setup guild_register_role`.',
+                content: '❌ You do not have permission. Configure the role with `/setup guild_register_role`.',
             });
             return;
         }

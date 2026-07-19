@@ -36,7 +36,7 @@ export async function execute(interaction, db) {
             ? member.roles.cache.has(hosterRoleId)
             : HOSTER_ROLE_IDS_DEFAULT.some(roleId => member.roles.cache.has(roleId))));
         if (!hasPermission) {
-            await interaction.editReply({ content: '❌ Você não tem permissão. Configure o cargo com `/setup hoster_role`.' });
+            await interaction.editReply({ content: '❌ You do not have permission. Configure the role with `/setup hoster_role`.' });
             return;
         }
         const type = interaction.options.getString('type', true);

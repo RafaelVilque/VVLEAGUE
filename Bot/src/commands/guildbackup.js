@@ -25,7 +25,7 @@ export async function execute(interaction, db) {
         const canBackup = isAdmin || (!!actorMember && actorMember.roles.cache.has(staffRoleId));
         if (!canBackup) {
             await interaction.editReply({
-                content: '❌ Você não tem permissão. Configure o cargo com `/setup staff_role`.',
+                content: '❌ You do not have permission. Configure the role with `/setup staff_role`.',
             });
             return;
         }

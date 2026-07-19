@@ -53,7 +53,7 @@ export async function execute(interaction, db) {
             : ALLOWED_GUILD_CREATOR_ROLE_IDS_DEFAULT.some(roleId => actorMember.roles.cache.has(roleId))));
         if (!canCreateGuild) {
             await interaction.editReply({
-                content: '❌ Você não tem permissão para registrar uma guild. Configure o cargo com `/setup guild_register_role`.',
+                content: '❌ You do not have permission to register a guild. Configure the role with `/setup guild_register_role`.',
             });
             return;
         }

@@ -29,7 +29,7 @@ export async function execute(interaction, db) {
             : ALLOWED_GUILD_DELETE_ROLE_IDS_DEFAULT.some(roleId => member.roles.cache.has(roleId))));
         if (!canManageGuild) {
             await interaction.editReply({
-                content: '❌ Você não tem permissão. Configure o cargo com `/setup guild_delete_role`.',
+                content: '❌ You do not have permission. Configure the role with `/setup guild_delete_role`.',
             });
             return;
         }
