@@ -971,14 +971,14 @@ app.post('/api/bot/logs/wager', requireBotAuth, (req, res) => {
 });
 
 app.post('/api/bot/logs/war', requireBotAuth, (req, res) => {
-  const { date, org1, org2, score1, score2, winner, region, season, elo_org1, elo_org2, stats, mvp } = req.body;
+  const { date, org1, org2, score1, score2, winner, region, season, elo_org1, elo_org2, stats, mvp, notes } = req.body;
   if (!date || !org1 || !org2) return res.status(400).json({ error: 'date, org1, org2 required' });
   console.log(`[bot/logs/war] received org1=${org1} org2=${org2} statsIsArray=${Array.isArray(stats)} statsLen=${Array.isArray(stats)?stats.length:'N/A'}`);
   const statsJson = Array.isArray(stats) && stats.length > 0 ? JSON.stringify(stats) : '';
   console.log(`[bot/logs/war] statsJson length=${statsJson.length}`);
   const r = db.prepare(
     'INSERT INTO war_logs (date,org1,org2,score1,score2,winner,wager,region,season,notes,elo_org1,elo_org2,stats,mvp) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
-  ).run(date, org1.toUpperCase(), org2.toUpperCase(), score1||0, score2||0, winner||'', '', region||'NA', season||'', '', elo_org1??null, elo_org2??null, statsJson, mvp||'');
+  ).run(date, org1.toUpperCase(), org2.toUpperCase(), score1||0, score2||0, winner||'', '', region||'NA', season||'', notes||'', elo_org1??null, elo_org2??null, statsJson, mvp||'');
   const stored = db.prepare('SELECT stats FROM war_logs WHERE id=?').get(r.lastInsertRowid);
   const storedLen = stored?.stats?.length ?? 0;
   console.log(`[bot/logs/war] inserted id=${r.lastInsertRowid} storedStats length=${storedLen}`);
