@@ -13,7 +13,7 @@ export const data = new SlashCommandBuilder()
     .addChoices({ name: 'War', value: 'war' }, { name: 'Wager', value: 'wager' }))
     .addStringOption(option => option
     .setName('ticket_id')
-    .setDescription('ID do canal do ticket (clique com botão direito no canal → Copiar ID)')
+    .setDescription('Channel ID of the ticket (right-click the channel → Copy ID)')
     .setRequired(true))
     .addStringOption(option => option
     .setName('reason')
@@ -43,17 +43,17 @@ export async function execute(interaction, db) {
         const ticketId = interaction.options.getString('ticket_id', true).trim();
         const reason = interaction.options.getString('reason', true);
         if (!ticketId) {
-            await interaction.editReply({ content: '❌ ID inválido.' });
+            await interaction.editReply({ content: '❌ Invalid ID.' });
             return;
         }
         if (type === 'war') {
             const war = db.prepare('SELECT * FROM Wars WHERE channelId = ?').get(ticketId);
             if (!war) {
-                await interaction.editReply({ content: '❌ War ticket não encontrado. Verifique se o ID é o ID do canal Discord (clique direito no canal → Copiar ID).' });
+                await interaction.editReply({ content: '❌ War ticket not found. Make sure you are using the Discord channel ID (right-click the channel → Copy ID).' });
                 return;
             }
             if (war.status === 'FINISHED' || war.status === 'DODGED') {
-                await interaction.editReply({ content: '❌ Este war já está encerrado.' });
+                await interaction.editReply({ content: '❌ This war is already closed.' });
                 return;
             }
             // Update status using war.id (not channelId)
@@ -61,7 +61,7 @@ export async function execute(interaction, db) {
             // Send dodge message to ticket channel then delete it
             const ticketChannel = await fetchChannel(interaction, war.channelId);
             if (ticketChannel && 'send' in ticketChannel) {
-                await ticketChannel.send(`⚠️ Este war foi encerrado por um admin. Motivo: **${reason}**\nCanal será deletado em 5 segundos.`).catch(() => null);
+                await ticketChannel.send(`⚠️ This war was closed by an admin. Reason: **${reason}**\nChannel will be deleted in 5 seconds.`).catch(() => null);
                 setTimeout(async () => {
                     await ticketChannel.delete(`War force dodged by admin: ${reason}`).catch((e) => {
                         console.error('Failed to delete war channel:', e);
@@ -75,18 +75,18 @@ export async function execute(interaction, db) {
             const warDodgeId = getSetting(db, `${interaction.guildId}_war_dodge_channel_id`) || WAR_DODGE_LOGS_CHANNEL_ID_DEFAULT;
             const dodgeLogChannel = await fetchChannel(interaction, warDodgeId);
             if (dodgeLogChannel && 'send' in dodgeLogChannel) {
-                await dodgeLogChannel.send(`⚠️ **Admin Dodge — War**\nForçado por <@${interaction.user.id}>\nMotivo: ${reason}`).catch(() => null);
+                await dodgeLogChannel.send(`⚠️ **Admin Dodge — War**\nForced by <@${interaction.user.id}>\nReason: ${reason}`).catch(() => null);
             }
-            await interaction.editReply({ content: `✅ War ticket encerrado por dodge com sucesso.` });
+            await interaction.editReply({ content: `✅ War ticket closed by dodge successfully.` });
         }
         else if (type === 'wager') {
             const wager = db.prepare('SELECT * FROM Wagers WHERE channelId = ?').get(ticketId);
             if (!wager) {
-                await interaction.editReply({ content: '❌ Wager ticket não encontrado. Verifique se o ID é o ID do canal Discord (clique direito no canal → Copiar ID).' });
+                await interaction.editReply({ content: '❌ Wager ticket not found. Make sure you are using the Discord channel ID (right-click the channel → Copy ID).' });
                 return;
             }
             if (wager.status === 'CLOSED' || wager.status === 'DODGED') {
-                await interaction.editReply({ content: '❌ Este wager já está encerrado.' });
+                await interaction.editReply({ content: '❌ This wager is already closed.' });
                 return;
             }
             // Update status using wager.id (not channelId)
@@ -94,7 +94,7 @@ export async function execute(interaction, db) {
             // Send dodge message to ticket channel then delete it
             const ticketChannel = await fetchChannel(interaction, wager.channelId);
             if (ticketChannel && 'send' in ticketChannel) {
-                await ticketChannel.send(`⚠️ Este wager foi encerrado por um admin. Motivo: **${reason}**\nCanal será deletado em 5 segundos.`).catch(() => null);
+                await ticketChannel.send(`⚠️ This wager was closed by an admin. Reason: **${reason}**\nChannel will be deleted in 5 seconds.`).catch(() => null);
                 setTimeout(async () => {
                     await ticketChannel.delete(`Wager force dodged by admin: ${reason}`).catch((e) => {
                         console.error('Failed to delete wager channel:', e);
@@ -108,14 +108,14 @@ export async function execute(interaction, db) {
             const wagerDodgeId = getSetting(db, `${interaction.guildId}_wager_dodge_channel_id`) || WAGER_DODGE_LOGS_CHANNEL_ID_DEFAULT;
             const dodgeLogChannel = await fetchChannel(interaction, wagerDodgeId);
             if (dodgeLogChannel && 'send' in dodgeLogChannel) {
-                await dodgeLogChannel.send(`⚠️ **Admin Dodge — Wager**\nForçado por <@${interaction.user.id}>\nMotivo: ${reason}`).catch(() => null);
+                await dodgeLogChannel.send(`⚠️ **Admin Dodge — Wager**\nForced by <@${interaction.user.id}>\nReason: ${reason}`).catch(() => null);
             }
-            await interaction.editReply({ content: `✅ Wager ticket encerrado por dodge com sucesso.` });
+            await interaction.editReply({ content: `✅ Wager ticket closed by dodge successfully.` });
         }
     }
     catch (error) {
         console.error('Error in admindodge command:', error);
-        await interaction.editReply({ content: '❌ Ocorreu um erro inesperado.' });
+        await interaction.editReply({ content: '❌ An unexpected error occurred.' });
     }
 }
 //# sourceMappingURL=admindodge.js.map
