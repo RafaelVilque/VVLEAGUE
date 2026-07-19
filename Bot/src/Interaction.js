@@ -3009,12 +3009,12 @@ export async function handleInteractions(interaction, client, db, commands) {
                             .setRequired(true)
                             .setMaxLength(6)),
                         new ActionRowBuilder().addComponents(new TextInputBuilder()
-                            .setCustomId('rounds_summary')
-                            .setLabel('Round Details')
-                            .setStyle(TextInputStyle.Paragraph)
-                            .setPlaceholder('This is where the stats of the game go, and extra details.')
+                            .setCustomId('mvp_user')
+                            .setLabel('MVP (name, @mention, or ID)')
+                            .setStyle(TextInputStyle.Short)
+                            .setPlaceholder('Player name (optional)')
                             .setRequired(false)
-                            .setMaxLength(1000)),
+                            .setMaxLength(100)),
                         new ActionRowBuilder().addComponents(new TextInputBuilder()
                             .setCustomId('season')
                             .setLabel('Season (e.g. S3)')
@@ -3863,12 +3863,12 @@ export async function handleInteractions(interaction, client, db, commands) {
                     return;
                 }
                 const seasonQuick = interaction.fields.getTextInputValue('season')?.trim() || '';
-                const roundSummaryQuick = interaction.fields.getTextInputValue('rounds_summary')?.trim() || null;
+                const mvpQuick = interaction.fields.getTextInputValue('mvp_user')?.trim() || null;
                 const { winnerScore, loserScore } = parsedScore;
                 const loserGuildId = winnerGuildId === war.openerGuildId ? war.opponentGuildId : war.openerGuildId;
                 const winnerGuildData = getGuildById(db, winnerGuildId);
                 const loserGuildData = getGuildById(db, loserGuildId);
-                const { winnerGuild } = await finalizeWarAndLog(interaction, client, db, war, winnerGuildId, winnerScore, loserScore, null, null, null, roundSummaryQuick);
+                const { winnerGuild } = await finalizeWarAndLog(interaction, client, db, war, winnerGuildId, winnerScore, loserScore, null, null, mvpQuick, null);
                 applyGuildElo(db, winnerGuildId, winnerEloGain, loserGuildId, loserEloLoss, war.id);
                 await refreshGuildPanel(client, db, winnerGuildId).catch(() => { });
                 await refreshGuildPanel(client, db, loserGuildId).catch(() => { });
@@ -3901,6 +3901,7 @@ export async function handleInteractions(interaction, client, db, commands) {
                         -loserEloLoss,
                         warStats.length > 0 ? warStats : null,
                         seasonQuick,
+                        mvpQuick || '',
                     );
                     console.log(`[createWarLog] site response:`, JSON.stringify(siteResult));
                 } catch (e) {
