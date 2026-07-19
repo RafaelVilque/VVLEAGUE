@@ -2532,72 +2532,54 @@ export async function handleInteractions(interaction, client, db, commands) {
                 const signingLogChannelId = interaction.guildId
                     ? getSetting(db, `${interaction.guildId}_signing_log_channel_id`)
                     : null;
-                if (signingLogChannelId) {
-                    // Send removal request to admin channel for approval
-                    let removalRequestSent = false;
-                    try {
-                        const discordGuildForRemoval = interaction.guildId
-                            ? (client.guilds.cache.get(interaction.guildId) || await client.guilds.fetch(interaction.guildId).catch(() => null))
-                            : null;
-                        const logChannel = discordGuildForRemoval
-                            ? (discordGuildForRemoval.channels.cache.get(signingLogChannelId) || await discordGuildForRemoval.channels.fetch(signingLogChannelId).catch(() => null))
-                            : await client.channels.fetch(signingLogChannelId).catch(() => null);
-                        if (logChannel) {
-                            const targetUser = await client.users.fetch(targetUserId).catch(() => null);
-                            const approvalEmbed = new EmbedBuilder()
-                                .setTitle('🗑️ Removal Approval Required')
-                                .setColor(0x5BADFF)
-                                .addFields({ name: 'Player', value: `<@${targetUserId}>${targetUser ? ` (${targetUser.username})` : ''}`, inline: true }, { name: 'Role', value: getRoleLabel(roleType), inline: true }, { name: 'Guild', value: guild?.name || guildId, inline: true }, { name: 'Requested by', value: `<@${interaction.user.id}>`, inline: true })
-                                .setTimestamp();
-                            const approvalRow = new ActionRowBuilder().addComponents(new ButtonBuilder()
-                                .setCustomId(`gp_remove_approve|${guildId}|${roleType}|${targetUserId}|${interaction.guildId}`)
-                                .setLabel('Approve Removal')
-                                .setStyle(ButtonStyle.Danger), new ButtonBuilder()
-                                .setCustomId(`gp_remove_decline|${guildId}`)
-                                .setLabel('Decline')
-                                .setStyle(ButtonStyle.Secondary));
-                            const sent = await logChannel.send({ embeds: [approvalEmbed], components: [approvalRow] }).catch(() => null);
-                            if (sent) removalRequestSent = true;
-                        }
-                    }
-                    catch (e) {
-                        console.warn('Failed to send removal approval request:', e?.message);
-                    }
-                    if (removalRequestSent) {
-                        await interaction.update({
-                            content: `⏳ Removal request for <@${targetUserId}> sent for admin approval.`,
-                            embeds: [],
-                            components: [],
-                        });
-                        return;
-                    }
-                    // Channel unreachable — fall through to immediate removal below
-                }
-                {
-                    // No approval channel (or channel unreachable) — remove immediately
-                    const removed = removeMemberFromRole(db, guildId, targetUserId, roleType);
-                    if (!removed) {
-                        await interaction.update({ content: '❌ Unable to remove the selected member.', embeds: [], components: [] });
-                        return;
-                    }
-                    const _cdDays1 = parseInt(getSetting(db, `${interaction.guildId}_signing_cooldown_days`) || '0');
-                    const _cdNotifyAt1 = _cdDays1 > 0 ? new Date(Date.now() + _cdDays1 * 5 * 60 * 1000).toISOString() : null;
-                    setCooldown(db, targetUserId, guild?.name || '', _cdNotifyAt1);
-                    await maybeRemoveDiscordRoleByType(interaction, db, targetUserId, roleType);
-                    await removeGuildNameRole(client, interaction.guildId ?? undefined, guild, targetUserId);
-                    // Sync removal to site
-                    try {
-                        const { releaseMember } = await import('./siteapi.js');
-                        await releaseMember(targetUserId);
-                    }
-                    catch (e) { console.warn('Failed to sync removal to site:', e?.message); }
-                    const targetUser = await client.users.fetch(targetUserId).catch(() => null);
-                    if (targetUser) {
-                        await targetUser.send({ embeds: [buildRemovalEmbed(roleType, guild?.name || guildId)] }).catch(() => { });
-                    }
-                    await refreshGuildPanel(client, db, guildId).catch(() => { });
+                if (!signingLogChannelId) {
                     await interaction.update({
-                        content: `✅ <@${targetUserId}> was removed from **${getRoleLabel(roleType)}** and the panel was updated.`,
+                        content: '❌ No staff approval channel configured. Use `/setup signing_log_channel` to set one before removals can be requested.',
+                        embeds: [],
+                        components: [],
+                    });
+                    return;
+                }
+                // Send removal request to admin channel for approval
+                let removalRequestSent = false;
+                try {
+                    const discordGuildForRemoval = interaction.guildId
+                        ? (client.guilds.cache.get(interaction.guildId) || await client.guilds.fetch(interaction.guildId).catch(() => null))
+                        : null;
+                    const logChannel = discordGuildForRemoval
+                        ? (discordGuildForRemoval.channels.cache.get(signingLogChannelId) || await discordGuildForRemoval.channels.fetch(signingLogChannelId).catch(() => null))
+                        : await client.channels.fetch(signingLogChannelId).catch(() => null);
+                    if (logChannel) {
+                        const targetUser = await client.users.fetch(targetUserId).catch(() => null);
+                        const approvalEmbed = new EmbedBuilder()
+                            .setTitle('🗑️ Removal Approval Required')
+                            .setColor(0x5BADFF)
+                            .addFields({ name: 'Player', value: `<@${targetUserId}>${targetUser ? ` (${targetUser.username})` : ''}`, inline: true }, { name: 'Role', value: getRoleLabel(roleType), inline: true }, { name: 'Guild', value: guild?.name || guildId, inline: true }, { name: 'Requested by', value: `<@${interaction.user.id}>`, inline: true })
+                            .setTimestamp();
+                        const approvalRow = new ActionRowBuilder().addComponents(new ButtonBuilder()
+                            .setCustomId(`gp_remove_approve|${guildId}|${roleType}|${targetUserId}|${interaction.guildId}`)
+                            .setLabel('Approve Removal')
+                            .setStyle(ButtonStyle.Danger), new ButtonBuilder()
+                            .setCustomId(`gp_remove_decline|${guildId}`)
+                            .setLabel('Decline')
+                            .setStyle(ButtonStyle.Secondary));
+                        const sent = await logChannel.send({ embeds: [approvalEmbed], components: [approvalRow] }).catch(() => null);
+                        if (sent) removalRequestSent = true;
+                    }
+                }
+                catch (e) {
+                    console.warn('Failed to send removal approval request:', e?.message);
+                }
+                if (removalRequestSent) {
+                    await interaction.update({
+                        content: `⏳ Removal request for <@${targetUserId}> sent for admin approval.`,
+                        embeds: [],
+                        components: [],
+                    });
+                }
+                else {
+                    await interaction.update({
+                        content: '❌ Could not reach the staff approval channel. Please check the channel is accessible and try again.',
                         embeds: [],
                         components: [],
                     });
