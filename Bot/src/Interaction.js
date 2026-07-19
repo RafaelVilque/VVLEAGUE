@@ -359,6 +359,16 @@ function canMemberFinalizeTicket(member, db, guildId) {
     const hosterIds = getHosterRoleIds(db, guildId);
     return hosterIds.some(id => member.roles.cache.has(id));
 }
+async function resolveMvpToUsername(client, raw) {
+    if (!raw) return null;
+    const mentionMatch = raw.match(/^<@!?(\d+)>$/);
+    const userId = mentionMatch ? mentionMatch[1] : /^\d{15,20}$/.test(raw) ? raw : null;
+    if (userId) {
+        const user = await client.users.fetch(userId).catch(() => null);
+        return user ? user.username : raw;
+    }
+    return raw;
+}
 async function finalizeWarAndLog(interaction, client, db, war, winnerGuildId, winnerScore, loserScore, clipsLink, roundDowns = null, mvpValue = null, roundSummary = null) {
     const loserGuildId = winnerGuildId === war.openerGuildId ? war.opponentGuildId : war.openerGuildId;
     addGuildWin(db, winnerGuildId);
@@ -3889,7 +3899,7 @@ export async function handleInteractions(interaction, client, db, commands) {
                     return;
                 }
                 const seasonQuick = interaction.fields.getTextInputValue('season')?.trim() || '';
-                const mvpQuick = interaction.fields.getTextInputValue('mvp_user')?.trim() || null;
+                const mvpQuick = await resolveMvpToUsername(client, interaction.fields.getTextInputValue('mvp_user')?.trim() || null);
                 const { winnerScore, loserScore } = parsedScore;
                 const loserGuildId = winnerGuildId === war.openerGuildId ? war.opponentGuildId : war.openerGuildId;
                 const winnerGuildData = getGuildById(db, winnerGuildId);
@@ -4018,7 +4028,7 @@ export async function handleInteractions(interaction, client, db, commands) {
                         roundDowns.push({ winnerDowns, loserDowns });
                     }
                 }
-                const mvpRaw = interaction.fields.getTextInputValue('mvp_user')?.trim() || null;
+                const mvpRaw = await resolveMvpToUsername(client, interaction.fields.getTextInputValue('mvp_user')?.trim() || null);
                 // Collect all clip links
                 const clipLinks = [];
                 for (let i = 1; i <= 3; i++) {
