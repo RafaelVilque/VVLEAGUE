@@ -59,10 +59,8 @@ export async function execute(interaction, db) {
     // Apply cooldown
     setCooldown(db, userId, guildName);
 
-    // Sync removal to site (fire-and-forget — best effort)
-    if (memberData || discordGuildRecord) {
-        releaseMember(userId).catch(e => console.warn('[release] Site sync failed:', e?.message));
-    }
+    // Sync removal to site (fire-and-forget — best effort, always)
+    releaseMember(userId).catch(e => console.warn('[release] Site sync failed:', e?.message));
 
     // Remove Discord roles
     if (interaction.guild) {
