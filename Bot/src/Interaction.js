@@ -2303,9 +2303,11 @@ export async function handleInteractions(interaction, client, db, commands) {
                     try {
                         const targetUser = await client.users.fetch(targetUserId).catch(() => null);
                         const safeName = (targetUser?.username || targetUserId).toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 20);
+                        const inviteCategoryId = interaction.guildId ? getSetting(db, `${interaction.guildId}_invite_category_id`) : null;
                         tempChannel = await interaction.guild?.channels.create({
                             name: `invite-${safeName}`,
                             type: ChannelType.GuildText,
+                            parent: inviteCategoryId || undefined,
                             permissionOverwrites: [
                                 { id: interaction.guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
                                 { id: targetUserId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory], deny: [PermissionFlagsBits.SendMessages] },
@@ -2314,7 +2316,7 @@ export async function handleInteractions(interaction, client, db, commands) {
                         });
                         if (tempChannel) {
                             await tempChannel.send({
-                                content: `<@${targetUserId}> You have a guild invite (your DMs are disabled, so this private channel was created for you). It will be deleted once you respond or it expires.`,
+                                content: `<@${targetUserId}> ⚠️ **Your DMs are disabled!** You have a pending guild invite below. Please also enable DMs in your Discord privacy settings so you can receive future invites directly.\n\nThis channel will be deleted once you accept, decline, or the invite expires.`,
                                 embeds: [inviteEmbed],
                                 components: [inviteRow],
                                 allowedMentions: { users: [targetUserId] },
@@ -2323,19 +2325,12 @@ export async function handleInteractions(interaction, client, db, commands) {
                         }
                     } catch (chErr) {
                         console.warn('[invite] Failed to create temp channel:', chErr?.message);
-                        // Last resort: post in current channel
-                        await interaction.channel?.send({
-                            content: `<@${targetUserId}>`,
-                            embeds: [inviteEmbed],
-                            components: [inviteRow],
-                            allowedMentions: { users: [targetUserId] },
-                        });
                     }
                 }
                 await interaction.update({
                     content: sentByDm
                         ? `✅ Invite sent via DM to <@${targetUserId}>.`
-                        : `✅ DMs disabled — a private channel was created for <@${targetUserId}>.`,
+                        : `✅ DMs disabled — a private invite channel was created for <@${targetUserId}>.`,
                     embeds: [],
                     components: [],
                 });

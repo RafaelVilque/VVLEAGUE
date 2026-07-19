@@ -77,6 +77,10 @@ export const data = new SlashCommandBuilder()
     .setDescription('Channel where guilds are pinged when their dodge grace period expires')
     .addChannelTypes(ChannelType.GuildText)
     .setRequired(false))
+    .addChannelOption(o => o.setName('invite_category')
+    .setDescription('Category where private invite channels are created for users with DMs disabled')
+    .addChannelTypes(ChannelType.GuildCategory)
+    .setRequired(false))
     .addIntegerOption(o => o.setName('signing_cooldown_days')
     .setDescription('How many days a player must wait before being signed after leaving a guild (0 = disabled)')
     .setMinValue(0)
@@ -156,6 +160,9 @@ export async function execute(interaction, db) {
     // Dodge grace period expiry notification channel
     const dodgeNotifyCh = interaction.options.getChannel('dodge_notify_channel');
     save('dodge_notify_channel_id', dodgeNotifyCh?.id ?? null, 'Dodge Notify Channel', dodgeNotifyCh ? `<#${dodgeNotifyCh.id}>` : '');
+    // Invite category (for DM-disabled users)
+    const inviteCategory = interaction.options.getChannel('invite_category');
+    save('invite_category_id', inviteCategory?.id ?? null, 'Invite Category', inviteCategory ? inviteCategory.name : '');
     // Signing cooldown
     const cooldownDays = interaction.options.getInteger('signing_cooldown_days');
     if (cooldownDays !== null) {
