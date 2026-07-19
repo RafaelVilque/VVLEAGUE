@@ -84,7 +84,7 @@ export async function execute(interaction, db) {
             if (war.channelId) {
                 const channel = (interaction.guild?.channels.cache.get(war.channelId) ?? await interaction.guild?.channels.fetch(war.channelId).catch(() => null));
                 if (channel && 'send' in channel) {
-                    await channel.send(`⚠️ Este war foi encerrado por um admin. Motivo: **${reason}**\nCanal será deletado em 5 segundos.`).catch(() => null);
+                    await channel.send(`⚠️ This war was closed by an admin. Reason: **${reason}**\nChannel will be deleted in 5 seconds.`).catch(() => null);
                 }
                 setTimeout(async () => {
                     await channel?.delete(`War ticket force closed by admin: ${reason}`).catch(() => null);
@@ -129,7 +129,7 @@ export async function execute(interaction, db) {
             if (wager.channelId) {
                 const channel = (interaction.guild?.channels.cache.get(wager.channelId) ?? await interaction.guild?.channels.fetch(wager.channelId).catch(() => null));
                 if (channel && 'send' in channel) {
-                    await channel.send(`⚠️ Este wager foi encerrado por um admin. Motivo: **${reason}**\nCanal será deletado em 5 segundos.`).catch(() => null);
+                    await channel.send(`⚠️ This wager was closed by an admin. Reason: **${reason}**\nChannel will be deleted in 5 seconds.`).catch(() => null);
                 }
                 setTimeout(async () => {
                     await channel?.delete(`Wager ticket force closed by admin: ${reason}`).catch(() => null);

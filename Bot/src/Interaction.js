@@ -599,6 +599,9 @@ function buildGuildPanelButtons(guildId) {
         .setCustomId(`gp_open_remove|${guildId}`)
         .setLabel('Remove Member')
         .setStyle(ButtonStyle.Danger), new ButtonBuilder()
+        .setCustomId(`gp_open_rotate|${guildId}`)
+        .setLabel('Rotate Member')
+        .setStyle(ButtonStyle.Primary), new ButtonBuilder()
         .setCustomId(`gp_open_transfer|${guildId}`)
         .setLabel('Ownership Transfer')
         .setStyle(ButtonStyle.Secondary));
@@ -1218,7 +1221,7 @@ export async function handleInteractions(interaction, client, db, commands) {
                             const { createWarLog } = await import('./siteapi.js');
                             const dodgerTag = dodgingGuild.tag || dodgingGuild.name;
                             const opponentTag = opponentGuildForPenalty?.tag || opponentGuildForPenalty?.name || 'Unknown';
-                            const penaltyNote = `${dodgingGuild.name} Dodged before 3 days of grace`;
+                            const penaltyNote = `"${dodgingGuild.name}" Dodged before the 3 day grace period ended`;
                             await createWarLog(
                                 opponentTag, dodgerTag,
                                 3, 0,
@@ -2133,6 +2136,85 @@ export async function handleInteractions(interaction, client, db, commands) {
                     content: `Select the new leader for **${guild.name}**. Page ${currentPage}/${totalPages}.`,
                     embeds: [],
                     components,
+                });
+                return;
+            }
+            if (customId.startsWith('gp_open_rotate|')) {
+                const [, guildId] = parseCustomId(customId);
+                if (!guildId) {
+                    await interaction.update({ content: '❌ Invalid action.', embeds: [], components: [] });
+                    return;
+                }
+                const actorRole = await getGuildActorRoleWithPanelAdmin(interaction, db, guildId, interaction.user.id);
+                if (!actorRole) {
+                    await replyPermissionError(interaction, '❌ You are not registered in this guild panel.');
+                    return;
+                }
+                const guild = getGuildById(db, guildId);
+                if (!guild) {
+                    await interaction.update({ content: '❌ Guild not found.', embeds: [], components: [] });
+                    return;
+                }
+                const rotatableMembers = [];
+                if (guild.coLeaderId) rotatableMembers.push({ userId: guild.coLeaderId, role: 'CO_LEADER' });
+                db.prepare('SELECT userId FROM Managers WHERE guildId = ?').all(guildId).forEach(r => rotatableMembers.push({ userId: r.userId, role: 'MANAGER' }));
+                db.prepare('SELECT userId FROM MainRosters WHERE guildId = ?').all(guildId).forEach(r => rotatableMembers.push({ userId: r.userId, role: 'MAIN' }));
+                db.prepare('SELECT userId FROM SubRosters WHERE guildId = ?').all(guildId).forEach(r => rotatableMembers.push({ userId: r.userId, role: 'SUB' }));
+                if (!rotatableMembers.length) {
+                    await interaction.update({ content: 'No members available to rotate.', embeds: [], components: [buildBackToPanelRow(guildId)] });
+                    return;
+                }
+                const ROLE_SHORT = { CO_LEADER: 'Co-Leader', MANAGER: 'Manager', MAIN: 'Main', SUB: 'Sub' };
+                const rotateOptions = await Promise.all(rotatableMembers.slice(0, 25).map(async ({ userId, role }) => {
+                    const m = await interaction.guild?.members.fetch(userId).catch(() => null);
+                    return new StringSelectMenuOptionBuilder()
+                        .setLabel(`${(m?.displayName || userId).slice(0, 50)} (${ROLE_SHORT[role]})`)
+                        .setValue(`${userId}:${role}`);
+                }));
+                const rotateSelect = new StringSelectMenuBuilder()
+                    .setCustomId(`gp_rotate_member_select|${guildId}`)
+                    .setPlaceholder('Select a member to rotate')
+                    .addOptions(rotateOptions);
+                await interaction.update({
+                    content: 'Select a member to move to a different role.',
+                    embeds: [],
+                    components: [new ActionRowBuilder().addComponents(rotateSelect), buildBackToPanelRow(guildId)],
+                });
+                return;
+            }
+            if (customId.startsWith('gp_rotate_to|')) {
+                const [, guildId, userId, fromRole, toRole] = parseCustomId(customId);
+                if (!guildId || !userId || !fromRole || !toRole) {
+                    await interaction.update({ content: '❌ Invalid action.', embeds: [], components: [] });
+                    return;
+                }
+                const actorRole = await getGuildActorRoleWithPanelAdmin(interaction, db, guildId, interaction.user.id);
+                if (!actorRole) {
+                    await replyPermissionError(interaction, '❌ You are not registered in this guild panel.');
+                    return;
+                }
+                if (!canManageRoleType(actorRole, fromRole) || !canManageRoleType(actorRole, toRole)) {
+                    await replyPermissionError(interaction, `❌ You cannot manage one or both of these role types.`);
+                    return;
+                }
+                if (!canAddUserToRole(db, guildId, toRole)) {
+                    await interaction.update({ content: `❌ Cannot rotate: **${getRoleLabel(toRole)}** is already full.`, embeds: [], components: [buildBackToPanelRow(guildId)] });
+                    return;
+                }
+                removeMemberFromRole(db, guildId, userId, fromRole);
+                const moved = addMemberToRole(db, guildId, userId, toRole);
+                if (!moved) {
+                    addMemberToRole(db, guildId, userId, fromRole);
+                    await interaction.update({ content: '❌ Failed to rotate member.', embeds: [], components: [buildBackToPanelRow(guildId)] });
+                    return;
+                }
+                await refreshGuildPanel(client, db, guildId).catch(() => {});
+                const movedMember = await interaction.guild?.members.fetch(userId).catch(() => null);
+                const displayName = movedMember?.displayName || userId;
+                await interaction.update({
+                    content: `✅ **${displayName}** moved from **${getRoleLabel(fromRole)}** to **${getRoleLabel(toRole)}**.`,
+                    embeds: [],
+                    components: [buildBackToPanelRow(guildId)],
                 });
                 return;
             }
@@ -3385,6 +3467,35 @@ export async function handleInteractions(interaction, client, db, commands) {
                     content: `Do you want to transfer guild ownership to <@${targetUserId}>?`,
                     embeds: [],
                     components: [confirmRow, buildBackToPanelRow(guildId)],
+                });
+                return;
+            }
+            if (customId.startsWith('gp_rotate_member_select|')) {
+                const [, guildId] = parseCustomId(customId);
+                if (!guildId) {
+                    await interaction.update({ content: '❌ Invalid action.', embeds: [], components: [] });
+                    return;
+                }
+                const value = interaction.values[0];
+                const colonIdx = value.lastIndexOf(':');
+                const userId = value.slice(0, colonIdx);
+                const fromRole = value.slice(colonIdx + 1);
+                const ROLE_LABELS_SHORT = { CO_LEADER: 'Co-Leader', MANAGER: 'Manager Guild', MAIN: 'Main Roster', SUB: 'Sub Roster' };
+                const ALL_ROLES = ['CO_LEADER', 'MANAGER', 'MAIN', 'SUB'];
+                const targetButtons = ALL_ROLES.filter(r => r !== fromRole).map(targetRole => {
+                    const hasSpace = canAddUserToRole(db, guildId, targetRole);
+                    return new ButtonBuilder()
+                        .setCustomId(`gp_rotate_to|${guildId}|${userId}|${fromRole}|${targetRole}`)
+                        .setLabel(`→ ${ROLE_LABELS_SHORT[targetRole]}`)
+                        .setStyle(hasSpace ? ButtonStyle.Primary : ButtonStyle.Secondary)
+                        .setDisabled(!hasSpace);
+                });
+                const m = await interaction.guild?.members.fetch(userId).catch(() => null);
+                const displayName = m?.displayName || userId;
+                await interaction.update({
+                    content: `Moving **${displayName}** (currently **${ROLE_LABELS_SHORT[fromRole]}**). Select their new role:`,
+                    embeds: [],
+                    components: [new ActionRowBuilder().addComponents(...targetButtons), buildBackToPanelRow(guildId)],
                 });
                 return;
             }
