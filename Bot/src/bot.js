@@ -15,7 +15,7 @@ import { Client, GatewayIntentBits, Partials } from 'discord.js';
 import Database from 'better-sqlite3';
 import { registerCommands, loadCommands } from './commands.js';
 import { handleInteractions, handleWagerAmountMessage } from './Interaction.js';
-import { setupDatabase, checkExpiredTickets, autoDodgeWar, autoDodgeWager, getPendingTicketsForReminder, getSetting, getExpiredCooldownsToNotify, markCooldownNotified, getExpiredDodgesToNotify, markDodgeNotified } from './database.js';
+import { setupDatabase, checkExpiredTickets, autoDodgeWar, autoDodgeWager, getPendingTicketsForReminder, getSetting, getExpiredCooldownsToNotify, markCooldownNotified, getExpiredDodgesToNotify, markDodgeNotified, getExpiredPendingInvites, setInviteStatus } from './database.js';
 import dotenv from 'dotenv';
 dotenv.config();
 const TOKEN = process.env.DISCORD_TOKEN;
@@ -63,6 +63,7 @@ client.once('ready', async () => {
     setInterval(async () => {
         try { await sendCooldownNotifications(client, db); } catch (e) { console.error('Cooldown notify error:', e); }
         try { await sendDodgeNotifications(client, db); } catch (e) { console.error('Dodge notify error:', e); }
+        try { await cleanupExpiredInvites(client, db); } catch (e) { console.error('Invite cleanup error:', e); }
     }, 60 * 1000);
     // Initial check
     setTimeout(async () => {
@@ -180,6 +181,16 @@ async function sendDodgeNotifications(client, db) {
             const leaderMention = row.leaderId ? `<@${row.leaderId}>` : `**${row.guild_name}**`;
             await channel.send(`✅ ${leaderMention} (**${row.guild_name}**) your dodge grace period has ended! Your guild can now be challenged again.`).catch(() => null);
             break;
+        }
+    }
+}
+async function cleanupExpiredInvites(client, db) {
+    const expired = getExpiredPendingInvites(db);
+    for (const invite of expired) {
+        setInviteStatus(db, invite.id, 'DECLINED');
+        if (invite.temp_channel_id) {
+            const ch = await client.channels.fetch(invite.temp_channel_id).catch(() => null);
+            if (ch && 'delete' in ch) await ch.delete('Invite expired').catch(() => null);
         }
     }
 }

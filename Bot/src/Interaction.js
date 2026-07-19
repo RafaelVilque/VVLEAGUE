@@ -1,6 +1,6 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, ContainerBuilder, EmbedBuilder, ModalBuilder, MessageFlags, OverwriteType, PermissionFlagsBits, SeparatorBuilder, SeparatorSpacingSize, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, TextInputBuilder, TextInputStyle, TextDisplayBuilder, UserSelectMenuBuilder, } from 'discord.js';
 import { loadCommands } from './commands.js';
-import { addMemberToRole, addGuildLoss, addGuildWin, acceptWar, canAddUserToRole, createWar, createInvite, dodgeWar, finishWar, getGuildById, getInviteById, getMembersByRole, getPendingInviteForTarget, getRoleLabel, isUserInRole, refreshGuildPanel, removeMemberFromRole, setInviteStatus, validateInviteForAction, getWarById, createWager, getWagerById, getActiveWagerForUser, recordWagerAcceptance, markWagerAccepted, dodgeWager, closeWager, getSetting, applyGuildElo, applyPlayerElo, setCooldown, isOnCooldown, getCooldown, initPlayerCollection, getPlayerCollection, setCollectionPlayers, setPlayerCollectionMsgId, initWagerAmountCollection, getWagerAmountCollection, getWagerAmountCollectionByChannel, setWagerAmount, resetWagerAmount, confirmWagerTeam, setWagerRules, getWagerCollectionByChannelForBan, setWagerBan, resetWagerBan, startWagerBanCollection, confirmWagerBanTeam, recordRulesVote, recordGuildDodge, getGuildActiveDodge, } from './database.js';
+import { addMemberToRole, addGuildLoss, addGuildWin, acceptWar, canAddUserToRole, createWar, createInvite, dodgeWar, finishWar, getGuildById, getInviteById, getMembersByRole, getPendingInviteForTarget, getRoleLabel, isUserInRole, refreshGuildPanel, removeMemberFromRole, setInviteStatus, validateInviteForAction, getWarById, createWager, getWagerById, getActiveWagerForUser, recordWagerAcceptance, markWagerAccepted, dodgeWager, closeWager, getSetting, applyGuildElo, applyPlayerElo, setCooldown, isOnCooldown, getCooldown, initPlayerCollection, getPlayerCollection, setCollectionPlayers, setPlayerCollectionMsgId, initWagerAmountCollection, getWagerAmountCollection, getWagerAmountCollectionByChannel, setWagerAmount, resetWagerAmount, confirmWagerTeam, setWagerRules, getWagerCollectionByChannelForBan, setWagerBan, resetWagerBan, startWagerBanCollection, confirmWagerBanTeam, recordRulesVote, recordGuildDodge, getGuildActiveDodge, setInviteTempChannel, } from './database.js';
 const ADD_ACTION_MAP = {
     ADD_CO_LEADER: 'CO_LEADER',
     ADD_MANAGER: 'MANAGER',
@@ -2206,17 +2206,44 @@ export async function handleInteractions(interaction, client, db, commands) {
                     console.warn(`Failed to send invite DM to ${targetUserId}:`, dmError);
                 }
                 if (!sentByDm) {
-                    await interaction.channel?.send({
-                        content: `<@${targetUserId}>`,
-                        embeds: [inviteEmbed],
-                        components: [inviteRow],
-                        allowedMentions: { users: [targetUserId] },
-                    });
+                    // DMs disabled — create a private temporary channel for the invited user
+                    let tempChannel = null;
+                    try {
+                        const targetUser = await client.users.fetch(targetUserId).catch(() => null);
+                        const safeName = (targetUser?.username || targetUserId).toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 20);
+                        tempChannel = await interaction.guild?.channels.create({
+                            name: `invite-${safeName}`,
+                            type: ChannelType.GuildText,
+                            permissionOverwrites: [
+                                { id: interaction.guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
+                                { id: targetUserId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory], deny: [PermissionFlagsBits.SendMessages] },
+                                { id: client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageChannels] },
+                            ],
+                        });
+                        if (tempChannel) {
+                            await tempChannel.send({
+                                content: `<@${targetUserId}> You have a guild invite (your DMs are disabled, so this private channel was created for you). It will be deleted once you respond or it expires.`,
+                                embeds: [inviteEmbed],
+                                components: [inviteRow],
+                                allowedMentions: { users: [targetUserId] },
+                            });
+                            setInviteTempChannel(db, inviteId, tempChannel.id);
+                        }
+                    } catch (chErr) {
+                        console.warn('[invite] Failed to create temp channel:', chErr?.message);
+                        // Last resort: post in current channel
+                        await interaction.channel?.send({
+                            content: `<@${targetUserId}>`,
+                            embeds: [inviteEmbed],
+                            components: [inviteRow],
+                            allowedMentions: { users: [targetUserId] },
+                        });
+                    }
                 }
                 await interaction.update({
                     content: sentByDm
                         ? `✅ Invite sent via DM to <@${targetUserId}>.`
-                        : ` DM unavailable (${dmFailureReason}). Invite posted in chat mentioning <@${targetUserId}>.`,
+                        : `✅ DMs disabled — a private channel was created for <@${targetUserId}>.`,
                     embeds: [],
                     components: [],
                 });
@@ -2241,37 +2268,33 @@ export async function handleInteractions(interaction, client, db, commands) {
                     });
                     return;
                 }
+                const deleteTempInviteChannel = () => {
+                    if (!invite.temp_channel_id) return;
+                    setTimeout(() => client.channels.fetch(invite.temp_channel_id).then(ch => { if (ch && 'delete' in ch) ch.delete().catch(() => null); }).catch(() => null), 3000);
+                };
                 if (action === 'gp_invite_decline') {
                     setInviteStatus(db, inviteId, 'DECLINED');
-                    await interaction.update({
-                        content: '❌ Invitation declined.',
-                        components: [],
-                    });
+                    await interaction.update({ content: '❌ Invitation declined.', components: [] });
+                    deleteTempInviteChannel();
                     return;
                 }
                 if (!canAddUserToRole(db, invite.guildId, invite.roleType)) {
                     setInviteStatus(db, inviteId, 'DECLINED');
-                    await interaction.update({
-                        content: `❌ Unable to accept: ${getRoleLabel(invite.roleType)} has reached its limit.`,
-                        components: [],
-                    });
+                    await interaction.update({ content: `❌ Unable to accept: ${getRoleLabel(invite.roleType)} has reached its limit.`, components: [] });
+                    deleteTempInviteChannel();
                     return;
                 }
                 if (isUserInRole(db, invite.guildId, invite.targetUserId, invite.roleType)) {
                     setInviteStatus(db, inviteId, 'DECLINED');
-                    await interaction.update({
-                        content: ' You already have this role.',
-                        components: [],
-                    });
+                    await interaction.update({ content: ' You already have this role.', components: [] });
+                    deleteTempInviteChannel();
                     return;
                 }
                 const added = addMemberToRole(db, invite.guildId, invite.targetUserId, invite.roleType);
                 if (!added) {
                     setInviteStatus(db, inviteId, 'DECLINED');
-                    await interaction.update({
-                        content: '❌ Unable to complete role assignment.',
-                        components: [],
-                    });
+                    await interaction.update({ content: '❌ Unable to complete role assignment.', components: [] });
+                    deleteTempInviteChannel();
                     return;
                 }
                 setInviteStatus(db, inviteId, 'ACCEPTED');
@@ -2316,6 +2339,7 @@ export async function handleInteractions(interaction, client, db, commands) {
                         content: `✅ Signing accepted! Your request for **${getRoleLabel(inviteRoleType)}** in **${dbGuild?.name || invite.guildId}** is pending admin approval.`,
                         components: [],
                     });
+                    deleteTempInviteChannel();
                 }
                 else {
                     // No approval channel — assign Discord roles immediately
@@ -2333,6 +2357,7 @@ export async function handleInteractions(interaction, client, db, commands) {
                                 content: '❌ Unable to accept invitation: failed to assign Discord role. Contact an admin.',
                                 components: [],
                             });
+                            deleteTempInviteChannel();
                             return;
                         }
                     }
@@ -2384,6 +2409,7 @@ export async function handleInteractions(interaction, client, db, commands) {
                         content: `✅ Invitation accepted for **${getRoleLabel(invite.roleType)}**.`,
                         components: [],
                     });
+                    deleteTempInviteChannel();
                 }
                 return;
             }
