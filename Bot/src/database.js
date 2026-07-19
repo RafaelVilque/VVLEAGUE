@@ -766,8 +766,9 @@ export function getAllDodgeRecords(db) {
     `).all();
 }
 export function getExpiredCooldownsToNotify(db) {
+    // Use datetime() to properly parse ISO 8601 strings (stored with 'T' separator)
     return db.prepare(
-        "SELECT * FROM cooldowns WHERE notify_at IS NOT NULL AND notify_at <= datetime('now') AND notify_sent = 0"
+        "SELECT * FROM cooldowns WHERE notify_at IS NOT NULL AND datetime(notify_at) <= datetime('now') AND notify_sent = 0"
     ).all();
 }
 export function markCooldownNotified(db, discordId) {
@@ -775,16 +776,27 @@ export function markCooldownNotified(db, discordId) {
 }
 export function getExpiredDodgesToNotify(db) {
     // One row per guild (most recent dodge), to avoid duplicate notifications
+    // Use datetime() to properly parse ISO 8601 strings (stored with 'T' separator)
     return db.prepare(`
         SELECT d.guild_id, d.guild_name, g.leaderId, MAX(d.id) as id
         FROM guild_dodge_history d
         LEFT JOIN Guilds g ON g.id = d.guild_id
-        WHERE d.grace_until <= datetime('now') AND d.notify_sent = 0
+        WHERE datetime(d.grace_until) <= datetime('now') AND d.notify_sent = 0
         GROUP BY d.guild_id
     `).all();
 }
 export function markDodgeNotified(db, guildId) {
     // Mark ALL unnotified expired records for this guild at once
-    db.prepare("UPDATE guild_dodge_history SET notify_sent = 1 WHERE guild_id = ? AND grace_until <= datetime('now')").run(guildId);
+    db.prepare("UPDATE guild_dodge_history SET notify_sent = 1 WHERE guild_id = ? AND datetime(grace_until) <= datetime('now')").run(guildId);
+}
+export function getActiveDodgeRecords(db) {
+    // Only guilds currently under an active grace period
+    return db.prepare(`
+        SELECT d.*, g.elo as current_elo
+        FROM guild_dodge_history d
+        LEFT JOIN Guilds g ON g.id = d.guild_id
+        WHERE datetime(d.grace_until) > datetime('now')
+        ORDER BY d.dodged_at DESC
+    `).all();
 }
 //# sourceMappingURL=database.js.map
