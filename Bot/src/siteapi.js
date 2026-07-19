@@ -71,11 +71,11 @@ export async function setOrgRole(tag, discordRoleId) {
 export async function setOrgFounded(tag, founded) {
     await botFetch(`/orgs/${encodeURIComponent(tag)}/founded`, { method: 'PUT', body: JSON.stringify({ founded }) });
 }
-export async function createWarLog(org1Tag, org2Tag, score1, score2, winnerTag, region, eloOrg1, eloOrg2, stats = null, season = '', mvp = '') {
+export async function createWarLog(org1Tag, org2Tag, score1, score2, winnerTag, region, eloOrg1, eloOrg2, stats = null, season = '', mvp = '', notes = '') {
     const date = new Date().toISOString().slice(0, 10);
     return botFetch('/logs/war', {
         method: 'POST',
-        body: JSON.stringify({ date, org1: org1Tag, org2: org2Tag, score1, score2, winner: winnerTag, region: region || 'NA', elo_org1: eloOrg1, elo_org2: eloOrg2, stats, season: season || '', mvp: mvp || '' }),
+        body: JSON.stringify({ date, org1: org1Tag, org2: org2Tag, score1, score2, winner: winnerTag, region: region || 'NA', elo_org1: eloOrg1, elo_org2: eloOrg2, stats, season: season || '', mvp: mvp || '', notes: notes || '' }),
     });
 }
 export async function createWagerLog(challenger, challenged, amount, winner, season, stats = null) {

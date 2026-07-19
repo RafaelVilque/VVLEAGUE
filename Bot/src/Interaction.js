@@ -1195,7 +1195,31 @@ export async function handleInteractions(interaction, client, db, commands) {
                     const graceTs = Math.floor(graceEnd.getTime() / 1000);
                     dodgeExtra = `\n⏳ **${dodgingGuild.name}** has a **5-minute grace period** and cannot be challenged until <t:${graceTs}:F>.`;
                     if (eloPenaltyApplied) {
-                        dodgeExtra += `\n⚠️ **-25 ELO** applied to **${dodgingGuild.name}** for repeat dodge within 3 days.`;
+                        dodgeExtra += `\n⚠️ **-25 ELO** penalty applied to **${dodgingGuild.name}** for repeat dodge within 3 days — war log created (3-0 loss).`;
+                        const opponentGuildForPenalty = userInOpener ? opponentGuild : openerGuild;
+                        // Track win/loss records
+                        addGuildLoss(db, dodgingGuild.id);
+                        if (opponentGuildForPenalty) addGuildWin(db, opponentGuildForPenalty.id);
+                        // Refresh Discord guild panels
+                        await refreshGuildPanel(client, db, dodgingGuild.id).catch(() => {});
+                        if (opponentGuildForPenalty) await refreshGuildPanel(client, db, opponentGuildForPenalty.id).catch(() => {});
+                        // Create site war log: dodger loses 3-0
+                        try {
+                            const { createWarLog } = await import('./siteapi.js');
+                            const dodgerTag = dodgingGuild.tag || dodgingGuild.name;
+                            const opponentTag = opponentGuildForPenalty?.tag || opponentGuildForPenalty?.name || 'Unknown';
+                            const penaltyNote = `${dodgingGuild.name} Dodged before 3 days of grace`;
+                            await createWarLog(
+                                opponentTag, dodgerTag,
+                                3, 0,
+                                opponentTag,
+                                opponentGuildForPenalty?.region || dodgingGuild?.region || 'NA',
+                                0, -25,
+                                null, '', '', penaltyNote,
+                            );
+                        } catch (e) {
+                            console.error('Failed to create dodge penalty war log on site:', e?.message);
+                        }
                     }
                 }
                 const dodgeSummary = `# WAR DODGE\n<@${interaction.user.id}> used Dodge and closed the war ticket (${openerGuild?.name || 'Unknown'} vs ${opponentGuild?.name || 'Unknown'}).${dodgeExtra}`;
