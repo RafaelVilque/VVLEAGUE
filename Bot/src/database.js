@@ -305,6 +305,9 @@ function ensureInviteColumns(db) {
     if (!existing.has('inviterId')) {
         db.exec('ALTER TABLE Invites ADD COLUMN inviterId TEXT');
     }
+    if (!existing.has('temp_channel_id')) {
+        db.exec('ALTER TABLE Invites ADD COLUMN temp_channel_id TEXT');
+    }
 }
 function ensureGuildColumns(db) {
     const columns = db.prepare('PRAGMA table_info(Guilds)').all();
@@ -798,5 +801,13 @@ export function getActiveDodgeRecords(db) {
         WHERE datetime(d.grace_until) > datetime('now')
         ORDER BY d.dodged_at DESC
     `).all();
+}
+export function setInviteTempChannel(db, inviteId, channelId) {
+    db.prepare('UPDATE Invites SET temp_channel_id = ? WHERE id = ?').run(channelId, inviteId);
+}
+export function getExpiredPendingInvites(db) {
+    return db.prepare(
+        "SELECT * FROM Invites WHERE status = 'PENDING' AND expiresAt IS NOT NULL AND datetime(expiresAt) <= datetime('now')"
+    ).all();
 }
 //# sourceMappingURL=database.js.map
