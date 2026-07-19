@@ -774,11 +774,17 @@ export function markCooldownNotified(db, discordId) {
     db.prepare("UPDATE cooldowns SET notify_sent = 1 WHERE discord_id = ?").run(discordId);
 }
 export function getExpiredDodgesToNotify(db) {
-    return db.prepare(
-        "SELECT d.*, g.leaderId FROM guild_dodge_history d LEFT JOIN Guilds g ON g.id = d.guild_id WHERE d.grace_until <= datetime('now') AND d.notify_sent = 0"
-    ).all();
+    // One row per guild (most recent dodge), to avoid duplicate notifications
+    return db.prepare(`
+        SELECT d.guild_id, d.guild_name, g.leaderId, MAX(d.id) as id
+        FROM guild_dodge_history d
+        LEFT JOIN Guilds g ON g.id = d.guild_id
+        WHERE d.grace_until <= datetime('now') AND d.notify_sent = 0
+        GROUP BY d.guild_id
+    `).all();
 }
-export function markDodgeNotified(db, id) {
-    db.prepare("UPDATE guild_dodge_history SET notify_sent = 1 WHERE id = ?").run(id);
+export function markDodgeNotified(db, guildId) {
+    // Mark ALL unnotified expired records for this guild at once
+    db.prepare("UPDATE guild_dodge_history SET notify_sent = 1 WHERE guild_id = ? AND grace_until <= datetime('now')").run(guildId);
 }
 //# sourceMappingURL=database.js.map

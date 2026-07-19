@@ -171,7 +171,7 @@ async function sendCooldownNotifications(client, db) {
 async function sendDodgeNotifications(client, db) {
     const expired = getExpiredDodgesToNotify(db);
     for (const row of expired) {
-        markDodgeNotified(db, row.id);
+        markDodgeNotified(db, row.guild_id);
         for (const [serverId] of client.guilds.cache) {
             const channelId = getSetting(db, `${serverId}_dodge_notify_channel_id`);
             if (!channelId) continue;
