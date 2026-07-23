@@ -325,6 +325,7 @@ try { db.exec("ALTER TABLE org_members ADD COLUMN discord_id TEXT DEFAULT ''"); 
 try { db.exec("ALTER TABLE orgs ADD COLUMN discord_role_id TEXT DEFAULT ''"); } catch(e) {}
 try { db.exec("ALTER TABLE orgs ADD COLUMN signing_open INTEGER DEFAULT 1"); } catch(e) {}
 try { db.exec("ALTER TABLE players ADD COLUMN discord_id TEXT DEFAULT ''"); } catch(e) {}
+try { db.exec("ALTER TABLE players ADD COLUMN avatar_url TEXT DEFAULT ''"); } catch(e) {}
 
 // Admin users table (multi-login with permissions)
 db.exec(`
@@ -871,15 +872,15 @@ app.get('/api/players', (_req, res) => {
 });
 
 app.post('/api/players', requireAdmin, requirePerm('orgs'), (req, res) => {
-  const { name, org, elo, wins, losses } = req.body;
+  const { name, org, elo, wins, losses, avatar_url } = req.body;
   if (!name) return res.status(400).json({ error: 'name required' });
-  const r = db.prepare('INSERT INTO players (name,org,elo,wins,losses) VALUES (?,?,?,?,?)').run(name, org||'', elo||1000, wins||0, losses||0);
+  const r = db.prepare('INSERT INTO players (name,org,elo,wins,losses,avatar_url) VALUES (?,?,?,?,?,?)').run(name, org||'', elo||1000, wins||0, losses||0, avatar_url||'');
   res.json({ id: r.lastInsertRowid });
 });
 
 app.put('/api/players/:id', requireAdmin, requirePerm('orgs'), (req, res) => {
-  const { name, org, elo, wins, losses } = req.body;
-  db.prepare('UPDATE players SET name=?,org=?,elo=?,wins=?,losses=? WHERE id=?').run(name, org||'', elo||1000, wins||0, losses||0, req.params.id);
+  const { name, org, elo, wins, losses, avatar_url } = req.body;
+  db.prepare('UPDATE players SET name=?,org=?,elo=?,wins=?,losses=?,avatar_url=? WHERE id=?').run(name, org||'', elo||1000, wins||0, losses||0, avatar_url||'', req.params.id);
   res.json({ ok: true });
 });
 

@@ -851,7 +851,11 @@ function renderLeaderboard() {
     podiumEl.innerHTML = `<div class="podium-wrap">${podiumOrder.map((p, domIdx) => {
       if (!p) return '';
       const t = getEloTier(p.elo);
+      const avatarHtml = p.avatar_url
+        ? `<img src="${p.avatar_url}" alt="${p.name}" class="podium-guild-logo" style="border-radius:50%;">`
+        : `<div class="podium-guild-logo podium-guild-fallback">${p.name.charAt(0).toUpperCase()}</div>`;
       return `<div class="podium-card ${posClasses[domIdx]}">
+        ${avatarHtml}
         <div class="podium-name">${p.name}</div>
         <div class="podium-org">[${p.org}]</div>
         <div class="podium-elo">${p.elo}<span class="podium-elo-label">ELO</span></div>
@@ -1539,8 +1543,10 @@ function openPlayerForm(existing) {
       <div class="admin-field"><label class="admin-label">ORG</label><select id="pf_org" class="admin-select"><option value="">— FREE AGENT —</option>${orgsData.map(o=>`<option value="${o.tag}" ${e.org===o.tag?'selected':''}>${o.tag} — ${o.name}</option>`).join('')}</select></div>
       <div class="admin-field"><label class="admin-label">ELO</label><input id="pf_elo" type="number" class="admin-input" value="${e.elo||1000}"></div>
       <div class="admin-field"><label class="admin-label">WINS</label><input id="pf_wins" type="number" min="0" class="admin-input" value="${e.wins||0}"></div>
-      <div class="admin-field" style="grid-column:span 2;"><label class="admin-label">LOSSES</label><input id="pf_losses" type="number" min="0" class="admin-input" value="${e.losses||0}"></div>
+      <div class="admin-field"><label class="admin-label">LOSSES</label><input id="pf_losses" type="number" min="0" class="admin-input" value="${e.losses||0}"></div>
+      <div class="admin-field" style="grid-column:span 2;"><label class="admin-label">AVATAR URL (foto de perfil)</label><input id="pf_avatar" class="admin-input" value="${e.avatar_url||''}" placeholder="https://..."></div>
     </div>
+    ${e.avatar_url ? `<div style="text-align:center;margin-bottom:.6rem;"><img src="${e.avatar_url}" alt="avatar" style="width:54px;height:54px;object-fit:cover;border-radius:50%;opacity:.85;"></div>` : ''}
     <div class="admin-modal-actions">
       <button class="admin-submit-btn" onclick="savePlayerForm(${e.id||'null'})">SAVE</button>
       <button class="admin-cancel-btn" onclick="closeLogForm()">CANCEL</button>
@@ -1549,7 +1555,7 @@ function openPlayerForm(existing) {
 }
 
 async function savePlayerForm(id) {
-  const body = { name:g('pf_name'), org:g('pf_org'), elo:parseInt(g('pf_elo'))||1000, wins:parseInt(g('pf_wins'))||0, losses:parseInt(g('pf_losses'))||0 };
+  const body = { name:g('pf_name'), org:g('pf_org'), elo:parseInt(g('pf_elo'))||1000, wins:parseInt(g('pf_wins'))||0, losses:parseInt(g('pf_losses'))||0, avatar_url:g('pf_avatar')||'' };
   if (!body.name) return;
   id ? await apiPut('/players/'+id, body) : await apiPost('/players', body);
   closeLogForm();
