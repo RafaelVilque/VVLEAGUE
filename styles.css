@@ -1187,6 +1187,85 @@ body::after {
 }
 
 
+/* ====== PODIUM ====== */
+.lb-podium { margin-bottom: 2rem; }
+
+.podium-wrap {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 1.2rem;
+  padding-bottom: 0.5rem;
+}
+
+.podium-card {
+  flex: 0 0 200px;
+  background: rgba(7,13,31,.85);
+  border: 1px solid rgba(91,173,255,.18);
+  border-radius: 12px;
+  padding: 1.4rem 1rem 3.2rem;
+  text-align: center;
+  position: relative;
+  transition: transform .2s;
+}
+
+.podium-card.pos-1 {
+  flex: 0 0 220px;
+  min-height: 270px;
+  border-color: rgba(91,173,255,.55);
+  background: rgba(5,18,50,.9);
+  box-shadow: 0 0 28px rgba(91,173,255,.18), 0 0 6px rgba(91,173,255,.1);
+}
+.podium-card.pos-2 { min-height: 230px; border-color: rgba(180,190,210,.25); }
+.podium-card.pos-3 { min-height: 210px; border-color: rgba(140,100,60,.3); }
+
+.podium-medal { font-size: 1.9rem; margin-bottom: .5rem; }
+
+.podium-guild-logo {
+  width: 56px; height: 56px;
+  border-radius: 50%;
+  object-fit: contain;
+  margin: 0 auto .6rem;
+  display: block;
+  background: rgba(91,173,255,.07);
+  padding: 4px;
+}
+.podium-guild-fallback {
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.2rem; font-weight: 700; color: var(--blue);
+}
+
+.podium-name {
+  font-size: 1rem; font-weight: 700; color: var(--text);
+  letter-spacing: .06em; margin-bottom: .2rem;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.podium-org { font-size: .75rem; color: rgba(160,200,255,.4); letter-spacing: .08em; margin-bottom: .6rem; }
+
+.podium-elo {
+  font-size: 1.5rem; font-weight: 700; color: var(--blue);
+  letter-spacing: .02em; line-height: 1;
+}
+.podium-elo-label {
+  font-size: .65rem; font-weight: 700; letter-spacing: .1em;
+  color: rgba(91,173,255,.5); margin-left: .3rem; vertical-align: middle;
+}
+
+.podium-tier { margin: .4rem 0; }
+.podium-wl { font-size: .78rem; margin-top: .3rem; color: rgba(160,200,255,.65); }
+
+.podium-rank-label {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  padding: .55rem 0;
+  font-size: .7rem; font-weight: 700; letter-spacing: .14em;
+  border-top: 1px solid rgba(91,173,255,.1);
+  border-radius: 0 0 12px 12px;
+}
+.podium-card.pos-1 .podium-rank-label { color: var(--blue); background: rgba(91,173,255,.08); }
+.podium-card.pos-2 .podium-rank-label { color: rgba(192,200,215,.7); background: rgba(160,180,220,.05); }
+.podium-card.pos-3 .podium-rank-label { color: rgba(180,130,80,.8); background: rgba(140,100,60,.06); }
+
 /* ====== RULES PAGE ====== */
 #pgRules { padding: 0; max-width: 100%; overflow: hidden; }
 #pgRules.active { display: flex !important; height: calc(100vh - 66px); animation: none; }

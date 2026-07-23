@@ -332,7 +332,11 @@ function switchRegionGuild(btn, r) {
   btn.classList.add('active'); renderGuilds();
 }
 function renderGuilds() {
-  document.getElementById('guildGrid').innerHTML = (guildsData[currentGuildR]||[]).map(g => `
+  const guilds = guildsData[currentGuildR] || [];
+  const podiumEl = document.getElementById('guildPodium');
+  const gridEl   = document.getElementById('guildGrid');
+
+  const makeGuildCard = g => `
     <div class="guild-card">
       <div class="guild-rank">RANK #${g.rank}</div>
       <div class="guild-icon">${g.logo_url ? '<img src="'+g.logo_url+'" alt="'+g.tag+'" style="width:100%;height:100%;object-fit:contain;border-radius:50%;padding:4px;">' : g.icon}</div>
@@ -343,7 +347,35 @@ function renderGuilds() {
         <div class="guild-stat"><span>${g.members}</span><label>MEMBERS</label></div>
         <div class="guild-stat"><span>${g.points.toLocaleString()}</span><label>POINTS</label></div>
       </div>
-    </div>`).join('');
+    </div>`;
+
+  const top3 = guilds.slice(0, Math.min(3, guilds.length));
+  const rest  = guilds.slice(3);
+
+  const podiumOrder  = [top3[1], top3[0], top3[2]];
+  const posLabels    = ['2nd','1st','3rd'];
+  const posMedals    = ['🥈','🥇','🥉'];
+  const posClasses   = ['pos-2','pos-1','pos-3'];
+
+  if (podiumEl) {
+    podiumEl.innerHTML = top3.length ? `<div class="podium-wrap">${podiumOrder.map((g, domIdx) => {
+      if (!g) return '';
+      const logoHtml = g.logo_url
+        ? `<img src="${g.logo_url}" alt="${g.tag}" class="podium-guild-logo">`
+        : `<div class="podium-guild-logo podium-guild-fallback">${g.icon||g.tag[0]}</div>`;
+      return `<div class="podium-card ${posClasses[domIdx]}">
+        <div class="podium-medal">${posMedals[domIdx]}</div>
+        ${logoHtml}
+        <div class="podium-name">${g.name}</div>
+        <div class="podium-org">[${g.tag}]</div>
+        <div class="podium-elo">${g.points.toLocaleString()}<span class="podium-elo-label">PTS</span></div>
+        <div class="podium-wl"><span class="stat-wins">${g.wins}W</span>&nbsp;<span style="opacity:.4">/</span>&nbsp;<span class="stat-losses">${g.members} MBR</span></div>
+        <div class="podium-rank-label">${posLabels[domIdx]}</div>
+      </div>`;
+    }).join('')}</div>` : '';
+  }
+
+  gridEl.innerHTML = rest.map(makeGuildCard).join('');
 }
 
 function switchRegionTeam(btn, r) {
@@ -728,14 +760,42 @@ async function saveEloInfo() {
 // ============================================================
 function renderGuildLeaderboard() {
   const el = document.getElementById('guildLbBody');
+  const podiumEl = document.getElementById('guildLbPodium');
   if (!el) return;
   const sorted = [...orgsData].sort((a,b) => (b.points||0) - (a.points||0));
-  el.innerHTML = sorted.map((o,i) => {
+
+  const top3 = sorted.slice(0, Math.min(3, sorted.length));
+  const rest  = sorted.slice(3);
+
+  const podiumOrder = [top3[1], top3[0], top3[2]];
+  const posLabels   = ['2nd','1st','3rd'];
+  const posMedals   = ['🥈','🥇','🥉'];
+  const posClasses  = ['pos-2','pos-1','pos-3'];
+
+  if (podiumEl) {
+    podiumEl.innerHTML = top3.length ? `<div class="podium-wrap">${podiumOrder.map((o, domIdx) => {
+      if (!o) return '';
+      const logoHtml = o.logo_url
+        ? `<img src="${o.logo_url}" alt="${o.tag}" class="podium-guild-logo">`
+        : `<div class="podium-guild-logo podium-guild-fallback">${o.icon||o.tag[0]}</div>`;
+      return `<div class="podium-card ${posClasses[domIdx]}">
+        <div class="podium-medal">${posMedals[domIdx]}</div>
+        ${logoHtml}
+        <div class="podium-name">${o.name}</div>
+        <div class="podium-org">[${o.tag}]</div>
+        <div class="podium-elo">${(o.points||0).toLocaleString()}<span class="podium-elo-label">PTS</span></div>
+        <div class="podium-wl"><span class="stat-wins">${o.wins||0}W</span>&nbsp;<span style="opacity:.4">/</span>&nbsp;<span class="stat-losses">${o.losses||0}L</span></div>
+        <div class="podium-rank-label">${posLabels[domIdx]}</div>
+      </div>`;
+    }).join('')}</div>` : '';
+  }
+
+  el.innerHTML = rest.map((o, i) => {
+    const rank = i + 4;
     const points = o.points || 0;
-    const rc = i<3?`lb-rank-${i+1}`:'', rd = i<3?['①','②','③'][i]:i+1;
-    return `<tr class="${rc}">
-      <td class="lb-rank">${rd}</td>
-      <td style="font-weight:600">${o.icon||''} ${o.name}</td>
+    return `<tr>
+      <td class="lb-rank">${rank}</td>
+      <td style="font-weight:600">${o.name}</td>
       <td style="color:rgba(160,200,255,.5);font-size:.85rem;">[${o.tag}]</td>
       <td style="color:var(--yellow);font-weight:700">${points.toLocaleString()}</td>
       <td style="font-size:.85rem;"><span class="stat-wins">${o.wins||0}W</span>&nbsp;<span style="opacity:.4">/</span>&nbsp;<span class="stat-losses">${o.losses||0}L</span></td>
@@ -770,13 +830,46 @@ function renderLeaderboard() {
   const data = leaderboardData.filter(p=>!q||p.name.toLowerCase().includes(q)||p.org.toLowerCase().includes(q));
   const actTh = document.getElementById('lbActTh');
   if (actTh) actTh.style.display = hasPerm('orgs') ? '' : 'none';
-  document.getElementById('lbBody').innerHTML = data.map((p,i) => {
-    const rc=i<3?`lb-rank-${i+1}`:'', rd=i<3?['①','②','③'][i]:i+1, t=getEloTier(p.elo);
+  const podiumEl = document.getElementById('lbPodium');
+
+  const makePlayerRow = (p, rank) => {
+    const t = getEloTier(p.elo);
     const _pEdit = hasPerm('orgs') ? `<button class="tbl-btn" onclick="openPlayerForm(${JSON.stringify(p).replace(/"/g,'&quot;')})">✎</button>` : '';
     const _pDel  = hasPerm('orgs_delete') ? `<button class="tbl-btn del" onclick="confirmDelete('player',${p.id})">✕</button>` : '';
     const adminBtns = (_pEdit||_pDel) ? `<td>${_pEdit}${_pDel}</td>` : '';
-    return `<tr class="${rc}"><td class="lb-rank">${rd}</td><td style="font-weight:600">${p.name}</td><td style="color:rgba(160,200,255,.5);font-size:.85rem;">[${p.org}]</td><td class="lb-elo">${p.elo}</td><td><span class="tier-badge tier-${t.label.toLowerCase()}" style="color:${t.color}">${t.label}</span></td><td style="font-size:.85rem;"><span class="stat-wins">${p.wins}W</span>&nbsp;<span style="opacity:.4">/</span>&nbsp;<span class="stat-losses">${p.losses}L</span></td>${adminBtns}</tr>`;
-  }).join('');
+    return `<tr><td class="lb-rank">${rank}</td><td style="font-weight:600">${p.name}</td><td style="color:rgba(160,200,255,.5);font-size:.85rem;">[${p.org}]</td><td class="lb-elo">${p.elo}</td><td><span class="tier-badge tier-${t.label.toLowerCase()}" style="color:${t.color}">${t.label}</span></td><td style="font-size:.85rem;"><span class="stat-wins">${p.wins}W</span>&nbsp;<span style="opacity:.4">/</span>&nbsp;<span class="stat-losses">${p.losses}L</span></td>${adminBtns}</tr>`;
+  };
+
+  if (q || data.length === 0) {
+    if (podiumEl) podiumEl.innerHTML = '';
+    document.getElementById('lbBody').innerHTML = data.map((p,i) => makePlayerRow(p, i+1)).join('');
+    return;
+  }
+
+  // Podium: top 3, order [2nd, 1st, 3rd] in DOM for classic staircase
+  const top3 = data.slice(0, Math.min(3, data.length));
+  const podiumOrder = [top3[1], top3[0], top3[2]]; // [2nd, 1st, 3rd]
+  const posLabels = ['2nd','1st','3rd'];
+  const posMedals = ['🥈','🥇','🥉'];
+  const posClasses = ['pos-2','pos-1','pos-3'];
+  if (podiumEl) {
+    podiumEl.innerHTML = `<div class="podium-wrap">${podiumOrder.map((p, domIdx) => {
+      if (!p) return '';
+      const t = getEloTier(p.elo);
+      return `<div class="podium-card ${posClasses[domIdx]}">
+        <div class="podium-medal">${posMedals[domIdx]}</div>
+        <div class="podium-name">${p.name}</div>
+        <div class="podium-org">[${p.org}]</div>
+        <div class="podium-elo">${p.elo}<span class="podium-elo-label">ELO</span></div>
+        <div class="podium-tier"><span class="tier-badge tier-${t.label.toLowerCase()}" style="color:${t.color}">${t.label}</span></div>
+        <div class="podium-wl"><span class="stat-wins">${p.wins}W</span>&nbsp;<span style="opacity:.4">/</span>&nbsp;<span class="stat-losses">${p.losses}L</span></div>
+        <div class="podium-rank-label">${posLabels[domIdx]}</div>
+      </div>`;
+    }).join('')}</div>`;
+  }
+
+  // Table from rank 4
+  document.getElementById('lbBody').innerHTML = data.slice(3).map((p,i) => makePlayerRow(p, i+4)).join('');
 }
 
 // ============================================================
