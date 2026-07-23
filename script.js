@@ -354,7 +354,6 @@ function renderGuilds() {
 
   const podiumOrder  = [top3[1], top3[0], top3[2]];
   const posLabels    = ['2nd','1st','3rd'];
-  const posMedals    = ['🥈','🥇','🥉'];
   const posClasses   = ['pos-2','pos-1','pos-3'];
 
   if (podiumEl) {
@@ -364,7 +363,6 @@ function renderGuilds() {
         ? `<img src="${g.logo_url}" alt="${g.tag}" class="podium-guild-logo">`
         : `<div class="podium-guild-logo podium-guild-fallback">${g.icon||g.tag[0]}</div>`;
       return `<div class="podium-card ${posClasses[domIdx]}">
-        <div class="podium-medal">${posMedals[domIdx]}</div>
         ${logoHtml}
         <div class="podium-name">${g.name}</div>
         <div class="podium-org">[${g.tag}]</div>
@@ -769,7 +767,6 @@ function renderGuildLeaderboard() {
 
   const podiumOrder = [top3[1], top3[0], top3[2]];
   const posLabels   = ['2nd','1st','3rd'];
-  const posMedals   = ['🥈','🥇','🥉'];
   const posClasses  = ['pos-2','pos-1','pos-3'];
 
   if (podiumEl) {
@@ -779,7 +776,6 @@ function renderGuildLeaderboard() {
         ? `<img src="${o.logo_url}" alt="${o.tag}" class="podium-guild-logo">`
         : `<div class="podium-guild-logo podium-guild-fallback">${o.icon||o.tag[0]}</div>`;
       return `<div class="podium-card ${posClasses[domIdx]}">
-        <div class="podium-medal">${posMedals[domIdx]}</div>
         ${logoHtml}
         <div class="podium-name">${o.name}</div>
         <div class="podium-org">[${o.tag}]</div>
@@ -850,14 +846,12 @@ function renderLeaderboard() {
   const top3 = data.slice(0, Math.min(3, data.length));
   const podiumOrder = [top3[1], top3[0], top3[2]]; // [2nd, 1st, 3rd]
   const posLabels = ['2nd','1st','3rd'];
-  const posMedals = ['🥈','🥇','🥉'];
   const posClasses = ['pos-2','pos-1','pos-3'];
   if (podiumEl) {
     podiumEl.innerHTML = `<div class="podium-wrap">${podiumOrder.map((p, domIdx) => {
       if (!p) return '';
       const t = getEloTier(p.elo);
       return `<div class="podium-card ${posClasses[domIdx]}">
-        <div class="podium-medal">${posMedals[domIdx]}</div>
         <div class="podium-name">${p.name}</div>
         <div class="podium-org">[${p.org}]</div>
         <div class="podium-elo">${p.elo}<span class="podium-elo-label">ELO</span></div>

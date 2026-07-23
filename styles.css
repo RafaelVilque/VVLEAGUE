@@ -1201,7 +1201,7 @@ body::after {
 .podium-card {
   flex: 0 0 200px;
   background: rgba(7,13,31,.85);
-  border: 1px solid rgba(91,173,255,.18);
+  border: 2px solid transparent;
   border-radius: 12px;
   padding: 1.4rem 1rem 3.2rem;
   text-align: center;
@@ -1212,14 +1212,22 @@ body::after {
 .podium-card.pos-1 {
   flex: 0 0 220px;
   min-height: 270px;
-  border-color: rgba(91,173,255,.55);
-  background: rgba(5,18,50,.9);
-  box-shadow: 0 0 28px rgba(91,173,255,.18), 0 0 6px rgba(91,173,255,.1);
+  border-color: #FFD700;
+  background: rgba(20,16,0,.9);
+  box-shadow: 0 0 28px rgba(255,215,0,.18), 0 0 8px rgba(255,215,0,.1);
 }
-.podium-card.pos-2 { min-height: 230px; border-color: rgba(180,190,210,.25); }
-.podium-card.pos-3 { min-height: 210px; border-color: rgba(140,100,60,.3); }
-
-.podium-medal { font-size: 1.9rem; margin-bottom: .5rem; }
+.podium-card.pos-2 {
+  min-height: 230px;
+  border-color: #A8B0BC;
+  background: rgba(7,10,22,.9);
+  box-shadow: 0 0 20px rgba(168,176,188,.12);
+}
+.podium-card.pos-3 {
+  min-height: 210px;
+  border-color: #CD7F32;
+  background: rgba(18,10,4,.9);
+  box-shadow: 0 0 18px rgba(205,127,50,.14);
+}
 
 .podium-guild-logo {
   width: 56px; height: 56px;
@@ -1262,9 +1270,9 @@ body::after {
   border-top: 1px solid rgba(91,173,255,.1);
   border-radius: 0 0 12px 12px;
 }
-.podium-card.pos-1 .podium-rank-label { color: var(--blue); background: rgba(91,173,255,.08); }
-.podium-card.pos-2 .podium-rank-label { color: rgba(192,200,215,.7); background: rgba(160,180,220,.05); }
-.podium-card.pos-3 .podium-rank-label { color: rgba(180,130,80,.8); background: rgba(140,100,60,.06); }
+.podium-card.pos-1 .podium-rank-label { color: #FFD700; background: rgba(255,215,0,.07); border-top-color: rgba(255,215,0,.18); }
+.podium-card.pos-2 .podium-rank-label { color: #A8B0BC; background: rgba(168,176,188,.05); border-top-color: rgba(168,176,188,.14); }
+.podium-card.pos-3 .podium-rank-label { color: #CD7F32; background: rgba(205,127,50,.07); border-top-color: rgba(205,127,50,.16); }
 
 /* ====== RULES PAGE ====== */
 #pgRules { padding: 0; max-width: 100%; overflow: hidden; }
