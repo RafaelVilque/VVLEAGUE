@@ -145,11 +145,14 @@ async function createWarTicketChannel(interaction, db, guildA, guildB) {
     });
     if (!channel)
         return null;
+    const warDeadlineTs = Math.floor(Date.now() / 1000) + 86400;
     const warConfirmationContainer = new ContainerBuilder()
         .setAccentColor(0x5BADFF)
         .addTextDisplayComponents(new TextDisplayBuilder().setContent(`# ⚔️ War Confirmation\nWar between: **${guildA.name}** vs **${guildB.name}**`))
         .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true))
-        .addTextDisplayComponents(new TextDisplayBuilder().setContent('\nℹ️ Waiting for confirmation from the opponent team (Leader/Co-leader).\n\nUse the buttons below:\n• **Accept War** — confirm the war\n• **Dodge** — cancel the war'));
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent('\nℹ️ Waiting for confirmation from the opponent team (Leader/Co-leader).\n\nUse the buttons below:\n• **Accept War** — confirm the war\n• **Dodge** — cancel the war'))
+        .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true))
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent(`⏰ This war must be accepted within **24 hours**.\nIf not accepted by <t:${warDeadlineTs}:F> (<t:${warDeadlineTs}:R>), it will result in a **dodge penalty**.`));
     const initialMessage = await channel.send({
         flags: MessageFlags.IsComponentsV2,
         components: [warConfirmationContainer],
@@ -3536,11 +3539,13 @@ export async function handleInteractions(interaction, client, db, commands) {
                     });
                     return;
                 }
+                const wager1v1DeadlineTs = Math.floor(Date.now() / 1000) + 86400;
                 const wagerEmbed = new EmbedBuilder()
                     .setColor(0x5BADFF)
                     .setTitle('Wager Ticket')
                     .setDescription(' Chat is locked until the wager is accepted.\n\n' +
-                    'Use the buttons below to accept, dodge, or close the ticket.');
+                    'Use the buttons below to accept, dodge, or close the ticket.\n\n' +
+                    `⏰ This wager must be accepted within **24 hours**.\nIf not accepted by <t:${wager1v1DeadlineTs}:F> (<t:${wager1v1DeadlineTs}:R>), it will result in a **dodge penalty**.`);
                 const tempRow = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('wg_accept|temp').setLabel('Accept Wager').setStyle(ButtonStyle.Success), new ButtonBuilder().setCustomId('wg_dodge|temp').setLabel('Dodge').setStyle(ButtonStyle.Danger), new ButtonBuilder().setCustomId('wg_close|temp').setLabel('Close Ticket').setStyle(ButtonStyle.Secondary));
                 const panelMessage = await ticketChannel.send({
                     content: `<@${challengerId}> vs <@${challengedId}>`,
@@ -3649,11 +3654,13 @@ export async function handleInteractions(interaction, client, db, commands) {
                     });
                     return;
                 }
+                const wager2v2DeadlineTs = Math.floor(Date.now() / 1000) + 86400;
                 const wagerEmbed = new EmbedBuilder()
                     .setColor(0x5BADFF)
                     .setTitle('Wager Ticket')
                     .setDescription(' Chat is locked until the wager is accepted by both challenged players.\n\n' +
-                    'Use the buttons below to accept, dodge, or close the ticket.');
+                    'Use the buttons below to accept, dodge, or close the ticket.\n\n' +
+                    `⏰ This wager must be accepted within **24 hours**.\nIf not accepted by <t:${wager2v2DeadlineTs}:F> (<t:${wager2v2DeadlineTs}:R>), it will result in a **dodge penalty**.`);
                 const tempRow = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('wg_accept|temp').setLabel('Accept Wager').setStyle(ButtonStyle.Success), new ButtonBuilder().setCustomId('wg_dodge|temp').setLabel('Dodge').setStyle(ButtonStyle.Danger), new ButtonBuilder().setCustomId('wg_close|temp').setLabel('Close Ticket').setStyle(ButtonStyle.Secondary));
                 const panelMessage = await ticketChannel.send({
                     content: `<@${challenger1Id}> + <@${challenger2Id}> vs <@${challenged1Id}> + <@${challenged2Id}>`,
