@@ -73,16 +73,6 @@ export async function execute(interaction, db) {
             .setCustomId(`gp_open_add|${guild.id}|MAIN`)
             .setLabel('Add Main Roster')
             .setStyle(ButtonStyle.Success));
-        const row2 = new ActionRowBuilder().addComponents(new ButtonBuilder()
-            .setCustomId(`gp_open_add|${guild.id}|SUB`)
-            .setLabel('Add Sub Roster')
-            .setStyle(ButtonStyle.Success), new ButtonBuilder()
-            .setCustomId(`gp_open_remove|${guild.id}`)
-            .setLabel('Remove Member')
-            .setStyle(ButtonStyle.Danger), new ButtonBuilder()
-            .setCustomId(`gp_open_transfer|${guild.id}`)
-            .setLabel('Ownership Transfer')
-            .setStyle(ButtonStyle.Secondary));
         const rowLeave = new ActionRowBuilder().addComponents(new ButtonBuilder()
             .setCustomId(`gp_leave_guild|${guild.id}`)
             .setLabel('Leave Guild')
@@ -93,7 +83,32 @@ export async function execute(interaction, db) {
                 db.prepare('SELECT 1 FROM Managers WHERE guildId = ? AND userId = ?').get(guild.id, userId) ? 'MANAGER' :
                     db.prepare('SELECT 1 FROM MainRosters WHERE guildId = ? AND userId = ?').get(guild.id, userId) ? 'MAIN' :
                         db.prepare('SELECT 1 FROM SubRosters WHERE guildId = ? AND userId = ?').get(guild.id, userId) ? 'SUB' : null;
-        if (roleCandidate === 'LEADER' || roleCandidate === 'CO_LEADER' || roleCandidate === 'MANAGER') {
+        const isLeaderOrCoLeader = roleCandidate === 'LEADER' || roleCandidate === 'CO_LEADER';
+        if (isLeaderOrCoLeader || roleCandidate === 'MANAGER') {
+            // row2: Remove Member and Ownership Transfer only for leader/co-leader
+            const row2Buttons = [
+                new ButtonBuilder()
+                    .setCustomId(`gp_open_add|${guild.id}|SUB`)
+                    .setLabel('Add Sub Roster')
+                    .setStyle(ButtonStyle.Success),
+                new ButtonBuilder()
+                    .setCustomId(`gp_open_rotate|${guild.id}`)
+                    .setLabel('Rotate Member')
+                    .setStyle(ButtonStyle.Secondary),
+            ];
+            if (isLeaderOrCoLeader) {
+                row2Buttons.push(
+                    new ButtonBuilder()
+                        .setCustomId(`gp_open_remove|${guild.id}`)
+                        .setLabel('Remove Member')
+                        .setStyle(ButtonStyle.Danger),
+                    new ButtonBuilder()
+                        .setCustomId(`gp_open_transfer|${guild.id}`)
+                        .setLabel('Ownership Transfer')
+                        .setStyle(ButtonStyle.Secondary)
+                );
+            }
+            const row2 = new ActionRowBuilder().addComponents(...row2Buttons);
             components.unshift(row2);
             components.unshift(row1);
         }

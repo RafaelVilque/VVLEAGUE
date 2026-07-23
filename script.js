@@ -142,6 +142,7 @@ function switchMain(tab) {
   document.getElementById('pg' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.add('active');
   if (tab === 'logs')    loadWarLogs();
   if (tab === 'awards')  loadAwards();
+  if (tab === 'rules')   loadRulesDocs();
 }
 
 function switchSection(btn, sectionId) {
@@ -857,6 +858,7 @@ function refreshAdminButtons() {
   });
   const mub = document.getElementById('manageUsersBtn');
   if (mub) mub.style.display = hasPerm('all') ? '' : 'none';
+  refreshRulesAdminUI();
 }
 
 async function verifyStoredToken() {
@@ -1638,7 +1640,7 @@ function openRulesEditor(page) {
   const current = (contentEl && !contentEl.classList.contains('empty')) ? contentEl.textContent : '';
   document.getElementById('rulesModalTitle').textContent = page === 'home' ? 'EDIT LEAGUE RULES' : 'EDIT LOG RULES';
   document.getElementById('rulesTextarea').value = current;
-  document.getElementById('rulesEditorModal').classList.add('open');
+  document.getElementById('rulesDocEditorModal').classList.add('open');
   setTimeout(() => document.getElementById('rulesTextarea').focus(), 80);
 }
 
@@ -1870,4 +1872,193 @@ async function saveStatsSettings() {
   await apiPut('/settings/stats', { elo_per_kill: kill, elo_per_death: death });
   _statsSettings = { elo_per_kill: kill, elo_per_death: death };
   closeLogForm();
+}
+
+// ============================================================
+// HTML HELPERS
+// ============================================================
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function escAttr(s) {
+  return String(s).replace(/'/g,'&#39;').replace(/"/g,'&quot;');
+}
+function inlineFmt(s) {
+  return escHtml(s)
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>');
+}
+
+// ============================================================
+// RULES PAGE
+// ============================================================
+let _ruleDocs = [];
+let _currentRuleSlug = null;
+let _editingRuleSlug = null;
+const _openFolders = new Set();
+
+async function loadRulesDocs() {
+  try { _ruleDocs = await apiGet('/rule-docs'); } catch { _ruleDocs = []; }
+  renderRulesSidebar();
+  refreshRulesAdminUI();
+}
+
+function filterRulesSidebar() {
+  renderRulesSidebar();
+}
+
+function renderRulesSidebar() {
+  const list = document.getElementById('rulesSidebarList');
+  if (!list) return;
+  const q = (document.getElementById('ruleSidebarSearch')?.value || '').toLowerCase().trim();
+
+  const filtered = q
+    ? _ruleDocs.filter(d => d.title.toLowerCase().includes(q) || (d.folder || '').toLowerCase().includes(q))
+    : _ruleDocs;
+
+  const topLevel = filtered.filter(d => !d.folder);
+  const foldered = {};
+  filtered.filter(d => d.folder).forEach(d => {
+    if (!foldered[d.folder]) foldered[d.folder] = [];
+    foldered[d.folder].push(d);
+  });
+
+  let html = '';
+  topLevel.forEach(d => {
+    html += `<div class="rules-sidebar-item${d.slug===_currentRuleSlug?' active':''}" onclick="selectRuleDoc('${escAttr(d.slug)}')">${escHtml(d.title)}</div>`;
+  });
+  Object.keys(foldered).sort().forEach(folder => {
+    const isOpen = _openFolders.has(folder) || q !== '';
+    html += `<div class="rules-folder${isOpen?' open':''}" onclick="toggleRulesFolder('${escAttr(folder)}')"><span class="rules-folder-arrow">${isOpen?'▾':'▸'}</span><span>${escHtml(folder)}</span></div>`;
+    html += `<div class="rules-folder-items"${isOpen?'':' style="display:none"'}>`;
+    foldered[folder].forEach(d => {
+      html += `<div class="rules-sidebar-item rules-sub-item${d.slug===_currentRuleSlug?' active':''}" onclick="selectRuleDoc('${escAttr(d.slug)}')">${escHtml(d.title)}</div>`;
+    });
+    html += `</div>`;
+  });
+  if (!filtered.length) {
+    html = '<div style="padding:1.2rem;opacity:.35;font-size:.82rem;text-align:center;letter-spacing:.06em;">No sections found.</div>';
+  }
+  list.innerHTML = html;
+}
+
+function toggleRulesFolder(folder) {
+  if (_openFolders.has(folder)) _openFolders.delete(folder);
+  else _openFolders.add(folder);
+  renderRulesSidebar();
+}
+
+async function selectRuleDoc(slug) {
+  _currentRuleSlug = slug;
+  renderRulesSidebar();
+  const titleEl = document.getElementById('rulesDocTitle');
+  const contentEl = document.getElementById('rulesContent');
+  const meta = _ruleDocs.find(d => d.slug === slug);
+  if (titleEl) titleEl.textContent = (meta?.title || '').toUpperCase();
+  if (contentEl) contentEl.innerHTML = '<div style="opacity:.35;text-align:center;padding:2rem;letter-spacing:.08em;">Loading...</div>';
+  try {
+    const doc = await apiGet(`/rule-docs/${encodeURIComponent(slug)}`);
+    if (contentEl) contentEl.innerHTML = renderRuleContent(doc.content);
+  } catch {
+    if (contentEl) contentEl.innerHTML = '<div style="opacity:.35;text-align:center;padding:2rem;">Failed to load.</div>';
+  }
+  refreshRulesAdminUI();
+}
+
+function renderRuleContent(md) {
+  if (!md || !md.trim()) return '<div class="rules-welcome"><div class="rules-welcome-icon">📄</div><div class="rules-welcome-sub">No content yet.</div></div>';
+  const lines = md.split('\n');
+  let html = '';
+  let inList = false;
+  for (const line of lines) {
+    const t = line.trimEnd();
+    if (t.startsWith('### ')) {
+      if (inList) { html += '</ul>'; inList = false; }
+      html += `<h3 class="rule-h3">${inlineFmt(t.slice(4))}</h3>`;
+    } else if (t.startsWith('## ')) {
+      if (inList) { html += '</ul>'; inList = false; }
+      html += `<h2 class="rule-h2">${inlineFmt(t.slice(3))}</h2>`;
+    } else if (t.startsWith('# ')) {
+      if (inList) { html += '</ul>'; inList = false; }
+      html += `<h1 class="rule-h1">${inlineFmt(t.slice(2))}</h1>`;
+    } else if (t.startsWith('- ')) {
+      if (!inList) { html += '<ul class="rule-list">'; inList = true; }
+      html += `<li>${inlineFmt(t.slice(2))}</li>`;
+    } else if (t === '') {
+      if (inList) { html += '</ul>'; inList = false; }
+      html += '<div class="rule-spacer"></div>';
+    } else {
+      if (inList) { html += '</ul>'; inList = false; }
+      html += `<p class="rule-p">${inlineFmt(t)}</p>`;
+    }
+  }
+  if (inList) html += '</ul>';
+  return html;
+}
+
+function refreshRulesAdminUI() {
+  const addBtn = document.getElementById('rulesAddBtn');
+  const editBtn = document.getElementById('rulesEditBtn');
+  const delBtn = document.getElementById('rulesDeleteBtn');
+  if (addBtn) addBtn.style.display = hasPerm('rules') ? '' : 'none';
+  if (editBtn) editBtn.style.display = (hasPerm('rules') && _currentRuleSlug) ? '' : 'none';
+  if (delBtn) delBtn.style.display = (hasPerm('rules_delete') && _currentRuleSlug) ? '' : 'none';
+}
+
+function openRuleDocEditor(slug) {
+  _editingRuleSlug = slug || null;
+  document.getElementById('rulesEditorTitle').textContent = slug ? 'EDIT SECTION' : 'ADD SECTION';
+  if (!slug) {
+    document.getElementById('reTitle').value = '';
+    document.getElementById('reFolder').value = '';
+    document.getElementById('reContent').value = '';
+    document.getElementById('rulesDocEditorModal').classList.add('open');
+    return;
+  }
+  apiGet(`/rule-docs/${encodeURIComponent(slug)}`).then(doc => {
+    document.getElementById('reTitle').value = doc.title || '';
+    document.getElementById('reFolder').value = doc.folder || '';
+    document.getElementById('reContent').value = doc.content || '';
+    document.getElementById('rulesDocEditorModal').classList.add('open');
+  });
+}
+
+function closeRulesDocEditor() {
+  document.getElementById('rulesDocEditorModal').classList.remove('open');
+}
+
+async function saveRuleDoc() {
+  const title = (document.getElementById('reTitle').value || '').trim();
+  const folder = (document.getElementById('reFolder').value || '').trim() || null;
+  const content = document.getElementById('reContent').value || '';
+  if (!title) { alert('Title is required.'); return; }
+  const isNew = !_editingRuleSlug;
+  const slug = _editingRuleSlug || title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  try {
+    if (isNew) {
+      await apiPost('/rule-docs', { slug, title, content, folder });
+    } else {
+      await apiPut(`/rule-docs/${encodeURIComponent(_editingRuleSlug)}`, { title, content, folder });
+    }
+    closeRulesDocEditor();
+    await loadRulesDocs();
+    _currentRuleSlug = slug;
+    await selectRuleDoc(slug);
+  } catch(e) { alert('Save failed: ' + (e?.message || 'unknown error')); }
+}
+
+async function confirmDeleteRuleDoc() {
+  if (!_currentRuleSlug) return;
+  const meta = _ruleDocs.find(d => d.slug === _currentRuleSlug);
+  if (!confirm(`Delete "${meta?.title || _currentRuleSlug}"? This cannot be undone.`)) return;
+  try {
+    await apiDelete(`/rule-docs/${encodeURIComponent(_currentRuleSlug)}`);
+    _currentRuleSlug = null;
+    await loadRulesDocs();
+    const titleEl = document.getElementById('rulesDocTitle');
+    const contentEl = document.getElementById('rulesContent');
+    if (titleEl) titleEl.textContent = 'VVL RULES';
+    if (contentEl) contentEl.innerHTML = `<div class="rules-welcome"><div class="rules-welcome-icon">⚖</div><div class="rules-welcome-title">VVL OFFICIAL RULES</div><div class="rules-welcome-sub">Select a section from the sidebar to view the rules.</div></div>`;
+    refreshRulesAdminUI();
+  } catch(e) { alert('Delete failed: ' + (e?.message || 'unknown error')); }
 }

@@ -1,6 +1,6 @@
-import { SlashCommandBuilder } from 'discord.js';
+import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
 import { releaseMember, getMemberByDiscordId } from '../siteapi.js';
-import { setCooldown, getSetting, refreshGuildPanel, getGuildById } from '../database.js';
+import { setCooldown, getSetting, getCooldownMultiplier, refreshGuildPanel, getGuildById } from '../database.js';
 
 const GUILD_LEADER_ROLE_ID_DEFAULT = '1470554671944040605';
 
@@ -56,8 +56,11 @@ export async function execute(interaction, db) {
         db.prepare('DELETE FROM Managers WHERE userId = ?').run(userId);
     }
 
-    // Apply cooldown
-    setCooldown(db, userId, guildName);
+    // Apply cooldown with notify_at so the expiry notification fires
+    const _cdDays = parseInt(getSetting(db, `${interaction.guildId}_signing_cooldown_days`) || '0');
+    const _cdUnit = getSetting(db, `${interaction.guildId}_signing_cooldown_unit`) || 'days';
+    const _cdNotifyAt = _cdDays > 0 ? new Date(Date.now() + _cdDays * getCooldownMultiplier(_cdUnit)).toISOString() : null;
+    setCooldown(db, userId, guildName, _cdNotifyAt);
 
     // Sync removal to site (fire-and-forget — best effort, always)
     releaseMember(userId).catch(e => console.warn('[release] Site sync failed:', e?.message));
@@ -85,6 +88,24 @@ export async function execute(interaction, db) {
     // Refresh guild panel
     if (localGuildId) {
         await refreshGuildPanel(interaction.client, db, localGuildId).catch(() => {});
+    }
+
+    // Post to release log channel
+    const releaseLogChannelId = getSetting(db, `${interaction.guildId}_release_log_channel_id`);
+    if (releaseLogChannelId) {
+        const logChannel = await interaction.client.channels.fetch(releaseLogChannelId).catch(() => null);
+        if (logChannel && 'send' in logChannel) {
+            const embed = new EmbedBuilder()
+                .setTitle('📤 Player Released')
+                .setColor(0xE74C3C)
+                .addFields(
+                    { name: 'Player', value: `<@${userId}>`, inline: true },
+                    { name: 'Guild', value: guildName || 'Unknown', inline: true },
+                    { name: 'Type', value: 'Self-Release (/release)', inline: true }
+                )
+                .setTimestamp();
+            await logChannel.send({ embeds: [embed] }).catch(() => null);
+        }
     }
 
     await interaction.editReply(`✅ You have been released from **${guildName || 'your guild'}**.`);

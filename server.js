@@ -428,6 +428,55 @@ app.delete('/api/admin-users/:id', requireAdmin, (req, res) => {
 });
 
 // ============================================================
+// RULE DOCS
+// ============================================================
+db.exec(`
+  CREATE TABLE IF NOT EXISTS rule_docs (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    slug       TEXT UNIQUE NOT NULL,
+    title      TEXT NOT NULL,
+    content    TEXT NOT NULL DEFAULT '',
+    folder     TEXT DEFAULT NULL,
+    sort_order INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  );
+`);
+
+app.get('/api/rule-docs', (_req, res) => {
+  res.json(db.prepare('SELECT id,slug,title,folder,sort_order FROM rule_docs ORDER BY sort_order,id').all());
+});
+
+app.get('/api/rule-docs/:slug', (req, res) => {
+  const doc = db.prepare('SELECT * FROM rule_docs WHERE slug=?').get(req.params.slug);
+  if (!doc) return res.status(404).json({ error: 'Not found' });
+  res.json(doc);
+});
+
+app.post('/api/rule-docs', requireAdmin, requirePerm('rules'), (req, res) => {
+  const { slug, title, content, folder, sort_order } = req.body;
+  if (!slug || !title) return res.status(400).json({ error: 'slug and title required' });
+  try {
+    const r = db.prepare('INSERT INTO rule_docs (slug,title,content,folder,sort_order) VALUES (?,?,?,?,?)').run(slug, title, content||'', folder||null, sort_order||0);
+    res.json({ id: r.lastInsertRowid });
+  } catch(e) { res.status(400).json({ error: 'Slug already exists' }); }
+});
+
+app.put('/api/rule-docs/:slug', requireAdmin, requirePerm('rules'), (req, res) => {
+  const { title, content, folder, sort_order } = req.body;
+  const doc = db.prepare('SELECT id FROM rule_docs WHERE slug=?').get(req.params.slug);
+  if (!doc) return res.status(404).json({ error: 'Not found' });
+  db.prepare('UPDATE rule_docs SET title=?,content=?,folder=?,sort_order=?,updated_at=datetime(\'now\') WHERE slug=?').run(title, content??'', folder||null, sort_order??0, req.params.slug);
+  res.json({ ok: true });
+});
+
+app.delete('/api/rule-docs/:slug', requireAdmin, requirePerm('rules_delete'), (req, res) => {
+  const r = db.prepare('DELETE FROM rule_docs WHERE slug=?').run(req.params.slug);
+  if (!r.changes) return res.status(404).json({ error: 'Not found' });
+  res.json({ ok: true });
+});
+
+// ============================================================
 // WAR LOGS
 // ============================================================
 app.get('/api/logs/war', (req, res) => {

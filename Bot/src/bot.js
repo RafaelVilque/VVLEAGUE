@@ -44,11 +44,11 @@ const seenInteractions = new Set();
 // Event: Bot ready
 client.once('ready', async () => {
     console.log(`✅ Bot connected as ${client.user?.tag}`);
-    // Register commands
-    await registerCommands(TOKEN, CLIENT_ID);
-    // Load commands into memory
+    // Load commands into memory first so interactions work immediately
     commands = await loadCommands();
     console.log(`✅ ${commands.size} commands loaded`);
+    // Register commands with Discord API in background (slow — don't block interactions)
+    registerCommands(TOKEN, CLIENT_ID).catch(e => console.error('Command registration error:', e));
     // Start periodic ticket checking
     setInterval(async () => {
         try {
@@ -173,13 +173,24 @@ async function sendDodgeNotifications(client, db) {
     const expired = getExpiredDodgesToNotify(db);
     for (const row of expired) {
         markDodgeNotified(db, row.guild_id);
-        for (const [serverId] of client.guilds.cache) {
+        for (const [serverId, server] of client.guilds.cache) {
             const channelId = getSetting(db, `${serverId}_dodge_notify_channel_id`);
             if (!channelId) continue;
             const channel = await client.channels.fetch(channelId).catch(() => null);
             if (!channel?.isTextBased() || !('send' in channel)) continue;
-            const leaderMention = row.leaderId ? `<@${row.leaderId}>` : `**${row.guild_name}**`;
-            await channel.send(`✅ ${leaderMention} (**${row.guild_name}**) your dodge grace period has ended! Your guild can now be challenged again.`).catch(() => null);
+            // Mention the guild's Discord role (role named after the guild); fallback to leader mention
+            let guildRole = server.roles.cache.find(r => r.name === row.guild_name);
+            if (!guildRole) {
+                const fetchedRoles = await server.roles.fetch().catch(() => null);
+                if (fetchedRoles) guildRole = fetchedRoles.find(r => r.name === row.guild_name);
+            }
+            const mention = guildRole
+                ? `<@&${guildRole.id}>`
+                : (row.leaderId ? `<@${row.leaderId}>` : `**${row.guild_name}**`);
+            await channel.send({
+                content: `✅ ( ${mention} ) your dodge grace period has ended! Your guild can now be challenged again.`,
+                allowedMentions: guildRole ? { roles: [guildRole.id] } : (row.leaderId ? { users: [row.leaderId] } : {}),
+            }).catch(() => null);
             break;
         }
     }
