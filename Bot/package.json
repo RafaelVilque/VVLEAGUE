@@ -5,15 +5,17 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "build": "tsc",
     "start": "node src/bot.js",
-    "dev": "tsc && node src/bot.js",
+    "dev": "node src/bot.js",
+    "build": "echo AVISO: os arquivos .ts estao DESATUALIZADOS. Rodar tsc sobrescreve os .js atuais e apaga features. Nao use ate os .ts serem sincronizados. && exit 1",
+    "build:force-tsc": "tsc",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@napi-rs/canvas": "^1.0.2",
     "better-sqlite3": "^12.6.2",
     "discord.js": "^14.25.1",
     "dotenv": "^17.3.1"

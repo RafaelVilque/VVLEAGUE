@@ -1,5 +1,5 @@
 import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
-import { getAllCooldowns, getSetting } from '../database.js';
+import { getAllCooldowns, getSetting, getCooldownMultiplier } from '../database.js';
 
 export const data = new SlashCommandBuilder()
     .setName('cooldown')
@@ -17,6 +17,9 @@ export async function execute(interaction, db) {
     const cooldownDays = interaction.guildId
         ? parseInt(getSetting(db, `${interaction.guildId}_signing_cooldown_days`) || '0')
         : 0;
+    const cooldownUnit = interaction.guildId
+        ? (getSetting(db, `${interaction.guildId}_signing_cooldown_unit`) || 'days')
+        : 'days';
 
     const rows = getAllCooldowns(db);
 
@@ -31,7 +34,7 @@ export async function execute(interaction, db) {
     for (const row of rows) {
         const releasedAt = new Date(row.released_at);
         if (cooldownDays > 0) {
-            const expiresAt = new Date(releasedAt.getTime() + cooldownDays * 5 * 60 * 1000);
+            const expiresAt = new Date(releasedAt.getTime() + cooldownDays * getCooldownMultiplier(cooldownUnit));
             if (now >= expiresAt.getTime()) continue; // cooldown already expired
             const expiresTs = Math.floor(expiresAt.getTime() / 1000);
             const guildDisplay = row.guild_name ? `**${row.guild_name}**` : '*Unknown guild*';
@@ -49,7 +52,8 @@ export async function execute(interaction, db) {
         return;
     }
 
-    const cooldownLabel = cooldownDays > 0 ? `${cooldownDays} day(s)` : 'Disabled';
+    const unitLabel = cooldownUnit === 'minutes' ? 'minute(s)' : cooldownUnit === 'hours' ? 'hour(s)' : 'day(s)';
+    const cooldownLabel = cooldownDays > 0 ? `${cooldownDays} ${unitLabel}` : 'Disabled';
     const embed = new EmbedBuilder()
         .setTitle('🕐 Signing Cooldowns')
         .setColor(0x5BADFF)

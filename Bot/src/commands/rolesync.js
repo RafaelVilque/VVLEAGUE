@@ -1,6 +1,6 @@
 import { SlashCommandBuilder } from 'discord.js';
 import { getAllOrgs } from '../siteapi.js';
-import { getSetting } from '../database.js';
+import { getSetting, refreshGuildPanel } from '../database.js';
 
 export const data = new SlashCommandBuilder()
     .setName('rolesync')
@@ -88,6 +88,10 @@ export async function execute(interaction, db) {
             catch {
                 errors++;
             }
+        }
+        // Refresh the guild panel so new members appear in guild-registered
+        if (localGuild) {
+            await refreshGuildPanel(interaction.client, db, localGuild.id).catch(() => null);
         }
     }
 

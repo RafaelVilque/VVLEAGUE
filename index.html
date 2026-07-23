@@ -30,6 +30,7 @@
         <button class="nav-tab"        data-tab="logs"      onclick="switchMain('logs')">LOGS</button>
         <button class="nav-tab"        data-tab="awards"    onclick="switchMain('awards')">AWARDS</button>
         <button class="nav-tab"        data-tab="offseason" onclick="switchMain('offseason')">OFF SEASON</button>
+        <button class="nav-tab"        data-tab="rules"     onclick="switchMain('rules')">RULES</button>
       </nav>
     </div>
   </header>
@@ -182,7 +183,6 @@
       <button class="sec-tab active" onclick="switchSection(this,'secWarLogs'); loadWarLogs()">WAR LOGS</button>
       <button class="sec-tab" onclick="switchSection(this,'secSeasonLogs'); loadSeasonLogs()">SEASON LOGS</button>
       <button class="sec-tab" onclick="switchSection(this,'secWagerRecords'); loadWagerRecords()">WAGER RECORDS</button>
-      <button class="sec-tab" onclick="switchSection(this,'secLogsRules'); loadRules('logs')">RULES</button>
     </div>
 
     <!-- WAR LOGS -->
@@ -251,14 +251,6 @@
       <div id="wagerLoading" class="loading-state">LOADING...</div>
     </section>
 
-    <!-- LOGS RULES -->
-    <section id="secLogsRules" class="home-section">
-      <div class="rules-header">
-        <div class="col-title">LOG RULES</div>
-        <button id="editLogsRulesBtn" class="log-add-btn" style="display:none;" onclick="openRulesEditor('logs')">✎ EDIT RULES</button>
-      </div>
-      <div id="logsRulesContent" class="rules-display"><div class="loading-state">LOADING...</div></div>
-    </section>
   </div>
 
   <!-- ====== AWARDS PAGE ====== -->
@@ -436,6 +428,10 @@
                 <option value="schedule">SCHEDULE (create/edit)</option>
                 <option value="schedule_delete">SCHEDULE + DELETE</option>
               </optgroup>
+              <optgroup label="─── RULES ───">
+                <option value="rules">RULES (create/edit)</option>
+                <option value="rules_delete">RULES + DELETE</option>
+              </optgroup>
             </select>
           </div>
           <div class="admin-field" style="display:flex;align-items:center;gap:.5rem;padding-top:.4rem;">
@@ -453,6 +449,68 @@
         <thead><tr><th>USERNAME</th><th>PERMS</th><th>STATUS</th><th>ACTIONS</th></tr></thead>
         <tbody id="adminUsersTbody"><tr><td colspan="4" style="text-align:center;opacity:.5">Loading...</td></tr></tbody>
       </table>
+    </div>
+  </div>
+
+  <!-- ====== RULES PAGE ====== -->
+  <div id="pgRules" class="page rules-page">
+    <div class="rules-sidebar">
+      <div class="rules-search-wrap">
+        <input id="ruleSidebarSearch" class="rules-search-input" placeholder="Search rules..." oninput="filterRulesSidebar()">
+      </div>
+      <div class="rules-sidebar-header">
+        <span>SECTIONS</span>
+        <button id="rulesAddBtn" class="rules-add-btn" style="display:none;" onclick="openRuleDocEditor(null)">+ ADD</button>
+      </div>
+      <div id="rulesSidebarList" class="rules-sidebar-list"></div>
+    </div>
+    <div class="rules-main">
+      <div class="rules-topbar">
+        <div id="rulesDocTitle" class="rules-doc-title">VVL RULES</div>
+        <div class="rules-topbar-actions">
+          <button id="rulesEditBtn" class="rules-edit-btn" style="display:none;" onclick="openRuleDocEditor(_currentRuleSlug)">EDIT</button>
+          <button id="rulesDeleteBtn" class="rules-delete-btn" style="display:none;" onclick="confirmDeleteRuleDoc()">DELETE</button>
+        </div>
+      </div>
+      <div id="rulesContent" class="rules-content">
+        <div class="rules-welcome">
+          <div class="rules-welcome-icon">⚖</div>
+          <div class="rules-welcome-title">VVL OFFICIAL RULES</div>
+          <div class="rules-welcome-sub">Select a section from the sidebar to view the rules.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rules doc editor modal -->
+  <div id="rulesDocEditorModal" class="modal-overlay" onclick="if(event.target===this)closeRulesDocEditor()">
+    <div class="modal-box admin-modal-box" style="max-width:760px;width:96vw;">
+      <button class="modal-close" onclick="closeRulesDocEditor()">✕</button>
+      <div class="admin-modal-header" style="margin-bottom:1rem;">
+        <div class="admin-modal-icon">✍</div>
+        <div class="admin-modal-title" id="rulesEditorTitle">ADD SECTION</div>
+      </div>
+      <div class="admin-form-grid-2">
+        <div class="admin-field">
+          <label class="admin-label">TITLE *</label>
+          <input id="reTitle" class="admin-input" placeholder="e.g. The Basics">
+        </div>
+        <div class="admin-field">
+          <label class="admin-label">FOLDER (blank = top-level)</label>
+          <input id="reFolder" class="admin-input" placeholder="e.g. BANS SECTIONS">
+        </div>
+      </div>
+      <div class="admin-field" style="margin-top:.6rem;">
+        <label class="admin-label" style="display:flex;justify-content:space-between;align-items:center;">
+          CONTENT
+          <span style="font-size:.7rem;opacity:.5;">**bold** &nbsp;·&nbsp; # Heading &nbsp;·&nbsp; - list item</span>
+        </label>
+        <textarea id="reContent" class="rules-textarea" style="min-height:340px;" placeholder="Write the rules content here...&#10;&#10;# Section Title&#10;## Sub-section&#10;- Bullet point&#10;**Bold text**"></textarea>
+      </div>
+      <div class="admin-modal-actions" style="margin-top:.8rem;">
+        <button class="admin-submit-btn" onclick="saveRuleDoc()">SAVE</button>
+        <button class="admin-cancel-btn" onclick="closeRulesDocEditor()">CANCEL</button>
+      </div>
     </div>
   </div>
 
