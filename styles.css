@@ -1252,7 +1252,7 @@ body::after {
 
 .podium-elo {
   font-size: 1.5rem; font-weight: 700; color: var(--blue);
-  letter-spacing: .02em; line-height: 1;
+  letter-spacing: .02em; line-height: 1; margin-bottom: .7rem;
 }
 .podium-elo-label {
   font-size: .65rem; font-weight: 700; letter-spacing: .1em;
@@ -1260,7 +1260,22 @@ body::after {
 }
 
 .podium-tier { margin: .4rem 0; }
-.podium-wl { font-size: .78rem; margin-top: .3rem; color: rgba(160,200,255,.65); }
+.podium-wl { font-size: .78rem; margin-top: .8rem; color: rgba(160,200,255,.65); }
+
+.podium-edit-btn {
+  position: absolute;
+  top: .5rem; right: .5rem;
+  background: rgba(91,173,255,.12);
+  border: 1px solid rgba(91,173,255,.2);
+  color: rgba(91,173,255,.7);
+  border-radius: 6px;
+  padding: .2rem .45rem;
+  font-size: .75rem;
+  cursor: pointer;
+  line-height: 1;
+  transition: background .15s, color .15s;
+}
+.podium-edit-btn:hover { background: rgba(91,173,255,.25); color: #fff; }
 
 .podium-rank-label {
   position: absolute;

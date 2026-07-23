@@ -362,7 +362,10 @@ function renderGuilds() {
       const logoHtml = g.logo_url
         ? `<img src="${g.logo_url}" alt="${g.tag}" class="podium-guild-logo">`
         : `<div class="podium-guild-logo podium-guild-fallback">${g.icon||g.tag[0]}</div>`;
+      const org = orgsData.find(o => o.tag === g.tag);
+      const editBtn = hasPerm('orgs') && org ? `<button class="podium-edit-btn" onclick="event.stopPropagation();openOrgForm(${JSON.stringify(org).replace(/"/g,'&quot;')})">✎</button>` : '';
       return `<div class="podium-card ${posClasses[domIdx]}">
+        ${editBtn}
         ${logoHtml}
         <div class="podium-name">${g.name}</div>
         <div class="podium-org">[${g.tag}]</div>
@@ -775,7 +778,9 @@ function renderGuildLeaderboard() {
       const logoHtml = o.logo_url
         ? `<img src="${o.logo_url}" alt="${o.tag}" class="podium-guild-logo">`
         : `<div class="podium-guild-logo podium-guild-fallback">${o.icon||o.tag[0]}</div>`;
+      const editBtn = hasPerm('orgs') ? `<button class="podium-edit-btn" onclick="event.stopPropagation();openOrgForm(${JSON.stringify(o).replace(/"/g,'&quot;')})">✎</button>` : '';
       return `<div class="podium-card ${posClasses[domIdx]}">
+        ${editBtn}
         ${logoHtml}
         <div class="podium-name">${o.name}</div>
         <div class="podium-org">[${o.tag}]</div>
@@ -854,7 +859,9 @@ function renderLeaderboard() {
       const avatarHtml = p.avatar_url
         ? `<img src="${p.avatar_url}" alt="${p.name}" class="podium-guild-logo" style="border-radius:50%;">`
         : `<div class="podium-guild-logo podium-guild-fallback">${p.name.charAt(0).toUpperCase()}</div>`;
+      const editBtn = hasPerm('orgs') ? `<button class="podium-edit-btn" onclick="openPlayerForm(${JSON.stringify(p).replace(/"/g,'&quot;')})">✎</button>` : '';
       return `<div class="podium-card ${posClasses[domIdx]}">
+        ${editBtn}
         ${avatarHtml}
         <div class="podium-name">${p.name}</div>
         <div class="podium-org">[${p.org}]</div>
