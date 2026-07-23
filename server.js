@@ -13,6 +13,12 @@ const ADMIN_PASS_HASH = process.env.ADMIN_PASS_HASH || '';
 const BOT_API_KEY     = process.env.BOT_API_KEY     || '';
 
 app.use(express.json());
+app.use((req, res, next) => {
+  if (/\.(js|css|html)$/.test(req.path) || req.path === '/') {
+    res.set('Cache-Control', 'no-store');
+  }
+  next();
+});
 app.use(express.static(path.join(__dirname)));
 
 // ============================================================
