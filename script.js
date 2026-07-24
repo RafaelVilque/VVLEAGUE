@@ -2028,16 +2028,20 @@ function renderRulesSidebar() {
     foldered[d.folder].push(d);
   });
 
+  const iconDoc = `<svg class="rules-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V6L9 2z"/><path d="M9 2v4h4"/></svg>`;
+  const iconFolderClosed = `<svg class="rules-icon rules-icon-folder" viewBox="0 0 16 16" fill="currentColor" stroke="none"><path d="M1.5 3.5A1.5 1.5 0 0 1 3 2h3.172a1.5 1.5 0 0 1 1.06.44l.83.83H13A1.5 1.5 0 0 1 14.5 4.8V12a1.5 1.5 0 0 1-1.5 1.5H3A1.5 1.5 0 0 1 1.5 12V3.5z" opacity=".9"/></svg>`;
+  const iconFolderOpen   = `<svg class="rules-icon rules-icon-folder" viewBox="0 0 16 16" fill="currentColor" stroke="none"><path d="M1.5 3.5A1.5 1.5 0 0 1 3 2h3.172a1.5 1.5 0 0 1 1.06.44l.83.83H13A1.5 1.5 0 0 1 14.5 4.8V6H1.5V3.5z" opacity=".6"/><path d="M1 7a1 1 0 0 1 1-1h12a1 1 0 0 1 .97 1.243l-1.5 6A1 1 0 0 1 12.5 14h-9a1 1 0 0 1-.97-.757l-1.5-6A1 1 0 0 1 1 7z" opacity=".9"/></svg>`;
+
   let html = '';
   topLevel.forEach(d => {
-    html += `<div class="rules-sidebar-item${d.slug===_currentRuleSlug?' active':''}" onclick="selectRuleDoc('${escAttr(d.slug)}')">${escHtml(d.title)}</div>`;
+    html += `<div class="rules-sidebar-item${d.slug===_currentRuleSlug?' active':''}" onclick="selectRuleDoc('${escAttr(d.slug)}')">${iconDoc}<span>${escHtml(d.title)}</span></div>`;
   });
   Object.keys(foldered).sort().forEach(folder => {
     const isOpen = _openFolders.has(folder) || q !== '';
-    html += `<div class="rules-folder${isOpen?' open':''}" onclick="toggleRulesFolder('${escAttr(folder)}')"><span class="rules-folder-arrow">${isOpen?'▾':'▸'}</span><span>${escHtml(folder)}</span></div>`;
+    html += `<div class="rules-folder${isOpen?' open':''}" onclick="toggleRulesFolder('${escAttr(folder)}')"><span class="rules-folder-arrow">${isOpen?'▾':'▸'}</span>${isOpen?iconFolderOpen:iconFolderClosed}<span>${escHtml(folder)}</span></div>`;
     html += `<div class="rules-folder-items"${isOpen?'':' style="display:none"'}>`;
     foldered[folder].forEach(d => {
-      html += `<div class="rules-sidebar-item rules-sub-item${d.slug===_currentRuleSlug?' active':''}" onclick="selectRuleDoc('${escAttr(d.slug)}')">${escHtml(d.title)}</div>`;
+      html += `<div class="rules-sidebar-item rules-sub-item${d.slug===_currentRuleSlug?' active':''}" onclick="selectRuleDoc('${escAttr(d.slug)}')">${iconDoc}<span>${escHtml(d.title)}</span></div>`;
     });
     html += `</div>`;
   });
