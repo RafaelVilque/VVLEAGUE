@@ -326,6 +326,8 @@ try { db.exec("ALTER TABLE orgs ADD COLUMN discord_role_id TEXT DEFAULT ''"); } 
 try { db.exec("ALTER TABLE orgs ADD COLUMN signing_open INTEGER DEFAULT 1"); } catch(e) {}
 try { db.exec("ALTER TABLE players ADD COLUMN discord_id TEXT DEFAULT ''"); } catch(e) {}
 try { db.exec("ALTER TABLE players ADD COLUMN avatar_url TEXT DEFAULT ''"); } catch(e) {}
+try { db.exec("ALTER TABLE players ADD COLUMN podium_note TEXT DEFAULT ''"); } catch(e) {}
+try { db.exec("ALTER TABLE orgs ADD COLUMN podium_note TEXT DEFAULT ''"); } catch(e) {}
 
 // Admin users table (multi-login with permissions)
 db.exec(`
@@ -832,17 +834,17 @@ app.get('/api/orgs/:id', (req, res) => {
 });
 
 app.post('/api/orgs', requireAdmin, requirePerm('orgs'), (req, res) => {
-  const { tag, name, status, founded, region, icon, mvp, logo_url } = req.body;
+  const { tag, name, status, founded, region, icon, mvp, logo_url, podium_note } = req.body;
   if (!tag || !name) return res.status(400).json({ error: 'tag and name required' });
   try {
-    const r = db.prepare('INSERT INTO orgs (tag,name,status,founded,region,icon,mvp,logo_url) VALUES (?,?,?,?,?,?,?,?)').run(tag.toUpperCase(), name, status||'active', founded||'S1', region||'NA', icon||'', mvp||'', logo_url||'');
+    const r = db.prepare('INSERT INTO orgs (tag,name,status,founded,region,icon,mvp,logo_url,podium_note) VALUES (?,?,?,?,?,?,?,?,?)').run(tag.toUpperCase(), name, status||'active', founded||'S1', region||'NA', icon||'', mvp||'', logo_url||'', podium_note||'');
     res.json({ id: r.lastInsertRowid });
   } catch(e) { res.status(400).json({ error: 'Tag already exists' }); }
 });
 
 app.put('/api/orgs/:id', requireAdmin, requirePerm('orgs'), (req, res) => {
-  const { tag, name, status, founded, region, icon, mvp, logo_url } = req.body;
-  db.prepare('UPDATE orgs SET tag=?,name=?,status=?,founded=?,region=?,icon=?,mvp=?,logo_url=? WHERE id=?').run(tag.toUpperCase(), name, status||'active', founded||'S1', region||'NA', icon||'', mvp||'', logo_url||'', req.params.id);
+  const { tag, name, status, founded, region, icon, mvp, logo_url, podium_note } = req.body;
+  db.prepare('UPDATE orgs SET tag=?,name=?,status=?,founded=?,region=?,icon=?,mvp=?,logo_url=?,podium_note=? WHERE id=?').run(tag.toUpperCase(), name, status||'active', founded||'S1', region||'NA', icon||'', mvp||'', logo_url||'', podium_note||'', req.params.id);
   res.json({ ok: true });
 });
 
@@ -872,15 +874,15 @@ app.get('/api/players', (_req, res) => {
 });
 
 app.post('/api/players', requireAdmin, requirePerm('orgs'), (req, res) => {
-  const { name, org, elo, wins, losses, avatar_url } = req.body;
+  const { name, org, elo, wins, losses, avatar_url, podium_note } = req.body;
   if (!name) return res.status(400).json({ error: 'name required' });
-  const r = db.prepare('INSERT INTO players (name,org,elo,wins,losses,avatar_url) VALUES (?,?,?,?,?,?)').run(name, org||'', elo||1000, wins||0, losses||0, avatar_url||'');
+  const r = db.prepare('INSERT INTO players (name,org,elo,wins,losses,avatar_url,podium_note) VALUES (?,?,?,?,?,?,?)').run(name, org||'', elo||1000, wins||0, losses||0, avatar_url||'', podium_note||'');
   res.json({ id: r.lastInsertRowid });
 });
 
 app.put('/api/players/:id', requireAdmin, requirePerm('orgs'), (req, res) => {
-  const { name, org, elo, wins, losses, avatar_url } = req.body;
-  db.prepare('UPDATE players SET name=?,org=?,elo=?,wins=?,losses=?,avatar_url=? WHERE id=?').run(name, org||'', elo||1000, wins||0, losses||0, avatar_url||'', req.params.id);
+  const { name, org, elo, wins, losses, avatar_url, podium_note } = req.body;
+  db.prepare('UPDATE players SET name=?,org=?,elo=?,wins=?,losses=?,avatar_url=?,podium_note=? WHERE id=?').run(name, org||'', elo||1000, wins||0, losses||0, avatar_url||'', podium_note||'', req.params.id);
   res.json({ ok: true });
 });
 

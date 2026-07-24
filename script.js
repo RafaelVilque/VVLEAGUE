@@ -210,7 +210,7 @@ function buildGuildsFromOrgs(orgs) {
   orgs.filter(o => o.status === 'active').forEach(o => {
     if (!regions[o.region]) return;
     const points = o.points || 0;
-    regions[o.region].push({ tag:o.tag, name:o.name, logo_url:o.logo_url||'', icon:o.tag.slice(0,2), wins:o.wins||0, members:o.members.length, points, rank:0 });
+    regions[o.region].push({ tag:o.tag, name:o.name, logo_url:o.logo_url||'', icon:o.tag.slice(0,2), wins:o.wins||0, members:o.members.length, points, rank:0, podium_note:o.podium_note||'' });
   });
   Object.keys(regions).forEach(r => {
     regions[r].sort((a,b) => b.points - a.points);
@@ -371,7 +371,8 @@ function renderGuilds() {
         <div class="podium-org">[${g.tag}]</div>
         <div class="podium-elo">${g.points.toLocaleString()}<span class="podium-elo-label">PTS</span></div>
         <div class="podium-wl"><span class="stat-wins">${g.wins}W</span>&nbsp;<span style="opacity:.4">/</span>&nbsp;<span class="stat-losses">${g.members} MBR</span></div>
-        <div class="podium-rank-label">${posLabels[domIdx]}</div>
+        <div class="podium-spacer"></div>
+        <div class="podium-rank-label">${posLabels[domIdx]}${g.podium_note ? `<span class="podium-note-text">${g.podium_note}</span>` : ''}</div>
       </div>`;
     }).join('')}</div>` : '';
   }
@@ -786,7 +787,8 @@ function renderGuildLeaderboard() {
         <div class="podium-org">[${o.tag}]</div>
         <div class="podium-elo">${(o.points||0).toLocaleString()}<span class="podium-elo-label">PTS</span></div>
         <div class="podium-wl"><span class="stat-wins">${o.wins||0}W</span>&nbsp;<span style="opacity:.4">/</span>&nbsp;<span class="stat-losses">${o.losses||0}L</span></div>
-        <div class="podium-rank-label">${posLabels[domIdx]}</div>
+        <div class="podium-spacer"></div>
+        <div class="podium-rank-label">${posLabels[domIdx]}${o.podium_note ? `<span class="podium-note-text">${o.podium_note}</span>` : ''}</div>
       </div>`;
     }).join('')}</div>` : '';
   }
@@ -868,7 +870,8 @@ function renderLeaderboard() {
         <div class="podium-elo">${p.elo}<span class="podium-elo-label">ELO</span></div>
         <div class="podium-tier"><span class="tier-badge tier-${t.label.toLowerCase()}" style="color:${t.color}">${t.label}</span></div>
         <div class="podium-wl"><span class="stat-wins">${p.wins}W</span>&nbsp;<span style="opacity:.4">/</span>&nbsp;<span class="stat-losses">${p.losses}L</span></div>
-        <div class="podium-rank-label">${posLabels[domIdx]}</div>
+        <div class="podium-spacer"></div>
+        <div class="podium-rank-label">${posLabels[domIdx]}${p.podium_note ? `<span class="podium-note-text">${p.podium_note}</span>` : ''}</div>
       </div>`;
     }).join('')}</div>`;
   }
@@ -1500,6 +1503,7 @@ function openOrgForm(existing) {
       <div class="admin-field"><label class="admin-label">ICON (emoji)</label><input id="of_icon" class="admin-input" value="${e.icon||''}" placeholder="⚡ 🔥 🐉..."></div>
       <div class="admin-field" style="grid-column:span 2;"><label class="admin-label">MVP</label><input id="of_mvp" class="admin-input" value="${e.mvp||''}" placeholder="Player name"></div>
       <div class="admin-field" style="grid-column:span 2;"><label class="admin-label">LOGO URL (image link)</label><input id="of_logo" class="admin-input" value="${e.logo_url||''}" placeholder="https://..."></div>
+      <div class="admin-field" style="grid-column:span 2;"><label class="admin-label">PODIUM NOTE (ex: Reward: $250)</label><input id="of_podium_note" class="admin-input" value="${e.podium_note||''}" placeholder="Reward: $250"></div>
     </div>
     ${e.logo_url ? `<div style="text-align:center;margin-bottom:.6rem;"><img src="${e.logo_url}" alt="logo" style="max-height:60px;max-width:120px;object-fit:contain;border-radius:4px;opacity:.85;"></div>` : ''}
     ${membersHtml}
@@ -1511,7 +1515,7 @@ function openOrgForm(existing) {
 }
 
 async function saveOrgForm(id) {
-  const body = { tag:g('of_tag'), name:g('of_name'), status:g('of_status'), region:g('of_region'), founded:g('of_founded'), icon:g('of_icon'), mvp:g('of_mvp'), logo_url:g('of_logo') };
+  const body = { tag:g('of_tag'), name:g('of_name'), status:g('of_status'), region:g('of_region'), founded:g('of_founded'), icon:g('of_icon'), mvp:g('of_mvp'), logo_url:g('of_logo'), podium_note:g('of_podium_note') };
   if (!body.tag || !body.name) return;
   id ? await apiPut('/orgs/'+id, body) : await apiPost('/orgs', body);
   closeLogForm();
@@ -1552,6 +1556,7 @@ function openPlayerForm(existing) {
       <div class="admin-field"><label class="admin-label">WINS</label><input id="pf_wins" type="number" min="0" class="admin-input" value="${e.wins||0}"></div>
       <div class="admin-field"><label class="admin-label">LOSSES</label><input id="pf_losses" type="number" min="0" class="admin-input" value="${e.losses||0}"></div>
       <div class="admin-field" style="grid-column:span 2;"><label class="admin-label">AVATAR URL (foto de perfil)</label><input id="pf_avatar" class="admin-input" value="${e.avatar_url||''}" placeholder="https://..."></div>
+      <div class="admin-field" style="grid-column:span 2;"><label class="admin-label">PODIUM NOTE (ex: Reward: $250)</label><input id="pf_podium_note" class="admin-input" value="${e.podium_note||''}" placeholder="Reward: $250"></div>
     </div>
     ${e.avatar_url ? `<div style="text-align:center;margin-bottom:.6rem;"><img src="${e.avatar_url}" alt="avatar" style="width:54px;height:54px;object-fit:cover;border-radius:50%;opacity:.85;"></div>` : ''}
     <div class="admin-modal-actions">
@@ -1562,7 +1567,7 @@ function openPlayerForm(existing) {
 }
 
 async function savePlayerForm(id) {
-  const body = { name:g('pf_name'), org:g('pf_org'), elo:parseInt(g('pf_elo'))||1000, wins:parseInt(g('pf_wins'))||0, losses:parseInt(g('pf_losses'))||0, avatar_url:g('pf_avatar')||'' };
+  const body = { name:g('pf_name'), org:g('pf_org'), elo:parseInt(g('pf_elo'))||1000, wins:parseInt(g('pf_wins'))||0, losses:parseInt(g('pf_losses'))||0, avatar_url:g('pf_avatar')||'', podium_note:g('pf_podium_note')||'' };
   if (!body.name) return;
   id ? await apiPut('/players/'+id, body) : await apiPost('/players', body);
   closeLogForm();
