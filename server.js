@@ -928,8 +928,15 @@ app.get('/api/bot/players/by-discord/:discord_id', requireBotAuth, (req, res) =>
   res.json(p);
 });
 
+app.put('/api/bot/players/avatar/:discord_id', requireBotAuth, (req, res) => {
+  const { avatar_url } = req.body;
+  if (!avatar_url) return res.status(400).json({ error: 'avatar_url required' });
+  db.prepare('UPDATE players SET avatar_url = ? WHERE discord_id = ?').run(avatar_url, req.params.discord_id);
+  res.json({ ok: true });
+});
+
 app.post('/api/bot/players/wager-result', requireBotAuth, (req, res) => {
-  const { discord_id, name, org, elo_delta, won } = req.body;
+  const { discord_id, name, org, elo_delta, won, avatar_url } = req.body;
   if (!discord_id || !name) return res.status(400).json({ error: 'discord_id and name required' });
   const delta = parseInt(elo_delta) || 0;
   const existing = db.prepare("SELECT * FROM players WHERE discord_id = ?").get(discord_id);
@@ -937,13 +944,14 @@ app.post('/api/bot/players/wager-result', requireBotAuth, (req, res) => {
     const newElo = (existing.elo || 0) + delta;
     const newWins = (existing.wins || 0) + (won ? 1 : 0);
     const newLosses = (existing.losses || 0) + (won ? 0 : 1);
-    db.prepare("UPDATE players SET elo = ?, wins = ?, losses = ?, org = ?, name = ? WHERE discord_id = ?")
-      .run(newElo, newWins, newLosses, org ?? existing.org ?? '', name, discord_id);
+    const newAvatar = avatar_url || existing.avatar_url || '';
+    db.prepare("UPDATE players SET elo = ?, wins = ?, losses = ?, org = ?, name = ?, avatar_url = ? WHERE discord_id = ?")
+      .run(newElo, newWins, newLosses, org ?? existing.org ?? '', name, newAvatar, discord_id);
     res.json({ id: existing.id, elo: newElo, wins: newWins, losses: newLosses, created: false });
   } else {
     const startElo = delta;
-    const r = db.prepare("INSERT INTO players (name, org, elo, wins, losses, discord_id) VALUES (?, ?, ?, ?, ?, ?)")
-      .run(name, org || '', startElo, won ? 1 : 0, won ? 0 : 1, discord_id);
+    const r = db.prepare("INSERT INTO players (name, org, elo, wins, losses, discord_id, avatar_url) VALUES (?, ?, ?, ?, ?, ?, ?)")
+      .run(name, org || '', startElo, won ? 1 : 0, won ? 0 : 1, discord_id, avatar_url || '');
     res.json({ id: r.lastInsertRowid, elo: startElo, wins: won ? 1 : 0, losses: won ? 0 : 1, created: true });
   }
 });

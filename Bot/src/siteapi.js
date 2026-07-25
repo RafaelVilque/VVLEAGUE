@@ -85,10 +85,13 @@ export async function createWagerLog(challenger, challenged, amount, winner, sea
         body: JSON.stringify({ date, challenger, challenged, amount, winner, season: season || '', stats }),
     });
 }
-export async function upsertWagerResult(discordId, name, org, eloDelta, won) {
+export async function updatePlayerAvatar(discordId, avatarUrl) {
+    return botFetch(`/players/avatar/${discordId}`, { method: 'PUT', body: JSON.stringify({ avatar_url: avatarUrl }) });
+}
+export async function upsertWagerResult(discordId, name, org, eloDelta, won, avatarUrl = '') {
     return botFetch('/players/wager-result', {
         method: 'POST',
-        body: JSON.stringify({ discord_id: discordId, name, org, elo_delta: eloDelta, won }),
+        body: JSON.stringify({ discord_id: discordId, name, org, elo_delta: eloDelta, won, avatar_url: avatarUrl }),
     });
 }
 //# sourceMappingURL=siteapi.js.map

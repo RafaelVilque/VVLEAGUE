@@ -75,6 +75,32 @@ client.once('ready', async () => {
             console.error('Error in initial ticket check:', error);
         }
     }, 10000); // 10 seconds after startup
+    // Sync Discord avatars for all players with discord_ids
+    async function syncAllPlayerAvatars() {
+        try {
+            const { updatePlayerAvatar } = await import('./siteapi.js');
+            const SITE_URL = (process.env.SITE_URL || 'https://vvleague.onrender.com').replace(/\/$/, '');
+            const BOT_API_KEY = process.env.BOT_API_KEY || '';
+            const res = await fetch(`${SITE_URL}/api/players`, { headers: { 'x-bot-key': BOT_API_KEY } }).catch(() => null);
+            if (!res?.ok) return;
+            const players = await res.json().catch(() => []);
+            const withDiscord = players.filter(p => p.discord_id);
+            let synced = 0;
+            for (const player of withDiscord) {
+                const user = await client.users.fetch(player.discord_id).catch(() => null);
+                if (!user) continue;
+                const avatarUrl = user.displayAvatarURL({ size: 256, extension: 'png' });
+                if (avatarUrl && avatarUrl !== player.avatar_url) {
+                    await updatePlayerAvatar(player.discord_id, avatarUrl).catch(() => null);
+                    synced++;
+                }
+            }
+            if (synced > 0) console.log(`✅ Avatar sync: updated ${synced}/${withDiscord.length} players`);
+        }
+        catch (e) { console.error('Avatar sync error:', e?.message); }
+    }
+    setTimeout(syncAllPlayerAvatars, 20000); // 20s after startup
+    setInterval(syncAllPlayerAvatars, 24 * 60 * 60 * 1000); // every 24h
 });
 // Event: Interaction received
 client.on('interactionCreate', async (interaction) => {
