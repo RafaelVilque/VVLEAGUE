@@ -1206,10 +1206,9 @@ export async function handleInteractions(interaction, client, db, commands) {
                 // Apply grace period + ELO penalty logic
                 let dodgeExtra = '';
                 if (dodgingGuild) {
-                    const { eloPenaltyApplied } = recordGuildDodge(db, dodgingGuild.id, dodgingGuild.name);
-                    const graceEnd = new Date(Date.now() + 5 * 60 * 1000);
-                    const graceTs = Math.floor(graceEnd.getTime() / 1000);
-                    dodgeExtra = `\n⏳ **${dodgingGuild.name}** has a **5-minute grace period** and cannot be challenged until <t:${graceTs}:F>.`;
+                    const { eloPenaltyApplied, graceUntil } = recordGuildDodge(db, dodgingGuild.id, dodgingGuild.name);
+                    const graceTs = Math.floor(new Date(graceUntil).getTime() / 1000);
+                    dodgeExtra = `\n⏳ **${dodgingGuild.name}** is under a **dodge grace period** and cannot be challenged until <t:${graceTs}:F> (<t:${graceTs}:R>).`;
                     if (eloPenaltyApplied) {
                         dodgeExtra += `\n⚠️ **-25 ELO** penalty applied to **${dodgingGuild.name}** for repeat dodge within 3 days — war log created (3-0 loss).`;
                         const opponentGuildForPenalty = userInOpener ? opponentGuild : openerGuild;
@@ -3901,12 +3900,14 @@ export async function handleInteractions(interaction, client, db, commands) {
                         }
                         for (const uid of winnerIds) {
                             const user = await client.users.fetch(uid).catch(() => null);
-                            await upsertWagerResult(uid, user?.username || uid, await getPlayerOrgTag(uid), winnerEloGain, true)
+                            const avatarUrl = user?.displayAvatarURL({ size: 256, extension: 'png' }) || '';
+                            await upsertWagerResult(uid, user?.username || uid, await getPlayerOrgTag(uid), winnerEloGain, true, avatarUrl)
                                 .catch(e => console.warn('Player-LB sync (winner) failed:', e?.message));
                         }
                         for (const uid of loserIds) {
                             const user = await client.users.fetch(uid).catch(() => null);
-                            await upsertWagerResult(uid, user?.username || uid, await getPlayerOrgTag(uid), -loserEloLoss, false)
+                            const avatarUrl = user?.displayAvatarURL({ size: 256, extension: 'png' }) || '';
+                            await upsertWagerResult(uid, user?.username || uid, await getPlayerOrgTag(uid), -loserEloLoss, false, avatarUrl)
                                 .catch(e => console.warn('Player-LB sync (loser) failed:', e?.message));
                         }
                     }

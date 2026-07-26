@@ -751,9 +751,10 @@ export function recordGuildDodge(db, guildId, guildName) {
             eloPenaltyApplied = true;
         }
     }
-    const graceUntil = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+    const cooldownHours = parseInt(getSetting(db, 'dodge_cooldown_hours') || '24');
+    const graceUntil = new Date(Date.now() + cooldownHours * 60 * 60 * 1000).toISOString();
     db.prepare('INSERT INTO guild_dodge_history (guild_id, guild_name, grace_until) VALUES (?, ?, ?)').run(guildId, guildName || '', graceUntil);
-    return { eloPenaltyApplied };
+    return { eloPenaltyApplied, graceUntil };
 }
 export function getGuildActiveDodge(db, guildId) {
     return db.prepare(`
