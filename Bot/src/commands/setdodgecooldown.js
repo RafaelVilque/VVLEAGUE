@@ -3,15 +3,26 @@ import { getSetting, setSetting } from '../database.js';
 
 const STAFF_ROLE_ID_DEFAULT = '1470554662687215741';
 
+const UNIT_MULTIPLIERS = { seconds: 1, minutes: 60, hours: 3600 };
+
 export const data = new SlashCommandBuilder()
     .setName('setdodgecooldown')
     .setDescription('Set how long a guild is under dodge grace period after a dodge (Admin only)')
     .addIntegerOption(o => o
-        .setName('hours')
-        .setDescription('Duration in hours (e.g. 24 = 1 day, 72 = 3 days)')
+        .setName('duration')
+        .setDescription('Duration value (e.g. 30, 24, 7)')
         .setRequired(true)
         .setMinValue(1)
-        .setMaxValue(336));
+        .setMaxValue(99999))
+    .addStringOption(o => o
+        .setName('unit')
+        .setDescription('Unit of time')
+        .setRequired(true)
+        .addChoices(
+            { name: 'Seconds', value: 'seconds' },
+            { name: 'Minutes', value: 'minutes' },
+            { name: 'Hours', value: 'hours' },
+        ));
 
 export async function execute(interaction, db) {
     await interaction.deferReply({ ephemeral: true });
@@ -25,13 +36,14 @@ export async function execute(interaction, db) {
         return;
     }
 
-    const hours = interaction.options.getInteger('hours', true);
-    setSetting(db, 'dodge_cooldown_hours', hours.toString());
+    const duration = interaction.options.getInteger('duration', true);
+    const unit = interaction.options.getString('unit', true);
+    const totalSeconds = duration * UNIT_MULTIPLIERS[unit];
 
-    const days = hours / 24;
-    const durationStr = hours % 24 === 0 ? `${days} day${days !== 1 ? 's' : ''}` : `${hours} hour${hours !== 1 ? 's' : ''}`;
+    setSetting(db, 'dodge_cooldown_seconds', totalSeconds.toString());
 
+    const unitLabel = duration === 1 ? unit.slice(0, -1) : unit; // remove trailing 's' if singular
     await interaction.editReply({
-        content: `✅ Dodge grace period set to **${durationStr}**.\nFrom now on, any dodging guild will be unable to be challenged for **${durationStr}** after a dodge.`,
+        content: `✅ Dodge grace period set to **${duration} ${unitLabel}**.\nFrom now on, any dodging guild will be unable to be challenged for **${duration} ${unitLabel}** after a dodge.`,
     });
 }
