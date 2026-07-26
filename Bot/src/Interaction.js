@@ -128,7 +128,9 @@ async function createWarTicketChannel(interaction, db, guildA, guildB) {
         permissionOverwrites.push({
             id: member.id,
             type: OverwriteType.Member,
-            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory],
+            // Locked until war is accepted — no SendMessages yet
+            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory],
+            deny: [PermissionFlagsBits.SendMessages],
         });
     }
     const channelName = sanitizeWarChannelName(`${guildA.name} vs ${guildB.name}`);
@@ -150,7 +152,7 @@ async function createWarTicketChannel(interaction, db, guildA, guildB) {
         .setAccentColor(0x5BADFF)
         .addTextDisplayComponents(new TextDisplayBuilder().setContent(`# ⚔️ War Confirmation\nWar between: **${guildA.name}** vs **${guildB.name}**`))
         .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true))
-        .addTextDisplayComponents(new TextDisplayBuilder().setContent('\nℹ️ Waiting for confirmation from the opponent team (Leader/Co-leader).\n\nUse the buttons below:\n• **Accept War** — confirm the war\n• **Dodge** — cancel the war'))
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent('\nℹ️ Waiting for confirmation from the opponent team (Leader/Co-leader).\n\n🔒 **This channel is locked** until the war is accepted.\n\nUse the buttons below:\n• **Accept War** — confirm the war\n• **Dodge** — cancel the war'))
         .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true))
         .addTextDisplayComponents(new TextDisplayBuilder().setContent(`⏰ This war must be accepted within **24 hours**.\nIf not accepted by <t:${warDeadlineTs}:F> (<t:${warDeadlineTs}:R>), it will result in a **dodge penalty**.`));
     const initialMessage = await channel.send({
@@ -1118,6 +1120,19 @@ export async function handleInteractions(interaction, client, db, commands) {
                     return;
                 }
                 acceptWar(db, war.id, interaction.user.id, war.opponentGuildId);
+                // Unlock channel for all guild members now that war is accepted
+                if (interaction.channel) {
+                    const allMemberIds = new Set([
+                        ...getGuildRosterAndStaffIds(db, war.openerGuildId),
+                        ...getGuildRosterAndStaffIds(db, war.opponentGuildId),
+                    ]);
+                    for (const memberId of allMemberIds) {
+                        await interaction.channel.permissionOverwrites.edit(memberId, {
+                            SendMessages: true,
+                        }).catch(() => null);
+                    }
+                    await interaction.channel.send('🔓 **Channel unlocked.** War accepted — both teams can now chat here.').catch(() => null);
+                }
                 const acceptedContainer = new ContainerBuilder()
                     .setAccentColor(0x5BADFF)
                     .addTextDisplayComponents(new TextDisplayBuilder().setContent(`# ⚔️ War Confirmation\nWar between: ${openerGuild?.name || 'Unknown'} vs ${opponentGuild?.name || 'Unknown'}`))
